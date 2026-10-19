@@ -11,6 +11,7 @@
 #   delegate DIR --question Q --choice C --reason R
 #   approve DOC --quote MESSAGE
 #   status DOC
+#   create DIR --name NAME --description TEXT
 # Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
@@ -18,6 +19,10 @@ PP_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FACTS_DIR="$PP_ROOT/scripts/facts"
 # shellcheck source=lib/doc-status.sh
 source "$PP_ROOT/scripts/lib/doc-status.sh"
+# Account, marketplace and its catalogue repository: written in hard, as the PRD says.
+OWNER=soonlysoul
+MARKETPLACE=soon
+MARKETPLACE_REPO=soonlysoul/claude-plugins
 # The only messages that approve a document, once lowercased and stripped of final punctuation.
 APPROVALS=("oui" "je valide" "validé" "j'approuve" "je l'approuve" "approuvé" "c'est validé")
 # plugin init scaffolds every component kind the platform knows; its output is the format probe.
@@ -184,18 +189,24 @@ cmd_init_state() {
   printf 'état du projet : %s\n' "$state"
 }
 
-# The naming rule of the model, each refusal naming the rule it breaks.
+# name_error <name>: the refusal naming the rule of the model the name breaks; empty if none.
+name_error() {
+  local name=$1 rule="règle : plugin-<domaine>, en minuscules, chiffres et tirets"
+  if [[ $name =~ [A-Z] ]]; then echo "refusé : « $name » contient des majuscules ; $rule."
+  elif [[ $name == *_* ]]; then echo "refusé : « $name » contient des soulignés ; $rule."
+  elif [[ $name =~ [^a-z0-9-] ]]; then echo "refusé : « $name » contient un caractère hors kebab-case ; $rule."
+  elif [[ $name != plugin-* ]]; then echo "refusé : « $name » n'a pas le préfixe plugin- ; $rule."
+  elif [[ $name == plugin- ]]; then echo "refusé : « $name » a un domaine vide ; $rule."
+  elif [[ ! $name =~ ^plugin-[a-z0-9]+(-[a-z0-9]+)*$ ]]; then echo "refusé : « $name » n'est pas en kebab-case ; $rule."
+  fi
+}
+
 cmd_check_name() {
   [[ $# == 1 ]] || die "usage : pp.sh check-name NOM"
-  local name=$1 rule="règle : plugin-<domaine>, en minuscules, chiffres et tirets"
-  if [[ $name =~ [A-Z] ]]; then die "refusé : « $name » contient des majuscules ; $rule."
-  elif [[ $name == *_* ]]; then die "refusé : « $name » contient des soulignés ; $rule."
-  elif [[ $name =~ [^a-z0-9-] ]]; then die "refusé : « $name » contient un caractère hors kebab-case ; $rule."
-  elif [[ $name != plugin-* ]]; then die "refusé : « $name » n'a pas le préfixe plugin- ; $rule."
-  elif [[ $name == plugin- ]]; then die "refusé : « $name » a un domaine vide ; $rule."
-  elif [[ ! $name =~ ^plugin-[a-z0-9]+(-[a-z0-9]+)*$ ]]; then die "refusé : « $name » n'est pas en kebab-case ; $rule."
-  fi
-  printf 'accepté : « %s » suit plugin-<domaine>.\n' "$name"
+  local error
+  error=$(name_error "$1")
+  [[ -z $error ]] || die "$error"
+  printf 'accepté : « %s » suit plugin-<domaine>.\n' "$1"
 }
 
 cmd_delegate() {
@@ -251,6 +262,118 @@ cmd_approve() {
   die "refusé : « $quote » n'est pas une approbation explicite ; statut inchangé ($status)."
 }
 
+# name_taken <name>: where the name is already taken, read on GitHub, never in the local copy
+# of the marketplace. Exits 2 when GitHub cannot be read.
+name_taken() {
+  local name=$1 names output
+  need gh
+  names=$(gh api "repos/$MARKETPLACE_REPO/contents/.claude-plugin/marketplace.json" \
+    -H "Accept: application/vnd.github.raw+json" 2>&1 | jq -r '.plugins[].name' 2>/dev/null) \
+    || die "bloqué : GitHub illisible (gh api repos/$MARKETPLACE_REPO/contents/.claude-plugin/marketplace.json) ; rien n'a été modifié." 2
+  if grep -qxF "$name" <<<"$names"; then
+    echo "refusé : « $name » est déjà dans la marketplace $MARKETPLACE ($MARKETPLACE_REPO) ; rien n'a été modifié."
+    return 0
+  fi
+  if output=$(gh api "repos/$OWNER/$name" 2>&1); then
+    echo "refusé : le dépôt $OWNER/$name existe déjà sur GitHub ; rien n'a été modifié."
+  elif [[ $output != *"HTTP 404"* ]]; then
+    die "bloqué : GitHub illisible (gh api repos/$OWNER/$name) : ${output:0:200} ; rien n'a été modifié." 2
+  fi
+}
+
+# framing_error <dir>: why <dir> is not an approved framing alone; empty if it is.
+framing_error() {
+  local dir=$1 extra doc status
+  if [[ ! -d $dir ]]; then
+    echo "refusé : cadrage non approuvé : $dir n'existe pas (cadrer d'abord, /plugin-plugin:frame) ; rien n'a été modifié."
+    return
+  fi
+  extra=$(cd "$dir" && find . -mindepth 1 -path ./.plugin-plugin -prune -o -print |
+    grep -vxE '\./docs|\./docs/PRD\.md|\./docs/ARCHITECTURE\.md' | sed 's|^\./||' | sort | tr '\n' ' ')
+  if [[ -n $extra ]]; then
+    echo "refusé : $dir contient des fichiers hors cadrage : ${extra% } ; rien n'a été modifié."
+    return
+  fi
+  for doc in PRD ARCHITECTURE; do
+    if [[ ! -f $dir/docs/$doc.md ]]; then
+      echo "refusé : cadrage non approuvé : docs/$doc.md absent ; rien n'a été modifié."
+      return
+    fi
+    status=$(doc_status "$dir/docs/$doc.md")
+    if [[ $status != APPROUVÉ ]]; then
+      echo "refusé : cadrage non approuvé : docs/$doc.md (${status:-sans statut}) ; rien n'a été modifié."
+      return
+    fi
+    if [[ $(doc_fingerprint "$dir/docs/$doc.md") != "$(approved_fingerprint "$dir" "docs/$doc.md")" ]]; then
+      echo "refusé : cadrage non approuvé : docs/$doc.md (APPROUVÉ sans trace au journal des accords) ; rien n'a été modifié."
+      return
+    fi
+  done
+}
+
+# render <scaffold file> <destination>: the file with __NAME__, __DESCRIPTION__, __DATE__ set.
+render() {
+  local content
+  content=$(<"$1")
+  content=${content//__NAME__/$NAME}
+  content=${content//__DESCRIPTION__/$DESCRIPTION}
+  content=${content//__DATE__/$TODAY}
+  mkdir -p "$(dirname "$2")"
+  printf '%s\n' "$content" >"$2"
+}
+
+cmd_create() {
+  local dir=${1:-} file rc
+  NAME="" DESCRIPTION=""
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --name) NAME=${2:-}; shift 2 ;;
+      --description) DESCRIPTION=${2:-}; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n $dir && -n $NAME && -n $DESCRIPTION ]] || die "usage : pp.sh create DOSSIER --name NOM --description TEXTE"
+  need jq
+  local error
+  error=$(name_error "$NAME")
+  [[ -z $error ]] || die "$error"
+  error=$(framing_error "$dir")
+  [[ -z $error ]] || die "$error"
+  error=$(name_taken "$NAME") || exit $?
+  [[ -z $error ]] || die "$error"
+
+  TODAY=$(date +%F)
+  local scaffold="$PP_ROOT/scripts/scaffold" repository="https://github.com/$OWNER/$NAME"
+  mkdir -p "$dir/.claude-plugin" "$dir/tests/static"
+  jq -n --arg name "$NAME" --arg description "$DESCRIPTION" --arg repository "$repository" \
+    '{name: $name, version: "0.1.0", description: $description, author: {name: "Soon"},
+      homepage: $repository, repository: $repository, license: "MIT"}' >"$dir/.claude-plugin/plugin.json"
+  jq -n --arg name "$NAME" --arg description "$DESCRIPTION" \
+    '{name: $name, description: "Local marketplace for the \($name) Claude Code plugin.", owner: {name: "Soon"},
+      plugins: [{name: $name, source: "./", description: $description}]}' >"$dir/.claude-plugin/marketplace.json"
+  sed -E "s/^Copyright \(c\) [0-9]+ Soon$/Copyright (c) ${TODAY%%-*} Soon/" "$PP_ROOT/LICENSE" >"$dir/LICENSE"
+  for file in README.md CHANGELOG.md PROGRESS.md docs/INSTALLATION.md docs/USER_GUIDE.md docs/SECURITY.md docs/TROUBLESHOOTING.md; do
+    render "$scaffold/$file" "$dir/$file"
+  done
+  render "$scaffold/gitignore" "$dir/.gitignore"
+  # The harness is plugin-plugin's own, so that both suites behave the same way.
+  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/run-all.sh" "$dir/tests/"
+  cp "$PP_ROOT/tests/static/test_paths.sh" "$PP_ROOT/tests/static/test_run_all.sh" "$dir/tests/static/"
+  sed "s/^NAME=plugin-plugin$/NAME=$NAME/" "$PP_ROOT/tests/static/test_manifest.sh" >"$dir/tests/static/test_manifest.sh"
+  git -C "$dir" init -q -b main || die "échec : git init dans $dir"
+  printf 'créé : %s, plugin %s 0.1.0\n' "$dir" "$NAME"
+
+  local log
+  log=$(mktemp)
+  (cd "$dir" && bash tests/run-all.sh) >"$log" 2>&1
+  rc=$?
+  grep -E '^(réussies|échouées|sautées|bloquées) :|^  - ' "$log"
+  rm -f "$log"
+  printf 'suite du plugin créé : exit %d\n' "$rc"
+  ((rc == 0)) || exit 1
+}
+
 cmd_status() {
   [[ $# == 1 && -f $1 ]] || die "usage : pp.sh status DOCUMENT"
   local status
@@ -268,5 +391,6 @@ case ${1:-} in
   delegate) shift; cmd_delegate "$@" ;;
   approve) shift; cmd_approve "$@" ;;
   status) shift; cmd_status "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status" ;;
+  create) shift; cmd_create "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create" ;;
 esac

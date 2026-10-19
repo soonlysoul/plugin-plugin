@@ -8,6 +8,7 @@ Version **0.1.0**, en construction. Le périmètre et l'ordre de construction so
 | --- | --- |
 | Skill `reaudit` | Sur demande (`/plugin-plugin:reaudit`) : les faits de la plateforme à revérifier depuis une mise à jour de Claude Code, les formats de composants changés, les faits que la validation stricte contredit |
 | Skill `frame` | Cadre un nouveau plugin : une question à la fois, recommandation motivée, PRD et architecture approuvés explicitement avant tout fichier du plugin |
+| Skill `create` | Crée le plugin dédié depuis le cadrage approuvé : nom vérifié sur GitHub, charpente du modèle, `git init`, suite du plugin créé lancée et verte |
 | Hook `doc-status-guard` | Un document de cadrage approuvé puis modifié repasse en revue ; inerte hors d'un projet portant `.plugin-plugin/`, mais présent dans toutes les sessions une fois le plugin installé |
 | `scripts/pp.sh` | L'outil déterministe appelé par les skills, testé sans session |
 | `scripts/facts/` | La base de faits datée et versionnée, ses sondes et les instantanés de formats |

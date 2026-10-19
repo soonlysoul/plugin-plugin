@@ -1,8 +1,8 @@
 ---
 name: frame
-description: "Frame a new Claude Code plugin before any file of it is written: one question at a time with a reasoned recommendation, then a PRD and an architecture approved explicitly. Use when Soon wants a new plugin; not for changing an existing one. « je veux un plugin pour … », « cadre un nouveau plugin »."
+description: "Frame a new plugin before any file of it exists: one question at a time with a reasoned recommendation, then a PRD and an architecture approved explicitly. Use when Soon wants a new plugin; not for existing ones. « cadre un nouveau plugin »."
 argument-hint: "[dossier cible] [besoin en une phrase]"
-when_to_use: "Before /plugin-plugin:create, for a plugin that does not exist yet."
+when_to_use: "Before /plugin-plugin:create."
 ---
 
 # Frame a plugin

@@ -15,3 +15,4 @@ Version d'amorçage, construite à la main et jamais publiée : elle reçoit une
 - Skill `frame` : cadrage d'un nouveau plugin, une question à la fois avec recommandation motivée, décisions déléguées consignées, PRD et architecture approuvés explicitement (`pp.sh approve`, journal des accords).
 - Hook `doc-status-guard` (PostToolUse, fail-open) : un document de cadrage approuvé puis modifié repasse en revue. Installé pour le compte, il tourne dans toutes les sessions, et reste inerte hors d'un projet portant `.plugin-plugin/`.
 - Gabarits `templates/PRD.md` et `templates/ARCHITECTURE.md`.
+- Skill `create` et `pp.sh create` : plugin dédié créé depuis un cadrage approuvé — nom vérifié sur GitHub (marketplace `soon`, dépôt `soonlysoul/<nom>`), dossier hors cadrage refusé sans y toucher, charpente du modèle, `git init`, et sa propre suite lancée, verte dès la création.

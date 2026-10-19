@@ -21,7 +21,7 @@ esac
 EOF
 chmod +x "$work/stub/claude"
 
-# copy_plugin <name>: a copy of the plugin without VCS, build output nor this test.
+# copy_plugin <name>: a copy of the plugin without VCS nor build output.
 copy_plugin() {
   local copy="$work/$1" entry
   mkdir "$copy"
@@ -29,7 +29,8 @@ copy_plugin() {
     case ${entry##*/} in .git | build | .superpowers | .shots) continue ;; esac
     cp -R "$entry" "$copy/"
   done
-  rm -f "$copy/tests/static/test_run_all.sh"
+  # Neither this test (it would recurse) nor the slow creation test: the copies only exercise run-all.sh.
+  rm -f "$copy/tests/static/test_run_all.sh" "$copy/tests/static/test_create.sh"
   printf '%s' "$copy"
 }
 
@@ -37,7 +38,7 @@ copy_plugin() {
 run_suite() {
   local copy=$1
   shift
-  RUN_OUTPUT=$(env -u PLUGIN_UNDER_TEST "$@" "$BASH" "$copy/tests/run-all.sh" 2>&1)
+  RUN_OUTPUT=$(env "$@" "$BASH" "$copy/tests/run-all.sh" 2>&1)
   RUN_STATUS=$?
 }
 
@@ -57,6 +58,9 @@ run_suite "$intact" PATH="$work/stub:$PATH" STUB_ALWAYS_ON=840
 expect_run "copie intacte : exit 0" 0
 expect_output "le bilan compte zéro échec" '^échouées : 0$'
 expect_output "le coût permanent est affiché" 'ok +coût permanent : 840 tokens \(seuil 1000\)'
+
+run_suite "$intact" PATH="$work/stub:$PATH" PLUGIN_UNDER_TEST="$work/nope"
+expect_run "PLUGIN_UNDER_TEST hérité : la suite vérifie quand même son propre dossier" 0
 
 echo "# dossiers de composants absents"
 bare=$(copy_plugin bare)

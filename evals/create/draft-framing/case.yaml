@@ -1,0 +1,25 @@
+schema_version: "1.0"
+name: create-draft-framing
+description: Un cadrage en brouillon fait refuser la création, sans rien écrire.
+tags: [create, positive]
+runs: 3
+expected_outcome: Le skill create lit le statut, refuse, et renvoie au cadrage ; aucun manifeste n'est créé.
+context:
+  scaffold_script: setup.sh
+execution:
+  prompt: "Crée le plugin dans ./plugin-brouillon."
+  max_turns: 8
+  allowed_tools: [Skill, Read, Glob, Bash]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?create"'
+  - name: no-manifest
+    type: file_exists
+    path: "plugin-brouillon/.claude-plugin/plugin.json"
+    exists: false
+  - name: points-to-framing
+    type: regex
+    target: last_message
+    pattern: 'BROUILLON|non approuvé|/plugin-plugin:frame'

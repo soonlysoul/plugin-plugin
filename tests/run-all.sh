@@ -4,6 +4,8 @@
 # Exit codes: 0 every step passed, 1 a step failed, 2 a prerequisite is missing (a step is
 # blocked, never counted as passed).
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
+# The whole suite checks this directory: a mutated copy is targeted suite by suite, never here.
+unset PLUGIN_UNDER_TEST
 
 command -v jq >/dev/null 2>&1 || { echo "bloqué : jq est requis par la suite et introuvable dans le PATH." >&2; exit 2; }
 
