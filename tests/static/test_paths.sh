@@ -16,6 +16,65 @@ while IFS= read -r ref; do
   [[ -e $PLUGIN_ROOT/${ref#'${CLAUDE_PLUGIN_ROOT}/'} ]] && pass "chemin cité présent : $ref" || fail "chemin cité présent : $ref"
 done <<<"$cited"
 
+echo "# hooks/hooks.json"
+HOOKS_JSON="$PLUGIN_ROOT/hooks/hooks.json"
+if [[ ! -e $HOOKS_JSON ]]; then
+  skip "hooks/hooks.json" "aucun hook"
+elif ! jq -e '.hooks | type == "object"' "$HOOKS_JSON" >/dev/null 2>&1; then
+  fail "hooks.json est du JSON avec une enveloppe \"hooks\"" "$HOOKS_JSON"
+else
+  pass "hooks.json est du JSON avec une enveloppe \"hooks\""
+  # One line per command hook. Fields are joined by \x1f: read merges consecutive tabs and
+  # would drop an empty matcher.
+  hooks=$(jq -r '.hooks | to_entries[] | .key as $event | .value[] | (.matcher // "") as $m
+                 | .hooks[] | [$event, $m, (.type // ""), (.command // ""), (.args[0] // ""),
+                               (.onFailure // ""), ((.args // []) | length), (.timeout // "")]
+                 | map(tostring) | join("\u001f")' "$HOOKS_JSON")
+  while IFS=$'\x1f' read -r event matcher type command arg0 on_failure argc timeout; do
+    label="$event [$matcher] ${arg0##*/}"
+    [[ $type == command ]] && pass "$label : hook de type command" || fail "$label : hook de type command" "type : $type"
+    [[ $command == bash && $argc == 1 ]] && pass "$label : forme exec (bash + script)" \
+      || fail "$label : forme exec (bash + script)" "command : $command, args : $argc"
+    [[ $timeout =~ ^[0-9]+$ ]] && pass "$label : timeout déclaré" || fail "$label : timeout déclaré" "timeout : ${timeout:-absent}"
+    [[ $event == Stop || $on_failure == block || $on_failure == continue ]] && pass "$label : onFailure déclaré" \
+      || fail "$label : onFailure déclaré" "onFailure : ${on_failure:-absent}"
+    if [[ $arg0 == '${CLAUDE_PLUGIN_ROOT}/'* ]]; then
+      pass "$label : chemin par \${CLAUDE_PLUGIN_ROOT}"
+      [[ -f $PLUGIN_ROOT/${arg0#'${CLAUDE_PLUGIN_ROOT}/'} ]] && pass "$label : script présent" || fail "$label : script présent" "$arg0"
+    else
+      fail "$label : chemin par \${CLAUDE_PLUGIN_ROOT}" "$arg0"
+    fi
+  done <<<"$hooks"
+
+  # expect_hook <event> <matcher> <script> <onFailure> <timeout>: wired exactly so.
+  expect_hook() {
+    local sep=$'\x1f'
+    if grep -qxF "$1$sep$2${sep}command${sep}bash$sep\${CLAUDE_PLUGIN_ROOT}/hooks/scripts/$3$sep$4${sep}1$sep$5" <<<"$hooks"; then
+      pass "câblé : $1 [$2] $3 onFailure=$4 timeout=$5"
+    else
+      fail "câblé : $1 [$2] $3 onFailure=$4 timeout=$5" "hooks : $(tr '\037' ' ' <<<"$hooks")"
+    fi
+  }
+  expect_hook PostToolUse 'Edit|Write' doc-status-guard.sh continue 10
+  for script in "$PLUGIN_ROOT"/hooks/scripts/*.sh; do
+    grep -qF "hooks/scripts/${script##*/}" "$HOOKS_JSON" && pass "${script##*/} est câblé dans hooks.json" \
+      || fail "${script##*/} est câblé dans hooks.json"
+  done
+fi
+
+echo "# gabarits et annexes"
+annexes=()
+while IFS= read -r -d '' file; do annexes+=("$file"); done \
+  < <(find "$PLUGIN_ROOT/templates" "$PLUGIN_ROOT/skills" -type f ! -name SKILL.md -print0 2>/dev/null)
+for file in ${annexes[@]+"${annexes[@]}"}; do
+  rel=${file#"$PLUGIN_ROOT"/}
+  grep -qF "\${CLAUDE_PLUGIN_ROOT}/$rel" "${substituted[@]}" /dev/null \
+    && pass "$rel est cité par \${CLAUDE_PLUGIN_ROOT}" || fail "$rel est cité par \${CLAUDE_PLUGIN_ROOT}"
+  grep -qF '${CLAUDE_PLUGIN_ROOT}' "$file" \
+    && fail "$rel ne contient pas \${CLAUDE_PLUGIN_ROOT} (les annexes ne sont pas substituées)" \
+    || pass "$rel ne contient pas \${CLAUDE_PLUGIN_ROOT} (les annexes ne sont pas substituées)"
+done
+
 echo "# scripts"
 scripts=("$PLUGIN_ROOT"/scripts/*.sh "$PLUGIN_ROOT"/scripts/lib/*.sh "$PLUGIN_ROOT"/hooks/scripts/*.sh "$PLUGIN_ROOT"/hooks/scripts/lib/*.sh)
 for script in ${scripts[@]+"${scripts[@]}"}; do

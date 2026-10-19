@@ -28,6 +28,24 @@ run_hook() {
   rm -f "$out" "$err"
 }
 
+# expect_status <label> <expected exit code>, after run_hook.
+expect_status() {
+  if [[ $HOOK_STATUS == "$2" ]]; then
+    pass "$1"
+  else
+    fail "$1" "attendu exit $2, obtenu $HOOK_STATUS ; stderr : ${HOOK_STDERR:0:300}"
+  fi
+}
+
+# expect_silent_allow <label>: exit 0, nothing on stdout or stderr.
+expect_silent_allow() {
+  if [[ $HOOK_STATUS == 0 && -z $HOOK_STDOUT && -z $HOOK_STDERR ]]; then
+    pass "$1"
+  else
+    fail "$1" "attendu exit 0 silencieux, obtenu exit $HOOK_STATUS ; stdout : ${HOOK_STDOUT:0:200} ; stderr : ${HOOK_STDERR:0:200}"
+  fi
+}
+
 # path_without <tool...>: a directory of links to every command of PATH except the named
 # ones, first match winning as in PATH, to simulate a missing dependency.
 # Prints the directory; the caller removes it.

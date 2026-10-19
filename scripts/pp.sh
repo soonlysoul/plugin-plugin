@@ -6,11 +6,20 @@
 #   reaudit [--facts FILE] [--snapshots DIR] [--probes DIR]
 #   snapshot --out FILE
 #   diff-snapshots OLD.json NEW.json
-# Exit codes: 0 done, 1 bad usage or unreadable input, 2 a prerequisite is missing.
+#   init-state DIR
+#   check-name NAME
+#   delegate DIR --question Q --choice C --reason R
+#   approve DOC --quote MESSAGE
+#   status DOC
+# Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
 PP_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FACTS_DIR="$PP_ROOT/scripts/facts"
+# shellcheck source=lib/doc-status.sh
+source "$PP_ROOT/scripts/lib/doc-status.sh"
+# The only messages that approve a document, once lowercased and stripped of final punctuation.
+APPROVALS=("oui" "je valide" "validé" "j'approuve" "je l'approuve" "approuvé" "c'est validé")
 # plugin init scaffolds every component kind the platform knows; its output is the format probe.
 PROBE_NAME=sonde-formats
 PROBE_COMPONENTS=(skills agents hooks mcp lsp output-style channel)
@@ -165,9 +174,99 @@ cmd_reaudit() {
   printf 'à vérifier, jamais tranchés : %d\n' "$pending"
 }
 
+# State of a managed project: .plugin-plugin/ beside docs/, never in the installed plugin.
+cmd_init_state() {
+  [[ $# == 1 && -d $1 ]] || die "usage : pp.sh init-state DOSSIER (dossier existant)"
+  local state="$1/.plugin-plugin"
+  mkdir -p "$state" || die "échec : impossible de créer $state"
+  [[ -e $state/approvals.log ]] || : >"$state/approvals.log"
+  [[ -e $state/decisions.md ]] || printf '# Décisions déléguées\n\n' >"$state/decisions.md"
+  printf 'état du projet : %s\n' "$state"
+}
+
+# The naming rule of the model, each refusal naming the rule it breaks.
+cmd_check_name() {
+  [[ $# == 1 ]] || die "usage : pp.sh check-name NOM"
+  local name=$1 rule="règle : plugin-<domaine>, en minuscules, chiffres et tirets"
+  if [[ $name =~ [A-Z] ]]; then die "refusé : « $name » contient des majuscules ; $rule."
+  elif [[ $name == *_* ]]; then die "refusé : « $name » contient des soulignés ; $rule."
+  elif [[ $name =~ [^a-z0-9-] ]]; then die "refusé : « $name » contient un caractère hors kebab-case ; $rule."
+  elif [[ $name != plugin-* ]]; then die "refusé : « $name » n'a pas le préfixe plugin- ; $rule."
+  elif [[ $name == plugin- ]]; then die "refusé : « $name » a un domaine vide ; $rule."
+  elif [[ ! $name =~ ^plugin-[a-z0-9]+(-[a-z0-9]+)*$ ]]; then die "refusé : « $name » n'est pas en kebab-case ; $rule."
+  fi
+  printf 'accepté : « %s » suit plugin-<domaine>.\n' "$name"
+}
+
+cmd_delegate() {
+  local dir=${1:-} question="" choice="" reason=""
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --question) question=${2:-}; shift 2 ;;
+      --choice) choice=${2:-}; shift 2 ;;
+      --reason) reason=${2:-}; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n $dir && -n $question && -n $choice && -n $reason ]] \
+    || die "usage : pp.sh delegate DOSSIER --question Q --choice CHOIX --reason RAISON"
+  [[ -d $dir/.plugin-plugin ]] || die "refusé : $dir n'est pas un projet géré (pp.sh init-state d'abord)."
+  printf -- '- %s — %s → %s. Raison : %s. Décision déléguée, révisable.\n' \
+    "$(date +%F)" "$question" "$choice" "$reason" >>"$dir/.plugin-plugin/decisions.md"
+  printf 'décision consignée : %s → %s\n' "$question" "$choice"
+}
+
+# managed_root <doc>: the project root of docs/NAME.md when .plugin-plugin/ sits beside docs/.
+managed_root() {
+  local docs
+  docs=$(cd "$(dirname "$1")" 2>/dev/null && pwd) || return 1
+  [[ ${docs##*/} == docs && -d ${docs%/*}/.plugin-plugin ]] || return 1
+  printf '%s' "${docs%/*}"
+}
+
+cmd_approve() {
+  local doc=${1:-} quote="" given=0 root status normalized allowed date
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --quote) quote=${2:-}; given=1; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -f $doc && $given == 1 ]] || die "usage : pp.sh approve DOCUMENT --quote MESSAGE"
+  root=$(managed_root "$doc") || die "refusé : $doc n'est pas un document de docs/ d'un projet géré."
+  status=$(doc_status "$doc")
+  [[ -n $status ]] || die "refusé : $doc n'a pas de ligne « **Statut : … ** »."
+  quote=$(tr '\t\n' '  ' <<<"$quote" | sed -E 's/^ +//; s/ +$//')
+  normalized=$(tr '[:upper:]' '[:lower:]' <<<"$quote" | sed -E "s/’/'/g; s/[ .!]+$//")
+  for allowed in "${APPROVALS[@]}"; do
+    [[ $normalized == "$allowed" ]] || continue
+    date=$(date +%F)
+    doc_set_status "$doc" "**Statut : APPROUVÉ** le $date (« $quote »)." || die "échec : statut non écrit dans $doc"
+    printf '%s\tdocs/%s\t%s\t%s\n' "$date" "${doc##*/}" "$(doc_fingerprint "$doc")" "$quote" >>"$root/.plugin-plugin/approvals.log"
+    printf 'approuvé : docs/%s, le %s (« %s »)\n' "${doc##*/}" "$date" "$quote"
+    return 0
+  done
+  die "refusé : « $quote » n'est pas une approbation explicite ; statut inchangé ($status)."
+}
+
+cmd_status() {
+  [[ $# == 1 && -f $1 ]] || die "usage : pp.sh status DOCUMENT"
+  local status
+  status=$(doc_status "$1")
+  [[ -n $status ]] || die "aucun statut dans $1"
+  printf '%s\n' "$status"
+}
+
 case ${1:-} in
   reaudit) shift; cmd_reaudit "$@" ;;
   snapshot) shift; cmd_snapshot "$@" ;;
   diff-snapshots) shift; cmd_diff_snapshots "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot --out FICHIER | diff-snapshots ANCIEN.json NOUVEAU.json" ;;
+  init-state) shift; cmd_init_state "$@" ;;
+  check-name) shift; cmd_check_name "$@" ;;
+  delegate) shift; cmd_delegate "$@" ;;
+  approve) shift; cmd_approve "$@" ;;
+  status) shift; cmd_status "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status" ;;
 esac
