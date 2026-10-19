@@ -2,7 +2,13 @@
 
 Plugin Claude Code qui construit des plugins Claude Code au modèle de [plugin-flutter](https://github.com/soonlysoul/plugin-flutter) : cadrage, création d'un plugin dédié et vert, composants ajoutés en TDD (skills avec leur évaluation, agents, hooks, déclaration d'un serveur MCP), publication dans la marketplace `soon` sous accord explicite, ré-audit après une mise à jour de Claude Code, reprise depuis le disque.
 
-Version **0.1.0**, en construction : la charpente est posée, aucun composant n'est encore livré. Le périmètre et l'ordre de construction sont fixés par [docs/PRD.md](docs/PRD.md) et [docs/PLAN.md](docs/PLAN.md). Claude Code **2.1.295 ou plus** requis (forme exec des hooks).
+Version **0.1.0**, en construction. Le périmètre et l'ordre de construction sont fixés par [docs/PRD.md](docs/PRD.md) et [docs/PLAN.md](docs/PLAN.md) ; l'avancement, par [PROGRESS.md](PROGRESS.md). Claude Code **2.1.295 ou plus** requis (forme exec des hooks).
+
+| Composant | Rôle |
+| --- | --- |
+| Skill `reaudit` | Sur demande (`/plugin-plugin:reaudit`) : les faits de la plateforme à revérifier depuis une mise à jour de Claude Code, les formats de composants changés, les faits que la validation stricte contredit |
+| `scripts/pp.sh` | L'outil déterministe appelé par les skills, testé sans session |
+| `scripts/facts/` | La base de faits datée et versionnée, ses sondes et les instantanés de formats |
 
 ## Essai local
 

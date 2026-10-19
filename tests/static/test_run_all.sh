@@ -53,11 +53,15 @@ refuse_output() {
 
 echo "# copie intacte"
 intact=$(copy_plugin intact)
-rm -rf "$intact/skills" "$intact/agents"
 run_suite "$intact" PATH="$work/stub:$PATH" STUB_ALWAYS_ON=840
 expect_run "copie intacte : exit 0" 0
 expect_output "le bilan compte zéro échec" '^échouées : 0$'
 expect_output "le coût permanent est affiché" 'ok +coût permanent : 840 tokens \(seuil 1000\)'
+
+echo "# dossiers de composants absents"
+bare=$(copy_plugin bare)
+rm -rf "$bare/skills" "$bare/agents"
+run_suite "$bare" PATH="$work/stub:$PATH"
 expect_output "skills/ absent : sauté" 'sauté +skills \(absent\)'
 expect_output "agents/ absent : sauté" 'sauté +agents \(absent\)'
 refuse_output "skills/ absent : jamais réussi" 'ok +skills$'

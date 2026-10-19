@@ -1,0 +1,6 @@
+{
+  "name": "sonde",
+  "description": "Sonde : la racine ne valide que la marketplace.",
+  "owner": { "name": "Soon" },
+  "plugins": [{ "name": "sonde", "source": "./", "description": "Sonde." }]
+}

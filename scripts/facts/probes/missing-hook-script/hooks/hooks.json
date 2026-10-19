@@ -1,0 +1,5 @@
+{
+  "hooks": {
+    "Stop": [{ "hooks": [{ "type": "command", "command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/absent.sh"], "timeout": 5 }] }]
+  }
+}
