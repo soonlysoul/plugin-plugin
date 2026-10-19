@@ -1,4 +1,4 @@
-# shellcheck shell=bash
+# shellcheck shell=bash disable=SC2034  # FM and FM_ERROR are read by the caller
 # A deliberately strict reader of skill and agent frontmatter, after plugin-flutter's
 # test_frontmatter.sh. A plugin agent whose frontmatter does not parse loads with every field
 # ignored, hence with every tool and no message: the validator does not see it, this does.

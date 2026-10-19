@@ -39,7 +39,14 @@ else
       || fail "$label : onFailure déclaré" "onFailure : ${on_failure:-absent}"
     if [[ $arg0 == '${CLAUDE_PLUGIN_ROOT}/'* ]]; then
       pass "$label : chemin par \${CLAUDE_PLUGIN_ROOT}"
-      [[ -f $PLUGIN_ROOT/${arg0#'${CLAUDE_PLUGIN_ROOT}/'} ]] && pass "$label : script présent" || fail "$label : script présent" "$arg0"
+      script=$PLUGIN_ROOT/${arg0#'${CLAUDE_PLUGIN_ROOT}/'}
+      [[ -f $script ]] && pass "$label : script présent" || fail "$label : script présent" "$arg0"
+      # The mode the script declares in its header decides onFailure.
+      if grep -q '^# Fail-closed' "$script" 2>/dev/null; then
+        [[ $on_failure == block ]] && pass "$label : fail-closed, onFailure block" || fail "$label : fail-closed, onFailure block" "onFailure : ${on_failure:-absent}"
+      elif grep -q '^# Fail-open' "$script" 2>/dev/null && [[ $event != Stop && $event != SubagentStop ]]; then
+        [[ $on_failure == continue ]] && pass "$label : fail-open, onFailure continue" || fail "$label : fail-open, onFailure continue" "onFailure : ${on_failure:-absent}"
+      fi
     else
       fail "$label : chemin par \${CLAUDE_PLUGIN_ROOT}" "$arg0"
     fi
@@ -69,6 +76,12 @@ scripts=("$PLUGIN_ROOT"/scripts/*.sh "$PLUGIN_ROOT"/scripts/lib/*.sh "$PLUGIN_RO
 for script in ${scripts[@]+"${scripts[@]}"}; do
   rel=${script#"$PLUGIN_ROOT"/}
   bash -n "$script" 2>/dev/null && pass "$rel : bash -n" || fail "$rel : bash -n"
+  if command -v shellcheck >/dev/null 2>&1; then
+    shellcheck -S warning -x --source-path=SCRIPTDIR "$script" >/dev/null 2>&1 && pass "$rel : shellcheck -S warning" \
+      || fail "$rel : shellcheck -S warning" "$(shellcheck -S warning -x --source-path=SCRIPTDIR -f gcc "$script" 2>&1 | head -n 2)"
+  else
+    skip "$rel : shellcheck -S warning" "shellcheck absent"
+  fi
   case $rel in
     */lib/*) ;;
     *) [[ $(head -n 1 "$script") == '#!/usr/bin/env bash' ]] && pass "$rel : #!/usr/bin/env bash" \

@@ -19,6 +19,7 @@
 #   eval-plan PLUGIN SKILL [--max-cost USD] [--keep-temp] [--one-arm]
 #   eval-run PLUGIN SKILL --quote MESSAGE [--max-cost USD] [--keep-temp] [--one-arm]
 #   eval-verdict PLUGIN SKILL aggregate-result.json
+#   add-hook PLUGIN --name N --event E [--matcher M] --mode fail-open|fail-closed [--timeout S] [--dry-run]
 # Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
@@ -796,6 +797,128 @@ cmd_eval_verdict() {
   printf 'verdict : vert\n'
 }
 
+# Hooks: tool events need a matcher; Stop and SubagentStop take none; only PreToolUse and
+# UserPromptSubmit can block, so only they may be fail-closed.
+HOOK_EVENTS=" PreToolUse PostToolUse UserPromptSubmit Stop SubagentStop SessionStart SessionEnd Notification PreCompact "
+SCOPE_WARNING="avertissement : installé pour le compte, ce hook s'appliquera à toutes les sessions, dans tous les projets ; il doit rester inerte hors de son contexte."
+
+# hook_script <name> <event> <matcher> <mode>: the skeleton, whose input contract is already
+# written and whose rule is not.
+hook_script() {
+  local name=$1 event=$2 matcher=$3 mode=$4
+  printf '#!/usr/bin/env bash\n'
+  printf '# %s — %s hook%s.\n' "$name" "$event" "${matcher:+ for $matcher}"
+  printf '# TODO: what it checks, and the context outside of which it stays silent. Installed for the\n'
+  printf '# account, it runs in every session; it assumes no order among the hooks of an event.\n'
+  if [[ $mode == fail-closed ]]; then
+    printf '# Fail-closed: exit 2 with the reason on stderr blocks; an internal error blocks too (jq\n'
+    printf '# missing, unreadable input); hooks.json sets "onFailure": "block".\n\n'
+    printf 'command -v jq >/dev/null 2>&1 || { echo "%s : jq introuvable ; blocage par précaution." >&2; exit 2; }\n' "$name"
+    printf "IFS= read -r -d '' input || true\n"
+    printf "jq -e 'type == \"object\"' >/dev/null 2>&1 <<<\"\$input\" || { echo \"%s : entrée illisible ; blocage par précaution.\" >&2; exit 2; }\n" "$name"
+  else
+    if [[ $event == Stop || $event == SubagentStop ]]; then
+      printf '# Fail-open: never fails, every problem ends silently with exit 0 (onFailure has no effect on Stop).\n\n'
+    else
+      printf '# Fail-open: it always exits 0; hooks.json sets "onFailure": "continue".\n\n'
+    fi
+    printf 'command -v jq >/dev/null 2>&1 || exit 0\n'
+    printf "IFS= read -r -d '' input || true\n"
+    printf "jq -e 'type == \"object\"' >/dev/null 2>&1 <<<\"\$input\" || exit 0\n"
+    if [[ $event == Stop || $event == SubagentStop ]]; then
+      printf "[[ \$(jq -r '.stop_hook_active // false' <<<\"\$input\") == false ]] || exit 0\n"
+    fi
+  fi
+  printf '\n# RULE: the rule is not written yet.\nexit 0\n'
+}
+
+# hook_test <name> <mode>: the simulated-input test, its contract cases green on the skeleton,
+# and a placeholder that fails until the rule's own cases replace it.
+hook_test() {
+  local name=$1 mode=$2
+  printf '#!/usr/bin/env bash\n'
+  printf '# %s: simulated inputs, no session.\n' "$name"
+  printf '# shellcheck source=../lib.sh\nsource "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"\n'
+  printf 'SUITE=test_%s\nHOOK="$PLUGIN_ROOT/hooks/scripts/%s.sh"\n\n' "${name//-/_}" "$name"
+  printf 'echo "# contrat du squelette"\n'
+  if [[ $mode == fail-closed ]]; then
+    printf "run_hook \"\$HOOK\" 'pas du json'\nexpect_blocked \"squelette : entrée illisible bloquée\"\n"
+    printf "no_jq=\$(path_without jq)\nrun_hook \"\$HOOK\" '{}' PATH=\"\$no_jq\"\nrm -rf \"\$no_jq\"\nexpect_blocked \"squelette : jq absent bloqué\"\n\n"
+  else
+    printf "run_hook \"\$HOOK\" 'pas du json'\nexpect_status \"squelette : entrée illisible, exit 0\" 0\n"
+    printf "no_jq=\$(path_without jq)\nrun_hook \"\$HOOK\" '{}' PATH=\"\$no_jq\"\nrm -rf \"\$no_jq\"\nexpect_status \"squelette : jq absent, exit 0\" 0\n\n"
+  fi
+  printf 'echo "# règle"\n'
+  printf '# Replace the rule_placeholder call by the rule'"'"'s simulated inputs: what it blocks or reports,\n'
+  printf '# what it lets through, and an input outside its context, where it stays silent.\n'
+  printf 'rule_placeholder() { fail "règle de %s : à écrire" "remplacer rule_placeholder par les entrées simulées de la règle"; }\n' "$name"
+  printf 'rule_placeholder\n\nfinish\n'
+}
+
+cmd_add_hook() {
+  local plugin=${1:-} name="" event="" matcher="" mode="" timeout=10 dry=0
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --name) name=${2:-}; shift 2 ;;
+      --event) event=${2:-}; shift 2 ;;
+      --matcher) matcher=${2:-}; shift 2 ;;
+      --mode) mode=${2:-}; shift 2 ;;
+      --timeout) timeout=${2:-}; shift 2 ;;
+      --dry-run) dry=1; shift ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n $plugin && -n $name && -n $event && -n $mode ]] \
+    || die "usage : pp.sh add-hook PLUGIN --name NOM --event ÉVÉNEMENT [--matcher FILTRE] --mode fail-open|fail-closed [--timeout S] [--dry-run]"
+  need jq
+  [[ -f $plugin/.claude-plugin/plugin.json ]] || die "refusé : $plugin n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  [[ $name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || die "refusé : « $name » n'est pas en kebab-case."
+  [[ $HOOK_EVENTS == *" $event "* ]] || die "refusé : événement inconnu « $event » ; connus :$HOOK_EVENTS."
+  [[ $mode == fail-open || $mode == fail-closed ]] || die "refusé : mode « $mode » inconnu ; fail-open ou fail-closed."
+  [[ $timeout =~ ^[0-9]+$ ]] || die "refusé : timeout « $timeout » invalide, en secondes."
+  case $event in
+    PreToolUse | PostToolUse) [[ -n $matcher ]] || die "refusé : $event exige un filtre (--matcher), la liste exacte des outils visés." ;;
+    Stop | SubagentStop | UserPromptSubmit) [[ -z $matcher ]] || die "refusé : $event n'a pas de filtre." ;;
+  esac
+  if [[ $mode == fail-closed ]]; then
+    case $event in
+      PreToolUse | UserPromptSubmit) ;;
+      PostToolUse) die "refusé : PostToolUse ne peut pas bloquer (l'outil a déjà agi) ; mode fail-open." ;;
+      *) die "refusé : $event ne bloque pas une action, et onFailure y est sans effet sur Stop ; mode fail-open." ;;
+    esac
+  fi
+  local script="hooks/scripts/$name.sh" test="tests/hooks/test_${name//-/_}.sh"
+  [[ ! -e $plugin/$script && ! -e $plugin/$test ]] || die "refusé : le hook $name existe déjà ($script)."
+  if [[ -f $plugin/hooks/hooks.json ]] && grep -qF "hooks/scripts/$name.sh" "$plugin/hooks/hooks.json"; then
+    die "refusé : hooks.json câble déjà $name."
+  fi
+
+  printf '%s\n' "$SCOPE_WARNING"
+  if ((dry)); then
+    printf 'écrirait : %s, %s, hooks/hooks.json (%s%s, %s, timeout %s s), docs/INSTALLATION.md\n' \
+      "$script" "$test" "$event" "${matcher:+ [$matcher]}" "$mode" "$timeout"
+    return 0
+  fi
+  mkdir -p "$plugin/hooks/scripts" "$plugin/tests/hooks"
+  hook_script "$name" "$event" "$matcher" "$mode" >"$plugin/$script"
+  hook_test "$name" "$mode" >"$plugin/$test"
+  local hooks_json="$plugin/hooks/hooks.json" current
+  current=$(cat "$hooks_json" 2>/dev/null || echo '{"hooks": {}}')
+  jq --arg event "$event" --arg matcher "$matcher" --arg path "\${CLAUDE_PLUGIN_ROOT}/$script" \
+    --argjson timeout "$timeout" --arg failure "$([[ $mode == fail-closed ]] && echo block || echo continue)" '
+    ({type: "command", command: "bash", args: [$path], timeout: $timeout}
+      + (if $event == "Stop" or $event == "SubagentStop" then {} else {onFailure: $failure} end)) as $hook
+    | .hooks[$event] = ((.hooks[$event] // []) + [(if $matcher == "" then {} else {matcher: $matcher} end) + {hooks: [$hook]}])' \
+    <<<"$current" >"$hooks_json.tmp" && mv "$hooks_json.tmp" "$hooks_json"
+  local installation="$plugin/docs/INSTALLATION.md"
+  if ! grep -q '^## Portée des hooks$' "$installation" 2>/dev/null; then
+    printf '\n## Portée des hooks\n\nInstallé pour le compte, chaque hook de ce plugin s'"'"'applique à toutes les sessions, dans tous les projets ; chacun reste inerte hors de son contexte.\n\n' >>"$installation"
+  fi
+  printf -- '- `%s` — %s%s, %s.\n' "$name" "$event" "${matcher:+ ($matcher)}" "$mode" >>"$installation"
+  printf 'écrit : %s, %s, hooks/hooks.json, docs/INSTALLATION.md\n' "$script" "$test"
+}
+
 cmd_status() {
   [[ $# == 1 && -f $1 ]] || die "usage : pp.sh status DOCUMENT"
   local status
@@ -821,5 +944,6 @@ case ${1:-} in
   eval-plan) shift; cmd_eval_plan "$@" ;;
   eval-run) shift; cmd_eval_run "$@" ;;
   eval-verdict) shift; cmd_eval_verdict "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-evals | eval-plan | eval-run | eval-verdict" ;;
+  add-hook) shift; cmd_add_hook "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-evals | eval-plan | eval-run | eval-verdict | add-hook" ;;
 esac

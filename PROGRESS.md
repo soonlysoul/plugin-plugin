@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 102 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 535 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas et se poursuivent.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 102 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 546 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas et se poursuivent : **phase 7 terminée**.
 
 **À trancher par Soon** — le plan approuvé affirme, dans « Tests et validation », que `claude plugin validate .` ne valide que la marketplace. Mesuré en phase 2 : c'est faux sur 2.1.296 (voir ci-dessous). Rien ne casse — la suite valide toujours chaque cible —, mais la phrase du plan est à corriger, ce qui le repasse en revue. Le plan n'a pas été modifié.
 
@@ -268,3 +268,34 @@ Le passage réel exige trois gestes de Soon, dans cet ordre :
    `cd build/temoin-p6/plugin-codenames && claude plugin eval . --case 'aucun-*' --no-publish --max-cost-usd 0.01 --ablation none --runs 1`, puis répondre `y`.
 2. **Rouge** — un « oui » à cette annonce : 9 sessions (3 cas × 3 exécutions × 1 bras), 1,17 à 2,07 USD, plafond 3 USD, compte annoncé : le compte pro de `~/.claude` (voir la sonde).
 3. **Vert**, après l'écriture du skill — un « oui » à cette annonce : 18 sessions (3 cas × 3 exécutions × 2 bras), 2,34 à 4,14 USD, plafond proposé 4,5 USD.
+
+## Phase 7 — Ajouter un hook testé sans session — terminée
+
+- [x] `pp.sh add-hook <plugin> --name --event [--matcher] --mode [--timeout] [--dry-run]` câble `hooks/hooks.json` en forme exec, par `${CLAUDE_PLUGIN_ROOT}`, `timeout` déclaré, `onFailure` `block` en fail-closed, `continue` en fail-open, aucun sur `Stop` ; le script existe.
+- [x] Refus nommés, plugin intact : nom hors kebab-case, événement inconnu, filtre absent sur un événement d'outil, filtre sur `Stop`, fail-closed sur `PostToolUse` (« ne peut pas bloquer ») ou sur `Stop`, mode inconnu, hook déjà présent, dossier hors modèle.
+- [x] Script produit : `#!/usr/bin/env bash`, mode déclaré en tête (`# Fail-closed` ou `# Fail-open`), variables entre guillemets, raison sur stderr, exit 2 pour bloquer ; en fail-closed, blocage sur entrée illisible et sur `jq` absent ; `shellcheck -S warning` passe.
+- [x] Le test d'entrées simulées échoue sur le squelette pour la bonne raison (« règle de garde-rm : à écrire »), le contrat d'entrée passant déjà ; puis, la règle et ses cas écrits, la suite du plugin passe (US-14, critère 4).
+- [x] L'avertissement de portée est la première ligne de `add-hook`, `--dry-run` compris, qui n'écrit rien ; il figure dans `docs/INSTALLATION.md` du plugin, section « Portée des hooks » (US-15).
+- [x] Inerte hors de son contexte, sans ordre supposé entre hooks : consignes de `skills/add/reference/hook.md`, et cas « hors contexte » exigé dans le test de la règle.
+- [x] `test_paths` générique contrôle désormais, pour tout plugin du modèle, la cohérence du mode déclaré et d'`onFailure`, et `shellcheck -S warning` sur chaque script (sauté sans `shellcheck`).
+
+Les tests qui créent un plugin (`test_create`, `test_add_hook`) sont rangés dans `tests/integration/` : ils ont besoin de `claude`, et les copies du méta-test `test_run_all`, qui n'éprouvent que `run-all.sh`, les retirent d'un bloc.
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/static/test_add_hook.sh` | 1 | 29 échecs : `add-hook` inconnu |
+| VERT | `bash tests/integration/test_add_hook.sh` | 0 | 35 réussis, dont « suite du plugin : rouge (exit 1) », « rouge pour la bonne raison : la règle n'est pas écrite », puis « règle écrite : suite du plugin verte (exit 0) » |
+| ROUGE | `bash tests/run-all.sh` | 1 | « claude absent : exit 2 » : la copie du méta-test lançait `test_add_hook`, qui crée un plugin ; tests d'intégration déplacés |
+| VERT | `bash tests/run-all.sh` | 0 | 19 étapes réussies ; « coût permanent : 546 tokens (seuil 1000) » ; « échouées : 0, sautées : 1, bloquées : 0 » |
+
+### Les tests discriminent
+
+| Copie faussée (une ligne de `pp.sh`) | Premier échec de `test_add_hook` |
+| --- | --- |
+| `--dry-run` écrit | « --dry-run n'écrit rien » |
+| fail-closed accepté sur `PostToolUse` | « fail-closed sur PostToolUse : refusé, raison nommée » |
+| squelette fail-closed qui laisse passer une entrée illisible | « squelette fail-closed : entrée illisible bloquée » |
+| `onFailure` toujours `continue` | « hooks.json : … onFailure block » — et le `test_paths` du plugin créé : « fail-closed, onFailure block » |
+| `INSTALLATION.md` non complété | « INSTALLATION nomme le hook et sa portée » |

@@ -29,8 +29,9 @@ copy_plugin() {
     case ${entry##*/} in .git | build | .superpowers | .shots) continue ;; esac
     cp -R "$entry" "$copy/"
   done
-  # Neither this test (it would recurse) nor the slow creation test: the copies only exercise run-all.sh.
-  rm -f "$copy/tests/static/test_run_all.sh" "$copy/tests/static/test_create.sh"
+  # Neither this test (it would recurse) nor the integration tests, which create plugins and need
+  # claude: the copies only exercise run-all.sh.
+  rm -rf "$copy/tests/static/test_run_all.sh" "$copy/tests/integration"
   printf '%s' "$copy"
 }
 

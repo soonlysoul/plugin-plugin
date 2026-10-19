@@ -37,6 +37,15 @@ expect_status() {
   fi
 }
 
+# expect_blocked <label>: exit 2 with a reason on stderr.
+expect_blocked() {
+  if [[ $HOOK_STATUS == 2 && -n $HOOK_STDERR ]]; then
+    pass "$1"
+  else
+    fail "$1" "attendu exit 2 avec une raison, obtenu exit $HOOK_STATUS ; stderr : ${HOOK_STDERR:0:300}"
+  fi
+}
+
 # expect_silent_allow <label>: exit 0, nothing on stdout or stderr.
 expect_silent_allow() {
   if [[ $HOOK_STATUS == 0 && -z $HOOK_STDOUT && -z $HOOK_STDERR ]]; then

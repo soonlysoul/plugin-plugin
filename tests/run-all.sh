@@ -15,7 +15,7 @@ MAX_ALWAYS_ON_TOKENS=1000
 passed=() failed=() skipped=() blocked=()
 
 shopt -s nullglob
-for suite in tests/static/test_*.sh tests/hooks/test_*.sh tests/project/test_*.sh; do
+for suite in tests/static/test_*.sh tests/hooks/test_*.sh tests/integration/test_*.sh tests/project/test_*.sh; do
   printf '\n== %s\n' "$suite"
   if bash "$suite"; then passed+=("$suite"); else failed+=("$suite"); fi
 done
