@@ -1,37 +1,17 @@
 #!/usr/bin/env bash
-# The strict frontmatter reader and pp.sh check-skill: the seven broken forms are rejected; a
+# pp.sh check-skill and check-agent, structure and house style together: a
 # skill header at the model (name, description « … Use when …; not for … » with a French
 # trigger phrase, argument-hint, when_to_use, never allowed-tools), 1 536 characters at most,
-# under 500 lines, no $0-$9; plugin-plugin's own skills conform.
+# under 500 lines, no $0-$9; an agent with its tools declared and known, never Agent, a reviewer
+# without Write nor Edit, « Use this agent when …; not for … » in 200 to 1 000 characters, its
+# responsibilities, approach and report format; plugin-plugin's own skills conform.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_frontmatter
 PP="$PLUGIN_ROOT/scripts/pp.sh"
-LIB="$PLUGIN_ROOT/scripts/lib/frontmatter.sh"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-
-echo "# l'analyseur strict refuse les en-têtes cassés"
-if [[ ! -f $LIB ]]; then
-  fail "scripts/lib/frontmatter.sh présent" "absent : $LIB"
-else
-  # shellcheck source=../../scripts/lib/frontmatter.sh
-  source "$LIB"
-  printf -- '---\nname: ok\ndescription: Un en-tête valide.\ntools: Read, Grep\n---\nCorps\n' >"$work/valid.md"
-  printf -- '---\nname: x\ndescription: [unclosed\n---\n' >"$work/bracket.md"
-  printf -- '---\nname: x\ndescription: Use when: anything\n---\n' >"$work/colon.md"
-  printf -- '---\nname: x\ntools:\n  - Read\n---\n' >"$work/list.md"
-  printf -- '---\nname: x\nname: y\n---\n' >"$work/duplicate.md"
-  printf -- '---\nname: x\ndescription: "unbalanced\n---\n' >"$work/quote.md"
-  printf -- '---\nname: x\ndescription: no end\n' >"$work/unclosed.md"
-  printf -- 'name: x\n---\n' >"$work/noopen.md"
-  read_frontmatter "$work/valid.md" && [[ ${FM[tools]} == "Read, Grep" ]] \
-    && pass "un en-tête valide est lu" || fail "un en-tête valide est lu" "$FM_ERROR"
-  for broken in bracket colon list duplicate quote unclosed noopen; do
-    if read_frontmatter "$work/$broken.md"; then fail "refuse $broken"; else pass "refuse $broken ($FM_ERROR)"; fi
-  done
-fi
 
 echo "# check-skill"
 # skill <name> <frontmatter lines> [body]: writes skills/<name>/SKILL.md under $work.
@@ -73,6 +53,57 @@ refused "plus de 1 536 caractères" "${GOOD/Do one thing./Do one thing $long.}" 
 refused "\$1 dans le corps" "$GOOD" '\$0-\$9' 'Lance la commande sur $1.'
 many=$(printf 'ligne\n%.0s' {1..500})
 refused "500 lignes ou plus" "$GOOD" '500 lignes' "$many"
+
+echo "# check-agent"
+DESCRIPTION="Use when Soon needs one bounded task done and reported; this text is long enough to pass the rule of two hundred characters, and it says what the agent does, when to use it and what it returns; not for anything else."
+# agent <name> <frontmatter lines> [body]: writes agents/<name>.md under $work.
+agent() {
+  mkdir -p "$work/agents"
+  printf -- '---\n%s\n---\n\n%s\n' "$2" "${3:-$AGENT_BODY}" >"$work/agents/$1.md"
+  printf '%s' "$work/agents/$1.md"
+}
+AGENT_BODY='## Responsibilities
+
+One bounded task.
+
+## Approach
+
+Read, then report.
+
+## Output format
+
+STATUS, FILES_CHANGED, COMMANDS_RUN, OPEN_QUESTIONS.'
+AGENT="name: doc-reviewer
+description: \"Use this agent when ${DESCRIPTION#Use when }\"
+tools: Read, Grep, Glob
+model: sonnet"
+run_agent() {
+  PP_OUTPUT=$("$BASH" "$PP" check-agent "$1" 2>&1)
+  PP_STATUS=$?
+}
+run_agent "$(agent doc-reviewer "$AGENT")"
+[[ $PP_STATUS == 0 && $PP_OUTPUT == *conforme* ]] && pass "un agent au modèle est conforme" \
+  || fail "un agent au modèle est conforme" "exit $PP_STATUS ; ${PP_OUTPUT:0:300}"
+# refused_agent <label> <frontmatter> <pattern> [name] [body]
+refused_agent() {
+  run_agent "$(agent "${4:-doc-reviewer}" "$2" "${5:-$AGENT_BODY}")"
+  if [[ $PP_STATUS == 1 ]] && grep -qE -- "$3" <<<"$PP_OUTPUT"; then pass "$1 : refusé, règle nommée"
+  else fail "$1 : refusé, règle nommée" "exit $PP_STATUS ; ${PP_OUTPUT:0:300}"; fi
+}
+refused_agent "tools absent" "$(grep -v '^tools' <<<"$AGENT")" 'tools absent'
+refused_agent "outil Agent" "${AGENT/tools: Read, Grep, Glob/tools: Read, Agent}" 'outil Agent (est )?interdit'
+refused_agent "outil inconnu" "${AGENT/tools: Read, Grep, Glob/tools: Read, Telepathy}" 'outil inconnu : Telepathy'
+refused_agent "relecteur qui écrit" "${AGENT/tools: Read, Grep, Glob/tools: Read, Edit}" 'relecteur'
+refused_agent "model absent" "$(grep -v '^model' <<<"$AGENT")" 'model absent'
+refused_agent "nom de deux caractères" "${AGENT/name: doc-reviewer/name: ab}" '3 à 50' ab
+refused_agent "nom qui finit par un tiret" "${AGENT/name: doc-reviewer/name: doc-}" '3 à 50' doc-
+refused_agent "description sans « Use this agent when »" "${AGENT/Use this agent when/Call it when}" 'Use this agent when'
+refused_agent "description sans « not for »" "${AGENT/; not for anything else/}" 'not for'
+refused_agent "description trop courte" "${AGENT/description: */description: \"Use this agent when short; not for long.\"}" '200 à 1 000'
+refused_agent "format de rapport absent" "$AGENT" 'OPEN_QUESTIONS' doc-reviewer "${AGENT_BODY/, OPEN_QUESTIONS/}"
+refused_agent "démarche absente" "$AGENT" 'Approach' doc-reviewer "${AGENT_BODY/Approach/Steps}"
+refused_agent "clé inconnue" "$AGENT
+permissionMode: plan" 'clé inconnue : permissionMode'
 
 echo "# les skills de plugin-plugin"
 for file in "$PLUGIN_ROOT"/skills/*/SKILL.md; do

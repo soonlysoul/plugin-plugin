@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 102 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 546 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas et se poursuivent : **phase 7 terminée**.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 102 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 552 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7 et 8 terminées**. Arrêt demandé par Soon à la fin de la phase 8 ; prochaine étape : phase 9 (son test, écrit, attend dans `build/p9-pending/`).
 
 **À trancher par Soon** — le plan approuvé affirme, dans « Tests et validation », que `claude plugin validate .` ne valide que la marketplace. Mesuré en phase 2 : c'est faux sur 2.1.296 (voir ci-dessous). Rien ne casse — la suite valide toujours chaque cible —, mais la phrase du plan est à corriger, ce qui le repasse en revue. Le plan n'a pas été modifié.
 
@@ -299,3 +299,34 @@ Les tests qui créent un plugin (`test_create`, `test_add_hook`) sont rangés da
 | squelette fail-closed qui laisse passer une entrée illisible | « squelette fail-closed : entrée illisible bloquée » |
 | `onFailure` toujours `continue` | « hooks.json : … onFailure block » — et le `test_paths` du plugin créé : « fail-closed, onFailure block » |
 | `INSTALLATION.md` non complété | « INSTALLATION nomme le hook et sa portée » |
+
+## Phase 8 — Ajouter un agent aux outils déclarés — terminée
+
+- [x] L'analyseur strict refuse les sept formes cassées relevées par plugin-flutter (crochet ouvert, « : » non cité, liste YAML, clé en double, guillemet isolé, en-tête non refermé ou non ouvert) ; il accepte désormais les clés en camelCase pour les nommer « clé inconnue » (`permissionMode`) au lieu de rejeter tout l'en-tête.
+- [x] `tools` présent, outils connus, jamais `Agent` ; un relecteur (nom contenant `review`) n'a ni `Write` ni `Edit` (US-13).
+- [x] Nom de 3 à 50 caractères, commençant et finissant par une lettre ou un chiffre ; description « Use this agent when … ; not for … » de 200 à 1 000 caractères ; corps en `## Responsibilities`, `## Approach`, `## Output format`, avec STATUS / FILES_CHANGED / COMMANDS_RUN / OPEN_QUESTIONS (`pp.sh check-agent`).
+- [x] Un agent qui écrit ou lance Bash a ses dossiers et sa liste blanche déclarés dans `hooks/agent-scope.json`, imposés par `agent-scope-guard` (PreToolUse, fail-closed) : écriture hors portée, chemin qui remonte, hors du projet, commande hors liste, composée ou substituée — bloqués ; session principale et agents d'autres plugins — inertes, même sans `jq`.
+- [x] Test vu en échec (« agents/doc-reader.md présent » : absent, suite du plugin rouge), puis vert (critère 4).
+
+Réorganisation : l'analyseur et les règles d'en-tête vivent dans `tests/headers.sh`, source unique chargée par `pp.sh` et recopiée par `create` avec le test générique `test_headers.sh`. Un plugin créé vérifie donc lui-même ses skills et ses agents, sans `pp.sh`. Règles de **structure** (pour tout plugin du modèle, plugin-flutter compris) et de **style** (« Use when … ; not for … », phrase française, longueur de la description d'agent, sections du corps : ce que plugin-plugin impose aux composants qu'il ajoute) sont séparées. `scripts/lib/frontmatter.sh` est retiré.
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/static/test_headers.sh` | 1 | « tests/headers.sh présent » : absent |
+| ROUGE | `bash tests/static/test_frontmatter.sh` | 1 | « un agent au modèle est conforme », « tools absent … » : `check-agent` inconnu |
+| ROUGE | `bash tests/static/test_frontmatter.sh` (bibliothèque écrite) | 1 | variable non liée : les règles de style lisaient un en-tête lu dans un sous-shell ; corrigé. Puis « clé inconnue » (camelCase rejeté) et « démarche absente » (motif de test `${…/## …}` ancré par `#`) |
+| ROUGE | `bash tests/integration/test_add_agent.sh` | 1 | 37 échecs : `add-agent` inconnu |
+| VERT | `bash tests/run-all.sh` | 0 | `test_add_agent : 43`, `test_headers : 13`, `test_frontmatter : 32` réussis ; « coût permanent : 552 tokens (seuil 1000) » ; « réussies : 21, échouées : 0, sautées : 1, bloquées : 0 » |
+
+### Les tests discriminent
+
+| Copie faussée (une ligne) | Premier échec |
+| --- | --- |
+| `add-agent` accepte l'outil Agent | d'abord **non pris** : l'outil refusait quand même, en « outil inconnu : Agent », et le test ne cherchait que « Agent ». Motif resserré ; rejoué : « outil Agent : refusé, raison nommée » |
+| `headers.sh` accepte l'outil Agent | « outil Agent : refusé, règle nommée » (`test_frontmatter`) |
+| un relecteur peut écrire | « relecteur qui écrit : refusé, raison nommée » |
+| le garde laisse passer une commande composée | « substitution de commande : bloquée » |
+| le garde s'applique aux agents des autres plugins | « agent d'un autre plugin : inerte » |
+| `tools` absent toléré | « tools absent : refusé, règle nommée » |

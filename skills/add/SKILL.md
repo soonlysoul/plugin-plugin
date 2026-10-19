@@ -1,6 +1,6 @@
 ---
 name: add
-description: "Add a component to a plugin of the model — skill with its eval suite, hook tested on simulated inputs — its test seen failing before it passes. Use when Soon wants a new component in such a plugin; not for framing or creating one. « ajoute un hook à plugin-… »."
+description: "Add a component to a plugin of the model — skill with its eval suite, hook on simulated inputs, agent with declared tools — its test seen failing before it passes. Use when Soon wants a new component in such a plugin; not for framing or creating one. « ajoute un agent à plugin-… »."
 argument-hint: "[dossier du plugin] [type] [nom]"
 when_to_use: "In a plugin created by /plugin-plugin:create or at the plugin-flutter model."
 ---
@@ -23,6 +23,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skil
 
 - **Skill**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/skill.md` and follow it.
 - **Hook**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/hook.md` and follow it.
+- **Agent**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/agent.md` and follow it.
 
 ## Step 3 — Close
 

@@ -15,11 +15,13 @@
 #   checkpoint DIR start --skill S --steps "a|b" | done N --command C --exit E [--test T] | block REASON
 #   resume DIR
 #   check-skill SKILL.md
+#   check-agent agents/NAME.md
 #   check-evals PLUGIN SKILL
 #   eval-plan PLUGIN SKILL [--max-cost USD] [--keep-temp] [--one-arm]
 #   eval-run PLUGIN SKILL --quote MESSAGE [--max-cost USD] [--keep-temp] [--one-arm]
 #   eval-verdict PLUGIN SKILL aggregate-result.json
 #   add-hook PLUGIN --name N --event E [--matcher M] --mode fail-open|fail-closed [--timeout S] [--dry-run]
+#   add-agent PLUGIN --name N --tools T --model M [--writes D,…] [--bash C,…] [--test-only]
 # Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
@@ -27,8 +29,8 @@ PP_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FACTS_DIR="$PP_ROOT/scripts/facts"
 # shellcheck source=lib/doc-status.sh
 source "$PP_ROOT/scripts/lib/doc-status.sh"
-# shellcheck source=lib/frontmatter.sh
-source "$PP_ROOT/scripts/lib/frontmatter.sh"
+# shellcheck source=../tests/headers.sh
+source "$PP_ROOT/tests/headers.sh"
 # Account, marketplace and its catalogue repository: written in hard, as the PRD says.
 OWNER=soonlysoul
 MARKETPLACE=soon
@@ -368,8 +370,8 @@ cmd_create() {
   done
   render "$scaffold/gitignore" "$dir/.gitignore"
   # The harness is plugin-plugin's own, so that both suites behave the same way.
-  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/run-all.sh" "$dir/tests/"
-  cp "$PP_ROOT/tests/static/test_paths.sh" "$PP_ROOT/tests/static/test_run_all.sh" "$dir/tests/static/"
+  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/headers.sh" "$PP_ROOT/tests/run-all.sh" "$dir/tests/"
+  cp "$PP_ROOT/tests/static/test_paths.sh" "$PP_ROOT/tests/static/test_run_all.sh" "$PP_ROOT/tests/static/test_headers.sh" "$dir/tests/static/"
   sed "s/^NAME=plugin-plugin$/NAME=$NAME/" "$PP_ROOT/tests/static/test_manifest.sh" >"$dir/tests/static/test_manifest.sh"
   git -C "$dir" init -q -b main || die "échec : git init dans $dir"
   printf 'créé : %s, plugin %s 0.1.0\n' "$dir" "$NAME"
@@ -538,37 +540,24 @@ cmd_resume() {
   printf 'blocages : %s\n' "$( ((${#CP_BLOCKERS[@]})) && join ' ; ' "${CP_BLOCKERS[@]}" || echo aucun)"
 }
 
-# A skill header at the model: every broken rule is named, none is silent.
+# A skill or agent header at the model, house style included: every broken rule is named.
 cmd_check_skill() {
-  local file=${1:-} dir key errors=() listing lines
+  local file=${1:-} errors
   [[ -f $file ]] || die "usage : pp.sh check-skill CHEMIN/SKILL.md"
-  dir=$(basename "$(dirname "$file")")
-  if ! read_frontmatter "$file"; then
-    die "refusé : $file : en-tête illisible par l'analyseur strict : $FM_ERROR."
-  fi
-  for key in "${!FM[@]}"; do
-    case $key in
-      name | description | argument-hint | when_to_use | disable-model-invocation) ;;
-      allowed-tools) errors+=("allowed-tools accorde des outils sans demander et ne restreint rien : à retirer") ;;
-      *) errors+=("clé inconnue : $key") ;;
-    esac
-  done
-  for key in name description argument-hint when_to_use; do
-    [[ -n ${FM[$key]-} ]] || errors+=("$key absent")
-  done
-  [[ ${FM[name]-} == "$dir" ]] || errors+=("le nom « ${FM[name]-} » n'est pas celui du dossier « $dir »")
-  [[ ${FM[description]-} == *"Use when"* ]] || errors+=("la description ne dit pas « Use when … »")
-  [[ ${FM[description]-} == *"not for"* ]] || errors+=("la description ne dit pas « not for … »")
-  [[ ${FM[description]-} =~ «\ [^»]+\ » ]] || errors+=("la description ne cite aucune phrase de déclenchement en français (« … »)")
-  listing="${FM[description]-}${FM[when_to_use]-}"
-  ((${#listing} <= 1536)) || errors+=("description et when_to_use font ${#listing} caractères, au-delà de 1 536")
-  lines=$(wc -l <"$file")
-  ((lines < 500)) || errors+=("$lines lignes : 500 lignes ou plus, détails à mettre dans reference/")
-  grep -qE '\$[0-9]' "$file" && errors+=("\$0-\$9 présent, substitué comme argument du skill : $(grep -nE '\$[0-9]' "$file" | head -n 1)")
-  if ((${#errors[@]})); then
-    printf 'refusé : %s\n' "${errors[@]/#/$file : }" >&2
-    exit 1
-  fi
+  errors=$(skill_structure_errors "$file")
+  [[ $errors == "en-tête illisible"* ]] || errors+=$'\n'$(skill_style_errors "$file")
+  errors=$(grep . <<<"$errors")
+  [[ -z $errors ]] || die "$(sed "s|^|refusé : $file : |" <<<"$errors")"
+  printf 'conforme : %s\n' "$file"
+}
+
+cmd_check_agent() {
+  local file=${1:-} errors
+  [[ -f $file ]] || die "usage : pp.sh check-agent CHEMIN/agents/NOM.md"
+  errors=$(agent_structure_errors "$file")
+  [[ $errors == "en-tête illisible"* ]] || errors+=$'\n'$(agent_style_errors "$file")
+  errors=$(grep . <<<"$errors")
+  [[ -z $errors ]] || die "$(sed "s|^|refusé : $file : |" <<<"$errors")"
   printf 'conforme : %s\n' "$file"
 }
 
@@ -903,7 +892,16 @@ cmd_add_hook() {
   mkdir -p "$plugin/hooks/scripts" "$plugin/tests/hooks"
   hook_script "$name" "$event" "$matcher" "$mode" >"$plugin/$script"
   hook_test "$name" "$mode" >"$plugin/$test"
-  local hooks_json="$plugin/hooks/hooks.json" current
+  wire_hook "$plugin" "$script" "$event" "$matcher" "$mode" "$timeout"
+  note_hook "$plugin" "$name" "$event" "$matcher" "$mode"
+  printf 'écrit : %s, %s, hooks/hooks.json, docs/INSTALLATION.md\n' "$script" "$test"
+}
+
+# wire_hook <plugin> <script path> <event> <matcher> <mode> <timeout>: the exec-form entry of
+# hooks/hooks.json, onFailure from the mode, none on Stop.
+wire_hook() {
+  local plugin=$1 script=$2 event=$3 matcher=$4 mode=$5 timeout=$6 hooks_json="$1/hooks/hooks.json" current
+  mkdir -p "$plugin/hooks"
   current=$(cat "$hooks_json" 2>/dev/null || echo '{"hooks": {}}')
   jq --arg event "$event" --arg matcher "$matcher" --arg path "\${CLAUDE_PLUGIN_ROOT}/$script" \
     --argjson timeout "$timeout" --arg failure "$([[ $mode == fail-closed ]] && echo block || echo continue)" '
@@ -911,12 +909,131 @@ cmd_add_hook() {
       + (if $event == "Stop" or $event == "SubagentStop" then {} else {onFailure: $failure} end)) as $hook
     | .hooks[$event] = ((.hooks[$event] // []) + [(if $matcher == "" then {} else {matcher: $matcher} end) + {hooks: [$hook]}])' \
     <<<"$current" >"$hooks_json.tmp" && mv "$hooks_json.tmp" "$hooks_json"
-  local installation="$plugin/docs/INSTALLATION.md"
+}
+
+# note_hook <plugin> <name> <event> <matcher> <mode>: the hook's line in docs/INSTALLATION.md.
+note_hook() {
+  local installation="$1/docs/INSTALLATION.md"
   if ! grep -q '^## Portée des hooks$' "$installation" 2>/dev/null; then
     printf '\n## Portée des hooks\n\nInstallé pour le compte, chaque hook de ce plugin s'"'"'applique à toutes les sessions, dans tous les projets ; chacun reste inerte hors de son contexte.\n\n' >>"$installation"
   fi
-  printf -- '- `%s` — %s%s, %s.\n' "$name" "$event" "${matcher:+ ($matcher)}" "$mode" >>"$installation"
-  printf 'écrit : %s, %s, hooks/hooks.json, docs/INSTALLATION.md\n' "$script" "$test"
+  printf -- '- `%s` — %s%s, %s.\n' "$2" "$3" "${4:+ ($4)}" "$5" >>"$installation"
+}
+
+# Agents: tools declared one by one and known, never Agent, a reviewer that cannot write; an agent
+# with a write tool or Bash is held to its folders and its allowlist by agent-scope-guard.
+AGENT_MODELS=" sonnet opus haiku fable inherit "
+
+# agent_test <plugin name> <agent> <tools> <model> <writes json> <bash json> <scoped>: the test
+# that fails while the agent is absent.
+agent_test() {
+  printf '#!/usr/bin/env bash\n'
+  printf '# agents/%s.md: present, strict header, tools %s, model %s.\n' "$2" "$3" "$4"
+  printf '# shellcheck source=../lib.sh\nsource "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"\n'
+  printf '# shellcheck source=../headers.sh\nsource "$(dirname "${BASH_SOURCE[0]}")/../headers.sh"\n'
+  printf 'SUITE=test_agent_%s\nFILE="$PLUGIN_ROOT/agents/%s.md"\n\n' "${2//-/_}" "$2"
+  printf 'if [[ ! -f $FILE ]]; then\n  fail "agents/%s.md présent" "absent"\n  finish\n  exit\nfi\n' "$2"
+  printf 'pass "agents/%s.md présent"\n' "$2"
+  printf 'errors=$(agent_structure_errors "$FILE")\n'
+  printf '[[ -z $errors ]] && pass "en-tête strict" || fail "en-tête strict" "$errors"\n'
+  printf 'read_frontmatter "$FILE"\n'
+  printf "tools=\$(tr ',' '\\\\n' <<<\"\${FM[tools]-}\" | sed 's/ //g' | sort | paste -sd, -)\n"
+  printf '[[ $tools == "%s" ]] && pass "outils : %s" || fail "outils : %s" "$tools"\n' \
+    "$(tr ',' '\n' <<<"$3" | sed 's/ //g' | sort | paste -sd, -)" "$3" "$3"
+  printf '[[ ${FM[model]-} == %s ]] && pass "modèle : %s" || fail "modèle : %s" "${FM[model]-absent}"\n' "$4" "$4" "$4"
+  if [[ $7 == 1 ]]; then
+    printf "jq -e --arg a %q '.[\$a] == {write: %s, bash: %s}' \"\$PLUGIN_ROOT/hooks/agent-scope.json\" >/dev/null 2>&1 \\\\\n" \
+      "$1:$2" "$5" "$6"
+    printf '  && pass "portée déclarée au garde" || fail "portée déclarée au garde"\n'
+  fi
+  printf '\nfinish\n'
+}
+
+cmd_add_agent() {
+  local plugin=${1:-} name="" tool_list="" model="" writes="" allow="" test_only=0 tool
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --name) name=${2:-}; shift 2 ;;
+      --tools) tool_list=${2:-}; shift 2 ;;
+      --model) model=${2:-}; shift 2 ;;
+      --writes) writes=${2:-}; shift 2 ;;
+      --bash) allow=${2:-}; shift 2 ;;
+      --test-only) test_only=1; shift ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n $plugin && -n $name && -n $tool_list && -n $model ]] \
+    || die "usage : pp.sh add-agent PLUGIN --name NOM --tools \"Read, Grep\" --model MODÈLE [--writes \"docs/,test/\"] [--bash \"git diff,git log\"] [--test-only]"
+  need jq
+  [[ -f $plugin/.claude-plugin/plugin.json ]] || die "refusé : $plugin n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  [[ $name =~ ^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$ && $name != *--* ]] \
+    || die "refusé : nom « $name » : 3 à 50 caractères en kebab-case, commençant et finissant par une lettre ou un chiffre."
+  local -a list
+  local writer=0 shell=0
+  IFS=',' read -ra list <<<"$tool_list"
+  for tool in "${list[@]}"; do
+    tool=${tool// /}
+    [[ $tool != Agent ]] || die "refusé : l'outil Agent est interdit, un agent du plugin ne lance pas d'agent."
+    [[ $KNOWN_TOOLS == *" $tool "* ]] || die "refusé : outil inconnu : $tool."
+    if [[ $tool =~ ^(Write|Edit|NotebookEdit)$ ]]; then
+      [[ $name != *review* ]] || die "refusé : un relecteur n'a ni Write ni Edit ($tool)."
+      writer=1
+    fi
+    [[ $tool != Bash ]] || shell=1
+  done
+  [[ $AGENT_MODELS == *" $model "* || $model == claude-* ]] || die "refusé : model « $model » inconnu ; connus :$AGENT_MODELS, ou un identifiant claude-…"
+  ((writer == 0)) || [[ -n $writes ]] || die "refusé : un agent qui écrit déclare ses dossiers d'écriture (--writes \"docs/\")."
+  ((shell == 0)) || [[ -n $allow ]] || die "refusé : un agent qui a Bash déclare sa liste blanche (--bash \"git diff,git log\")."
+  ((writer == 1)) || [[ -z $writes ]] || die "refusé : --writes sans outil d'écriture dans --tools."
+  [[ /${writes//,//,/}/ != */../* && ,$writes != *,/* ]] || die "refusé : dossier d'écriture qui remonte (..) ou absolu : $writes."
+  local file="agents/$name.md" test="tests/static/test_agent_${name//-/_}.sh"
+  [[ ! -e $plugin/$file ]] || die "refusé : l'agent $name existe déjà ($file)."
+  ((test_only == 0)) || [[ ! -e $plugin/$test ]] || die "refusé : le test $test existe déjà."
+
+  local plugin_name writes_json bash_json scoped=0
+  plugin_name=$(jq -r '.name' "$plugin/.claude-plugin/plugin.json")
+  writes_json=$(tr ',' '\n' <<<"$writes" | sed 's/^ *//; s/ *$//' | grep . | jq -Rsc 'split("\n") | map(select(length > 0))')
+  bash_json=$(tr ',' '\n' <<<"$allow" | sed 's/^ *//; s/ *$//' | grep . | jq -Rsc 'split("\n") | map(select(length > 0))')
+  ((writer == 0 && shell == 0)) || scoped=1
+  if [[ ! -e $plugin/$test ]]; then
+    mkdir -p "$plugin/tests/static"
+    agent_test "$plugin_name" "$name" "$tool_list" "$model" "$writes_json" "$bash_json" "$scoped" >"$plugin/$test"
+  fi
+  if ((test_only)); then
+    printf 'écrit : %s (le test de l'"'"'agent, rouge tant que %s manque)\n' "$test" "$file"
+    return 0
+  fi
+
+  local guard="hooks/scripts/agent-scope-guard.sh"
+  if ((scoped)) && [[ ! -e $plugin/$guard ]]; then
+    printf '%s\n' "$SCOPE_WARNING"
+    mkdir -p "$plugin/hooks/scripts" "$plugin/tests/hooks"
+    sed "s/__PLUGIN__/$plugin_name/" "$PP_ROOT/scripts/scaffold/agent-scope/agent-scope-guard.sh" >"$plugin/$guard"
+    cp "$PP_ROOT/scripts/scaffold/agent-scope/test_agent_scope_guard.sh" "$plugin/tests/hooks/"
+    wire_hook "$plugin" "$guard" PreToolUse "Edit|Write|NotebookEdit|Bash|Monitor" fail-closed 10
+    note_hook "$plugin" agent-scope-guard PreToolUse "Edit|Write|NotebookEdit|Bash|Monitor" fail-closed
+  fi
+  if ((scoped)); then
+    local scope_file="$plugin/hooks/agent-scope.json"
+    jq --arg agent "$plugin_name:$name" --argjson write "$writes_json" --argjson bash "$bash_json" \
+      '.[$agent] = {write: $write, bash: $bash}' <<<"$(cat "$scope_file" 2>/dev/null || echo '{}')" >"$scope_file.tmp" \
+      && mv "$scope_file.tmp" "$scope_file"
+  fi
+  mkdir -p "$plugin/agents"
+  {
+    printf -- '---\nname: %s\ndescription: "Use this agent when TODO; not for TODO."\ntools: %s\nmodel: %s\n---\n\n' "$name" "$tool_list" "$model"
+    printf '## Responsibilities\n\nTODO: the one bounded task this agent does for the main session.\n\n'
+    printf '## Approach\n\nTODO: the steps, in order.'
+    if ((scoped)); then
+      printf ' Scope, enforced by the agent-scope-guard hook: writes only under %s; Bash only %s.' \
+        "$(jq -r 'if length == 0 then "nothing" else map("`\(.)`") | join(", ") end' <<<"$writes_json")" \
+        "$(jq -r 'if length == 0 then "nothing" else map("`\(.)`") | join(", ") end' <<<"$bash_json")"
+    fi
+    printf '\n\n## Output format\n\nEnd with this report, and nothing after it:\n\n'
+    printf 'STATUS: done | blocked | failed\nFILES_CHANGED: <paths, or none>\nCOMMANDS_RUN: <command → exit code, one per line, or none>\nOPEN_QUESTIONS: <questions for the main session, or none>\n'
+  } >"$plugin/$file"
+  printf 'écrit : %s%s\n' "$file" "$( ((scoped)) && echo ", hooks/agent-scope.json")"
 }
 
 cmd_status() {
@@ -940,10 +1057,12 @@ case ${1:-} in
   checkpoint) shift; cmd_checkpoint "$@" ;;
   resume) shift; cmd_resume "$@" ;;
   check-skill) shift; cmd_check_skill "$@" ;;
+  check-agent) shift; cmd_check_agent "$@" ;;
   check-evals) shift; cmd_check_evals "$@" ;;
   eval-plan) shift; cmd_eval_plan "$@" ;;
   eval-run) shift; cmd_eval_run "$@" ;;
   eval-verdict) shift; cmd_eval_verdict "$@" ;;
   add-hook) shift; cmd_add_hook "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-evals | eval-plan | eval-run | eval-verdict | add-hook" ;;
+  add-agent) shift; cmd_add_agent "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent" ;;
 esac

@@ -108,7 +108,8 @@ grep -qE 'suite du plugin créé : exit 0' <<<"$PP_OUTPUT" && pass "create lance
   || fail "create lance la suite du plugin créé, qui passe" "$(tail -n 5 <<<"$PP_OUTPUT" | tr '\n' '|')"
 for file in .claude-plugin/plugin.json .claude-plugin/marketplace.json LICENSE README.md CHANGELOG.md PROGRESS.md .gitignore \
   docs/INSTALLATION.md docs/USER_GUIDE.md docs/SECURITY.md docs/TROUBLESHOOTING.md \
-  tests/lib.sh tests/run-all.sh tests/static/test_manifest.sh tests/static/test_paths.sh tests/static/test_run_all.sh; do
+  tests/lib.sh tests/headers.sh tests/run-all.sh tests/static/test_manifest.sh tests/static/test_paths.sh \
+  tests/static/test_run_all.sh tests/static/test_headers.sh; do
   [[ -f $target/$file ]] && pass "créé : $file" || fail "créé : $file"
 done
 jq -e '.name == "plugin-essai" and .version == "0.1.0" and .description == "Plugin d'"'"'essai." and .author == {name: "Soon"}
