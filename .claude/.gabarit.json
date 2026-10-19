@@ -1,0 +1,7 @@
+{
+  "gabarit": "/home/soon/Docker/claude/templates/projet",
+  "pose": "2026-10-19T20:58:14+02:00",
+  "options": [
+    "--hooks"
+  ]
+}

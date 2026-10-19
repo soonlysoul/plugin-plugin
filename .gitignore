@@ -1,0 +1,4 @@
+# --- Claude Code (ajouté par init-projet.sh) ---
+.shots/
+repomix-output.xml
+.claude/settings.local.json

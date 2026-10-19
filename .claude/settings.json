@@ -1,0 +1,117 @@
+{
+  "$comment": [
+    "Settings de PROJET. Posé par scripts/init-projet.sh, puis POSSÉDÉ par le dépôt :",
+    "à éditer et à committer ici, jamais dans le gabarit — sauf pour faire évoluer",
+    "tous les projets à venir.",
+    "",
+    "PAS de defaultMode : « auto » n'a d'effet que depuis le fichier utilisateur ; un",
+    "settings de projet le voit ignoré comme repo-controllable. Le poser ici ne ferait",
+    "rien, en donnant l'impression du contraire.",
+    "",
+    "PAS de disableBypassPermissionsMode : sans effet hors managed settings",
+    "(/etc/claude-code/managed-settings.json, posé par nixos/claude-code-policy.nix).",
+    "Le poser ici donnerait une fausse sécurité. La vraie barrière est déjà en place,",
+    "au niveau système, et aucun settings de projet ne peut l'affaiblir.",
+    "",
+    "Le « deny » ci-dessous ne REDÉCLARE PAS celui de ~/.claude/settings.json : un deny",
+    "de n'importe quel niveau l'emporte sur un allow de n'importe quel autre, la",
+    "redondance ne protégerait de rien. Il n'ajoute que ce qui n'a de sens que DANS un",
+    "projet — reconfigurer la machine depuis une session qui travaille sur du code.",
+    "",
+    "Les entrées « deny » de secrets sont en revanche volontairement redondantes avec",
+    "le hook check-secrets.sh et avec .gitignore. Trois barrières indépendantes,",
+    "parce qu'une fuite de secret ne se rattrape pas.",
+    "",
+    "« Edit(chemin) » ET NON « Write(chemin) » DANS LES DENY DE FICHIERS.",
+    "",
+    "Claude Code 2.1.220 le dit lui-même au démarrage, et il fallait le lire :",
+    "« Permission deny rule: Write(/etc/**) is not matched by file permission",
+    "checks — only Edit(path) rules are. Use Edit(/etc/**) instead (Edit rules",
+    "cover all file-editing tools). »",
+    "",
+    "Ce fichier a d'abord porté Write(/etc/**), Write(~/.claude/**) et",
+    "Write(~/.ssh/**) : trois règles qui ne protégeaient RIEN, et qui se lisaient",
+    "pourtant comme une protection. « Edit » couvre tous les outils d'écriture,",
+    "Write compris. L'avertissement n'apparaît qu'en sortie d'erreur au démarrage",
+    "d'une session — c'est-à-dire là où personne ne regarde."
+  ],
+
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(rg:*)",
+      "Bash(fd:*)",
+      "Bash(jq:*)"
+    ],
+
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
+    ],
+
+    "deny": [
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)",
+      "Read(./**/secrets/**)",
+
+      "Bash(nixos-rebuild:*)",
+      "Bash(home-manager switch:*)",
+
+      "Edit(/etc/**)",
+      "Edit(~/.claude/**)",
+      "Edit(~/.ssh/**)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-dangerous-commands.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/check-secrets.sh"
+          }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/format-changed-files.sh"
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/verify-tests.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

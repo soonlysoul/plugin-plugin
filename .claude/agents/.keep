@@ -1,0 +1,9 @@
+Sous-agents de ce projet : un fichier .md par agent, frontmatter « name »,
+« description » et « tools ».
+
+Vide à dessein — comme skills/. Exemple sur cette machine :
+~/Documents/code/.claude/agents/ en porte neuf, tous spécialisés par domaine
+(typescript-reviewer, security-reviewer, migration-reviewer, …).
+
+Un agent générique n'a pas d'objet : ce qui le rend utile est de savoir ce que
+CE projet considère comme une faute.
