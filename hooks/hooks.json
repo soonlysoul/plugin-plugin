@@ -1,5 +1,5 @@
 {
-  "description": "plugin-plugin: a framing document approved then modified goes back to review.",
+  "description": "plugin-plugin: a framing document approved then modified goes back to review; a stale checkpoint is recalled once.",
   "hooks": {
     "PostToolUse": [
       {
@@ -8,9 +8,25 @@
           {
             "type": "command",
             "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/doc-status-guard.sh"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/doc-status-guard.sh"
+            ],
             "timeout": 10,
             "onFailure": "continue"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/checkpoint-reminder.sh"
+            ],
+            "timeout": 10
           }
         ]
       }

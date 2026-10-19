@@ -12,3 +12,6 @@ evals/**/results/
 *.swp
 .idea/
 .vscode/
+
+# Volatile resumption state; approvals and delegated decisions are versioned.
+.plugin-plugin/checkpoint.md

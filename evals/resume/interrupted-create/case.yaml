@@ -1,0 +1,32 @@
+schema_version: "1.0"
+name: resume-interrupted-create
+description: Une création interrompue se résume en dix lignes au plus, sans rien refaire ni écrire, et propose l'étape 4.
+tags: [resume, positive]
+runs: 3
+expected_outcome: Le skill resume lit le point de reprise et git, propose de reprendre à l'étape 4, attend l'accord, et ne modifie aucun fichier.
+context:
+  scaffold_script: setup.sh
+execution:
+  prompt: "On s'est fait couper pendant la création de ./plugin-recettes. Reprends où on s'était arrêté."
+  max_turns: 10
+  allowed_tools: [Skill, Read, Glob, Bash]
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?resume"'
+  - name: proposes-step-4
+    type: regex
+    target: last_message
+    pattern: '4[^\n]{0,40}(Rapport|premier commit)'
+  - name: short-and-waits
+    type: llm
+    criteria: |
+      PASS if the reply summarizes the state in ten lines or fewer, says steps 1 to 3 are done, proposes to resume at step 4, and asks for agreement before acting.
+      FAIL if it proposes to redo steps 1 to 3, or says it already resumed, committed or changed files.
+  - name: no-commit-made
+    type: tool_used
+    tool: Bash
+    input_match: 'git[^"]*commit'
+    min: 0
+    max: 0

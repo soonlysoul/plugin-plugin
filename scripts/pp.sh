@@ -12,6 +12,8 @@
 #   approve DOC --quote MESSAGE
 #   status DOC
 #   create DIR --name NAME --description TEXT
+#   checkpoint DIR start --skill S --steps "a|b" | done N --command C --exit E [--test T] | block REASON
+#   resume DIR
 # Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
@@ -374,6 +376,160 @@ cmd_create() {
   ((rc == 0)) || exit 1
 }
 
+# The checkpoint, .plugin-plugin/checkpoint.md: header fields, one line per step of the running
+# skill (done: command and exit code), blockers. Read into CP_* globals, written back whole.
+read_checkpoint() {
+  local line
+  CP_SKILL="" CP_UPDATED="" CP_BRANCH="" CP_HEAD="" CP_TEST="" CP_STEPS=() CP_BLOCKERS=()
+  while IFS= read -r line; do
+    case $line in
+      "skill : "*) CP_SKILL=${line#skill : } ;;
+      "mis à jour : "*) CP_UPDATED=${line#mis à jour : } ;;
+      "branche : "*) CP_BRANCH=${line#branche : } ;;
+      "dernier commit : "*) CP_HEAD=${line#dernier commit : } ;;
+      "test ciblé : "*) CP_TEST=${line#test ciblé : \`}; CP_TEST=${CP_TEST%\`} ;;
+      "- ["[x\ ]"] "[0-9]*) CP_STEPS+=("$line") ;;
+      "- aucun") ;;
+      "- "*) CP_BLOCKERS+=("${line#- }") ;;
+    esac
+  done <"$1"
+}
+
+write_checkpoint() {
+  {
+    printf '# Point de reprise\n\n'
+    printf 'mis à jour : %s\nskill : %s\nbranche : %s\ndernier commit : %s\n' "$CP_UPDATED" "$CP_SKILL" "$CP_BRANCH" "$CP_HEAD"
+    [[ -z $CP_TEST ]] || printf 'test ciblé : `%s`\n' "$CP_TEST"
+    printf '\n## Étapes\n\n'
+    printf '%s\n' "${CP_STEPS[@]}"
+    printf '\n## Blocages\n\n'
+    if ((${#CP_BLOCKERS[@]} == 0)); then printf -- '- aucun\n'; else printf -- '- %s\n' "${CP_BLOCKERS[@]}"; fi
+  } >"$1"
+}
+
+# step_name <step line>: the step's number and name, without its command and exit code.
+step_name() {
+  local text=${1#- \[?\] }
+  printf '%s' "${text%% — \`*}"
+}
+
+cmd_checkpoint() {
+  local dir=${1:-} action=${2:-} file
+  [[ -d $dir/.plugin-plugin ]] || die "refusé : $dir n'est pas un projet géré (pp.sh init-state d'abord)."
+  shift 2 || true
+  file="$dir/.plugin-plugin/checkpoint.md"
+  case $action in
+    start)
+      local skill="" steps="" step n=0
+      while [[ $# -gt 0 ]]; do
+        case $1 in
+          --skill) skill=${2:-}; shift 2 ;;
+          --steps) steps=${2:-}; shift 2 ;;
+          *) shift ;;
+        esac
+      done
+      [[ -n $skill && -n $steps ]] || die "usage : pp.sh checkpoint DOSSIER start --skill SKILL --steps \"étape|étape|…\""
+      CP_SKILL=$skill CP_TEST="" CP_STEPS=() CP_BLOCKERS=()
+      IFS='|' read -ra parts <<<"$steps"
+      for step in "${parts[@]}"; do
+        n=$((n + 1))
+        CP_STEPS+=("- [ ] $n $step")
+      done
+      ;;
+    done)
+      local number=${1:-} command="" code="" test="" i found=0
+      shift || true
+      while [[ $# -gt 0 ]]; do
+        case $1 in
+          --command) command=${2//\`/\'}; shift 2 ;;
+          --exit) code=${2:-}; shift 2 ;;
+          --test) test=${2//\`/\'}; shift 2 ;;
+          *) shift ;;
+        esac
+      done
+      [[ $number =~ ^[0-9]+$ && -n $command && $code =~ ^[0-9]+$ ]] \
+        || die "usage : pp.sh checkpoint DOSSIER done N --command COMMANDE --exit CODE [--test COMMANDE]"
+      [[ -f $file ]] || die "refusé : aucun point de reprise dans $dir (checkpoint start d'abord)."
+      read_checkpoint "$file"
+      for i in "${!CP_STEPS[@]}"; do
+        [[ ${CP_STEPS[$i]} =~ ^-\ \[.\]\ $number\  ]] || continue
+        CP_STEPS[i]="- [x] $(step_name "${CP_STEPS[$i]}") — \`$command\` → exit $code"
+        found=1
+      done
+      ((found)) || die "refusé : étape $number inconnue du point de reprise."
+      [[ -z $test ]] || CP_TEST=$test
+      ;;
+    block)
+      [[ -n ${1:-} && -f $file ]] || die "usage : pp.sh checkpoint DOSSIER block RAISON (après start)"
+      read_checkpoint "$file"
+      CP_BLOCKERS+=("$1")
+      ;;
+    *) die "usage : pp.sh checkpoint DOSSIER start|done|block …" ;;
+  esac
+  CP_UPDATED=$(date +%FT%H:%M%:z)
+  CP_BRANCH=$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null || echo -)
+  CP_HEAD=$(git -C "$dir" rev-parse --short HEAD 2>/dev/null || echo -)
+  write_checkpoint "$file"
+  printf 'point de reprise : %s\n' "$file"
+}
+
+# join <separator> <items...>
+join() {
+  local separator=$1 out=""
+  shift
+  for item in "$@"; do out+=${out:+$separator}$item; done
+  printf '%s' "$out"
+}
+
+# uncommitted <dir>: the files changed and not committed, the state folder left out.
+uncommitted() {
+  git -C "$1" --no-optional-locks status --porcelain --untracked-files=all 2>/dev/null |
+    cut -c4- | sed 's/^.* -> //' | grep -v '^\.plugin-plugin/' | sort
+}
+
+# Read-only: crosses the checkpoint with git, ten lines at most.
+cmd_resume() {
+  local dir=${1:-} file files count list problems=() newer branch
+  [[ -d $dir/.plugin-plugin ]] || die "refusé : $dir n'est pas un projet géré (aucun dossier .plugin-plugin/)."
+  file="$dir/.plugin-plugin/checkpoint.md"
+  files=$(uncommitted "$dir")
+  count=$(grep -c . <<<"$files")
+  list=$(head -n 3 <<<"$files" | paste -sd, - | sed 's/,/, /g')
+  ((count > 3)) && list+=", …"
+  if [[ ! -f $file ]]; then
+    printf 'aucun point de reprise : état reconstruit depuis git\n'
+    printf 'dernier commit : %s\n' "$(git -C "$dir" log -1 --format='%h %s' 2>/dev/null || echo aucun)"
+    printf 'branche : %s\n' "$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null || echo -)"
+    printf 'fichiers modifiés non commités : %d%s\n' "$count" "${list:+ ($list)}"
+    return 0
+  fi
+  read_checkpoint "$file"
+  local done=() todo=() last="" step
+  for step in "${CP_STEPS[@]}"; do
+    if [[ $step == "- [x] "* ]]; then done+=("$(step_name "$step")"); last=${step#- \[x\] }
+    else todo+=("$(step_name "$step")"); fi
+  done
+
+  if [[ $CP_HEAD != - ]] && git -C "$dir" rev-parse -q --verify "$CP_HEAD^{commit}" >/dev/null; then
+    newer=$(git -C "$dir" rev-list --count "$CP_HEAD..HEAD" 2>/dev/null)
+    ((newer > 0)) && problems+=("$newer commit plus récent que le point de reprise")
+  elif [[ $CP_HEAD != - ]]; then
+    problems+=("dernier commit noté $CP_HEAD introuvable")
+  fi
+  branch=$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null || echo -)
+  [[ $branch == "$CP_BRANCH" ]] || problems+=("branche $branch au lieu de $CP_BRANCH")
+  ((count == 0)) || problems+=("$count fichiers modifiés non commités ($list)")
+
+  printf 'skill : %s (point du %s)\n' "$CP_SKILL" "$CP_UPDATED"
+  printf 'fait : %s\n' "$( ((${#done[@]})) && join ', ' "${done[@]}" || echo rien)"
+  [[ -z $last ]] || printf 'dernière étape : %s\n' "$last"
+  printf 'reste : %s\n' "$( ((${#todo[@]})) && join ', ' "${todo[@]}" || echo rien)"
+  ((${#todo[@]} == 0)) || printf 'étape suivante : %s\n' "${todo[0]}"
+  [[ -z $CP_TEST ]] || printf 'test ciblé : `%s`\n' "$CP_TEST"
+  printf 'incohérences : %s\n' "$( ((${#problems[@]})) && join ' ; ' "${problems[@]}" || echo aucune)"
+  printf 'blocages : %s\n' "$( ((${#CP_BLOCKERS[@]})) && join ' ; ' "${CP_BLOCKERS[@]}" || echo aucun)"
+}
+
 cmd_status() {
   [[ $# == 1 && -f $1 ]] || die "usage : pp.sh status DOCUMENT"
   local status
@@ -392,5 +548,7 @@ case ${1:-} in
   approve) shift; cmd_approve "$@" ;;
   status) shift; cmd_status "$@" ;;
   create) shift; cmd_create "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create" ;;
+  checkpoint) shift; cmd_checkpoint "$@" ;;
+  resume) shift; cmd_resume "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume" ;;
 esac

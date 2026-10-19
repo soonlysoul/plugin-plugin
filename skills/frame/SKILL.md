@@ -11,6 +11,8 @@ Address the user in French unless they write in another language.
 
 Nothing of the plugin is written before its PRD and architecture are approved. This skill writes only in the target folder: `docs/PRD.md`, `docs/ARCHITECTURE.md` and `.plugin-plugin/`.
 
+**Checkpoint.** Once the state exists (step 1), run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skill frame --steps "Dossier et état|Interview|Documents en brouillon|Approbations|Passage à create"`. After each step: `… checkpoint <folder> done <n> --command "<command or action>" --exit <code>`; on a blocker: `… checkpoint <folder> block "<reason>"`. The same command failing twice the same way: stop and expose the blocker.
+
 ## Step 1 — Target folder and state
 
 Take the target folder from the arguments, or ask for it. It must be empty, or hold only a previous framing (`docs/`, `.plugin-plugin/`). Otherwise stop and say why.
