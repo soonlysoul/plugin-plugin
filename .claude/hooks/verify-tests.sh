@@ -17,11 +17,12 @@ racine="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd
 cd "$racine" 2>/dev/null || exit 0
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
 
-# Fichiers de code modifiés et non commités, tests exclus.
-modifies=$(git status --porcelain 2>/dev/null \
+# Fichiers de code modifiés et non commités, tests exclus. --untracked-files=all : un
+# script neuf dans un dossier neuf apparaît sous son nom, pas sous celui du dossier.
+modifies=$(git status --porcelain --untracked-files=all 2>/dev/null \
   | awk '{ print $NF }' \
   | grep -Ev '(^|/)(test|tests|__tests__)/|\.(test|spec)\.[a-z]+$' \
-  | grep -E '\.(ts|tsx|js|jsx|mjs|dart|rs)$' || true)
+  | grep -E '\.(ts|tsx|js|jsx|mjs|dart|rs|sh)$' || true)
 
 [ -n "$modifies" ] || exit 0
 
@@ -36,7 +37,8 @@ nombre=$(printf '%s\n' "$modifies" | grep -c . || true)
   [ -f package.json ]           && printf '  pnpm test\n'
   [ -f pubspec.yaml ]           && printf '  flutter test\n'
   [ -f Cargo.toml ]             && printf '  cargo test\n'
-  [ -f package.json ] || [ -f pubspec.yaml ] || [ -f Cargo.toml ] \
+  [ -f tests/run-all.sh ]       && printf '  bash tests/run-all.sh\n'
+  [ -f package.json ] || [ -f pubspec.yaml ] || [ -f Cargo.toml ] || [ -f tests/run-all.sh ] \
     || printf '  (aucun harnais de test dans ce dépôt pour le moment)\n'
   printf '────────────────────────────────────────────────────────────────\n'
 } >&2

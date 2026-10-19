@@ -2,3 +2,8 @@
 .shots/
 repomix-output.xml
 .claude/settings.local.json
+
+# --- plugin-plugin ---
+build/
+evals/**/results/
+.superpowers/

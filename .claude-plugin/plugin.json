@@ -1,0 +1,12 @@
+{
+  "name": "plugin-plugin",
+  "version": "0.1.0",
+  "description": "Frame, scaffold, test and publish Claude Code plugins at the plugin-flutter model: TDD components, evals, release, re-audit.",
+  "author": {
+    "name": "Soon"
+  },
+  "homepage": "https://github.com/soonlysoul/plugin-plugin",
+  "repository": "https://github.com/soonlysoul/plugin-plugin",
+  "license": "MIT",
+  "keywords": ["claude-code", "plugin", "tdd", "evals"]
+}
