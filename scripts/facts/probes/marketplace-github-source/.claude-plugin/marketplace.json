@@ -1,0 +1,17 @@
+{
+  "name": "sonde",
+  "description": "Sonde de plugin-plugin.",
+  "owner": {
+    "name": "Soon"
+  },
+  "plugins": [
+    {
+      "name": "plugin-sonde",
+      "source": {
+        "source": "github",
+        "repo": "soonlysoul/plugin-sonde-zz-inexistant"
+      },
+      "description": "Entrée à source GitHub, vers un dépôt qui n'existe pas."
+    }
+  ]
+}

@@ -74,6 +74,13 @@ done
 for id in mcp-validated-with-manifest mcp-declaration-forms mcp-server-unknown-field-tolerated; do
   expect_fact "$id" confirmé
 done
+# Phase 11: what claude plugin tag, plugin details and a marketplace with GitHub sources do.
+for id in plugin-tag-climbs-to-enclosing-repo plugin-tag-checks-tree-tag-and-entry plugin-tag-dry-run-offline \
+  plugin-details-per-component marketplace-github-source-validates-offline marketplace-duplicate-name-refused \
+  marketplace-soon-entry-format; do
+  expect_fact "$id" confirmé
+done
+expect_fact eval-allowed-tools-pattern-narrows-bash "à vérifier"
 # From plugin-dev, unverified, with its two contradictions of phase A.
 expect_fact plugindev-when-to-use-deprecated "à vérifier"
 expect_fact plugindev-hooks-need-restart "à vérifier"

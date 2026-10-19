@@ -1,13 +1,17 @@
 # PROGRESS — plugin-plugin v0.1
 
-Dernière mise à jour : 2026-10-19
+Dernière mise à jour : 2026-10-20
 Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PLAN.md`, APPROUVÉ).
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7, 8 et 9 terminées**. La phase 10 attend la phase 6 ; prochaine étape : phase 11 (répétition de publication).
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7, 8, 9 et 11 terminées**. La phase 10 attend la phase 6 ; prochaine étape : phase 12 (publication sous accord), coût permanent 678 tokens.
 
-**Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create` et `resume`, pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes : à recueillir auprès de Soon avant d'écrire `evals/add/`.
+**Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes : à recueillir auprès de Soon avant d'écrire `evals/add/`.
+
+**Incident de la phase 11, réparé** — le 2026-10-20, une exécution du nouveau test `test_release` a commité dans le dépôt de plugin-plugin lui-même (`ed9b9df`, local, jamais poussé : aucune branche distante ne le contient). Un `git commit` sans rien à valider avait écrit sur la sortie standard, capturée avec le chemin du plugin d'essai ; le test a créé un dossier relatif dans plugin-plugin, et `git add -A` y a pris tout l'arbre. Défait par `git reset --soft HEAD~1` puis `git reset` (arbre de travail intact, commit gardé au reflog), dossier parasite retiré. Le test travaille désormais depuis son dossier jetable, sous `GIT_CEILING_DIRECTORIES`, et refuse tout commit hors d'un dépôt d'essai. L'échec de `release-write` qui l'a déclenché n'a pas été reproduit (18 appels simultanés de `plugin details` sans échec) : s'il revient, le test en montre la sortie.
+
+**Hors de cette phase** — l'arbre de travail portait déjà, à la reprise, la perte du bit d'exécution des quatre scripts de `.claude/hooks/` (100755 → 100644). Non touché, non commité : à trancher par Soon.
 
 **À trancher par Soon** — le plan approuvé affirme, dans « Tests et validation », que `claude plugin validate .` ne valide que la marketplace. Mesuré en phase 2 : c'est faux sur 2.1.296 (voir ci-dessous). Rien ne casse — la suite valide toujours chaque cible —, mais la phrase du plan est à corriger, ce qui le repasse en revue. Le plan n'a pas été modifié.
 
@@ -388,3 +392,65 @@ Trois sondes rejouées par `pp.sh reaudit` (`scripts/facts/probes/mcp-*`) : « f
 | `create` ne recopie pas `tests/mcp.sh` | « suite du plugin : verte » (le `test_paths` du plugin créé : « tests/mcp.sh présent ») ; `test_create` : « créé : tests/mcp.sh » |
 
 Non pris : faire passer, dans `test_paths`, une annexe qui contient `${CLAUDE_PLUGIN_ROOT}`. Règle antérieure à la phase 9, hors de `test_add_mcp` ; aucun test ne la met à l'épreuve sur une copie faussée, mais elle a échoué pour la bonne raison sur `mcp.md` (rouge ci-dessus).
+
+## Phase 11 — Répétition de publication — terminée
+
+- [x] `pp.sh release <plugin> [--bump patch|minor|major]` refuse, sans rien toucher (empreinte de l'arborescence, `.git` compris) : changements non enregistrés, fichiers non suivis compris ; validation stricte rouge ; suite du plugin rouge ; autre branche que `main` ; plugin qui n'est pas la racine de son dépôt ; `origin` hors de `soonlysoul/<nom>` ; rien depuis la dernière étiquette. GitHub illisible ou `gh` absent : « bloqué », exit 2 (US-23).
+- [x] Version selon la nature du changement, lue sur les composants depuis la dernière étiquette : un composant retiré donne une majeure, un ajouté une mineure, tout autre changement un correctif ; `--bump` ne peut que monter, et la nature calculée reste affichée. Première publication : la version de `plugin.json`. Entrée du CHANGELOG rédigée : la section « en cours » du haut est datée et garde ses entrées, sinon une section est rédigée depuis les composants ajoutés et retirés, ou depuis les commits. Étiquette vérifiée par `claude plugin tag --dry-run`, lancé une fois, sur la copie jetable ; son refus arrête la répétition (US-22).
+- [x] Marketplace `soon` et dépôt `soonlysoul/<nom>` lus par `gh api`, jamais dans la copie locale ; l'entrée d'un nouveau plugin est essayée sur la marketplace lue, puis passée à la validation stricte (US-28).
+- [x] Coût en contexte par composant, par `claude plugin details`, alerte au-delà de 1 000 tokens permanents ; le coût est inscrit dans l'entrée du CHANGELOG et dans le corps de la PR (US-25, critère 9).
+- [x] Gestes numérotés, chacun avec sa commande exacte, `[local]` ou `[GitHub]` : écriture de version (`pp.sh release-write`), commit, étiquette, création du dépôt, `origin`, push de `main`, push de l'étiquette ; pour un nouveau plugin, copie de la marketplace, branche, entrée (`pp.sh marketplace-entry`), commit, push de la branche, PR. Aucun n'est exécuté : les journaux des doublures `gh` et `git push` restent vides, et le dépôt distant (nu) aussi. Les trois gestes locaux annoncés, lancés tels quels sur une copie, produisent bien la version, le CHANGELOG daté et l'étiquette (US-24).
+- [x] Commande à lancer soi-même sur chaque appareil : `claude plugin marketplace update soon` puis `claude plugin install <nom>@soon` après la fusion de la PR ; `claude plugin update <nom>@soon` pour une mise à jour (US-29).
+- [x] Suite d'évaluation `evals/release/` : un cas positif, l'invocation explicite, et un négatif tiré d'une demande de Soon recueillie le 2026-10-20 (« pousse plugin-x sur GitHub »), trois exécutions chacun. Écrite, conforme à `check-evals`, non lancée : le positif exige Bash (décision c).
+- [x] Skill `release` (`disable-model-invocation`) : le jugement sur la nature du changement — une rupture à l'intérieur d'un composant — lui revient, `--bump` seulement après un « oui ». Ce skill ne fait que répéter : aucun geste listé n'est lancé, même sur un « oui ».
+
+Tout se fait sur une copie jetable de HEAD (`git clone`) : validation, coût, écriture de la version et du CHANGELOG, suite, étiquette. L'état éprouvé est donc celui qui serait étiqueté, et le dossier du plugin n'est jamais écrit. Aucun point de reprise pour la répétition, en lecture seule comme `reaudit` ; le journal des gestes vient en phase 12.
+
+Retouches liées : `add` ouvre désormais `## [à venir] — en cours` au-dessus d'une section déjà datée, que `release` date ; `eval-plan` accorde à `--allow-tools` les motifs Bash déclarés par les cas (`Bash(bash:*)` pour le positif de `release`), jamais Bash entier.
+
+Coût permanent de plugin-plugin : 678 tokens (`release` ~110), sous le seuil de 1 000.
+
+### Sondes
+
+| Sonde | Commande | Résultat |
+| --- | --- | --- |
+| Arbre sale, étiquette posée, version discordante | `claude plugin tag --dry-run .` sur un plugin créé | exit 1 dans les trois cas ; un fichier du `.gitignore` (`.plugin-plugin/checkpoint.md`) n'empêche rien ; une entrée sans version passe. Fait `plugin-tag-checks-tree-tag-and-entry` |
+| Plugin hors de la racine de son dépôt | `claude plugin tag --dry-run <dossier sans .git>` | exit 0 : l'étiquette est annoncée **dans le dépôt englobant** (ici plugin-plugin). `release` refuse donc tout plugin qui n'est pas la racine de son dépôt. Fait `plugin-tag-climbs-to-enclosing-repo` |
+| Sans réseau | `unshare -rn claude plugin tag --dry-run .` | exit 0 ; affiche `git tag -a` et `git push origin refs/tags/…`. Fait `plugin-tag-dry-run-offline` |
+| Coût par composant | `claude --plugin-dir . plugin details <nom>` | tableau « Per-component (rounded) » par skill et agent ; absent sans composant. Fait `plugin-details-per-component` |
+| Marketplace à source GitHub | `unshare -rn claude plugin validate . --strict` | exit 0, dépôt inexistant compris ; deux entrées du même nom : exit 1 ; une marketplace sans `description` : exit 1 en strict. Sondes `marketplace-github-source`, `marketplace-duplicate-name`, rejouées par `reaudit` : « faits à corriger : 0 » |
+| Marketplace `soon` réelle | `gh api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json` | entrées `name`, `source` github, `description`, sans version ni ref ; dépôt public, branche `main`. Fait `marketplace-soon-entry-format` |
+| `--allow-tools` de l'évaluation | `claude plugin eval --help` | « Supports Tool(pattern:*) syntax ». Que `Bash(bash:*)` tienne en passage réel, et que le bac à sable voie ou non les identifiants `gh` du poste : **à vérifier** au premier passage (fait `eval-allowed-tools-pattern-narrows-bash`) |
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/static/test_components.sh` | 1 | 8 réussis, 2 échoués : « skill release présent », « release ne se lance que sur demande explicite » |
+| ROUGE | `bash tests/static/test_evals.sh` | 1 | 62 réussis, 3 échoués : « evals/release conforme », « le motif du cas est accordé tel quel » (`--allow-tools Bash` entier), « un cas restreint n'accorde jamais Bash entier » |
+| ROUGE | `bash tests/static/test_facts.sh` | 1 | 58 réussis, 8 échoués : les huit faits de la phase 11 absents |
+| ROUGE | `bash tests/integration/test_release.sh` | 1 | 30 réussis, 60 échoués : `release` inconnu de `pp.sh` (« usage : pp.sh reaudit \| … ») |
+| ROUGE | `bash tests/integration/test_release.sh` (scénario ajouté) | 1 | « entrée de marketplace locale discordante » : le refus venait de la validation stricte, pas de l'étiquette. Pour un plugin du modèle, validation, suite (`test_manifest`) et `pp.sh` couvrent déjà ce que vérifie `--dry-run` ; scénario remplacé par une doublure qui journalise et refuse `plugin tag` |
+| VERT | `bash tests/integration/test_release.sh` | 0 | 102 réussis |
+| VERT | `bash tests/run-all.sh` | 0 | `test_release : 102`, `test_evals : 65`, `test_facts : 70`, `test_components : 10` réussis ; « coût permanent : 678 tokens (seuil 1000) » ; « réussies : 23, échouées : 0, sautées : 1, bloquées : 0 » ; dépôt de plugin-plugin inchangé par la suite |
+
+### Les tests discriminent
+
+Copies faussées dans `build/mutants/p11/`, une ligne de `pp.sh` changée chacune, `PLUGIN_UNDER_TEST=<copie> bash tests/integration/test_release.sh` (`test_evals.sh` pour la dernière) ; HEAD et l'état du dépôt de plugin-plugin contrôlés avant et après la passe :
+
+| Copie faussée | Premiers échecs |
+| --- | --- |
+| arbre sale accepté | « changement non enregistré : refusé », « fichier non suivi : refusé » |
+| suite rouge ignorée | « suite rouge : refusé », « coût au-delà du seuil : refusé » |
+| validation stricte ignorée | « validation stricte rouge : refusé » |
+| racine du dépôt non vérifiée | « plugin hors de la racine de son dépôt : refusé » |
+| composant retiré non compté majeur | « composant retiré : majeure » |
+| `git push origin main` lancé pendant la répétition | « première publication : aucun git push », « mise à jour : aucun git push » |
+| marketplace lue dans la copie locale | « marketplace lue sur GitHub (US-28) », « la marketplace est lue par gh api » (7 échecs) |
+| alerte de coût retirée | « alerte au-delà de 1 000 tokens » |
+| `--dry-run` sauté, sa réussite simulée | « claude plugin tag --dry-run refuse : refusé », « … lancé une fois, sur la copie jetable » |
+| `--bump` plus faible accepté | « --bump plus faible que la nature du changement : refusé » |
+| version écrite dans le plugin, non dans la copie | « suite rouge : plugin identique » (24 échecs) |
+| coût par composant omis | « coût du composant demo », « coût par composant, même en alerte » |
+| section « en cours » exigée chiffrée | « aucune entrée rédigée en double », « section publiée intacte, plus de section en cours » |
+| `eval-plan` accorde toujours Bash entier | « le motif du cas est accordé tel quel », « un cas restreint n'accorde jamais Bash entier » |

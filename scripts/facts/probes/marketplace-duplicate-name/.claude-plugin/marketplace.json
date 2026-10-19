@@ -1,0 +1,25 @@
+{
+  "name": "sonde",
+  "description": "Sonde de plugin-plugin.",
+  "owner": {
+    "name": "Soon"
+  },
+  "plugins": [
+    {
+      "name": "plugin-sonde",
+      "source": {
+        "source": "github",
+        "repo": "soonlysoul/plugin-sonde-a"
+      },
+      "description": "Premier."
+    },
+    {
+      "name": "plugin-sonde",
+      "source": {
+        "source": "github",
+        "repo": "soonlysoul/plugin-sonde-b"
+      },
+      "description": "Doublon."
+    }
+  ]
+}

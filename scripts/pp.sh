@@ -24,6 +24,9 @@
 #   add-agent PLUGIN --name N --tools T --model M [--writes D,…] [--bash C,…] [--test-only]
 #   add-mcp PLUGIN --name N (--launcher scripts/S.sh [--args A,…] [--env VAR,…] | --url U [--header K=V]…) [--test-only]
 #   out-of-scope KIND
+#   release PLUGIN [--bump patch|minor|major]
+#   release-write PLUGIN --version X.Y.Z [--date YYYY-MM-DD]
+#   marketplace-entry MARKETPLACE-CLONE --name N --description TEXT
 # Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
@@ -645,7 +648,7 @@ usd() { LC_ALL=C awk -v n="$1" 'BEGIN { s = sprintf("%.2f", n); sub(/\./, ",", s
 # a case is blocked.
 eval_plan() {
   local plugin=$1 skill=$2 cap=$3 keep=${4:-} arms=${5:-2} errors files runs count sessions low high
-  local -a bash_cases=() runs_list=()
+  local -a bash_cases=() bash_grants=() runs_list=()
   need jq
   [[ $cap =~ ^[0-9]+([.,][0-9]+)?$ ]] && LC_ALL=C awk -v c="${cap/,/.}" 'BEGIN { exit !(c > 0) }' \
     || die "refusé : plafond « $cap » invalide ; un montant positif en USD est attendu."
@@ -656,8 +659,14 @@ eval_plan() {
   count=$(grep -c . <<<"$files")
   while IFS= read -r file; do
     runs_list+=("$(jq -r '.runs' "$file")")
-    jq -e '(.execution.allowed_tools // []) | any(startswith("Bash"))' "$file" >/dev/null && bash_cases+=("$(jq -r '.name' "$file")")
+    if jq -e '(.execution.allowed_tools // []) | any(startswith("Bash"))' "$file" >/dev/null; then
+      bash_cases+=("$(jq -r '.name' "$file")")
+      mapfile -t -O "${#bash_grants[@]}" bash_grants < <(jq -r '.execution.allowed_tools[] | select(startswith("Bash"))' "$file")
+    fi
   done <<<"$files"
+  # The operator grant is what the cases declare: Bash(pattern:*) stays narrow, unless a case wants all of Bash.
+  if printf '%s\n' ${bash_grants[@]+"${bash_grants[@]}"} | grep -qx Bash; then bash_grants=(Bash)
+  else mapfile -t bash_grants < <(printf '%s\n' ${bash_grants[@]+"${bash_grants[@]}"} | grep . | sort -u); fi
   if ((${#bash_cases[@]})); then
     local missing
     for missing in bwrap socat; do
@@ -687,7 +696,7 @@ eval_plan() {
   EVAL_OUTPUT="$plugin/evals/results/$skill-$(date +%Y%m%dT%H%M%S)"
   EVAL_COMMAND=(claude plugin eval "$plugin" --case "$skill-*" --no-publish --max-cost-usd "$cap")
   ((arms == 1)) && EVAL_COMMAND+=(--ablation none)
-  ((${#bash_cases[@]})) && EVAL_COMMAND+=(--allow-tools Bash)
+  ((${#bash_cases[@]})) && EVAL_COMMAND+=(--allow-tools "${bash_grants[@]}")
   [[ $keep == --keep-temp ]] && EVAL_COMMAND+=(--keep-temp)
   EVAL_COMMAND+=(--output-dir "$EVAL_OUTPUT")
   local shown
@@ -1194,6 +1203,371 @@ cmd_out_of_scope() {
   esac
 }
 
+# Release. The rehearsal checks, computes, drafts and announces every gesture, and sends nothing:
+# the version, the CHANGELOG entry, the suite and the tag are tried on a throwaway clone, GitHub is
+# only read, and the plugin's own folder is left as it was.
+SEMVER='^[0-9]+\.[0-9]+\.[0-9]+$'
+MAX_ALWAYS_ON_TOKENS=1000
+
+# shell_word <arg>: the argument as it is typed in an announced command.
+shell_word() {
+  if [[ $1 =~ ^[A-Za-z0-9_./:@%+=,-]+$ ]]; then printf '%s' "$1"
+  elif [[ $1 != *[\"\$\`\\!]* ]]; then printf '"%s"' "$1"
+  else printf "'%s'" "${1//\'/\'\\\'\'}"; fi
+}
+
+# last_release <dir> <name>: "version<TAB>tag" of the newest {name}--vX.Y.Z tag, or of a former
+# vX.Y.Z one, which is read and never touched; nothing before a first publication.
+last_release() {
+  git -C "$1" tag -l | sed -nE "s/^($2--v|v)([0-9]+\.[0-9]+\.[0-9]+)$/\2\t&/p" | sort -t$'\t' -k1,1V | tail -n 1
+}
+
+# components_at <dir> <rev>: the components of the plugin at that commit, one "kind name" per line.
+components_at() {
+  {
+    git -C "$1" ls-tree -r --name-only "$2" -- skills agents 2>/dev/null |
+      sed -nE 's|^skills/([^/]+)/SKILL\.md$|skill \1|p; s|^agents/([^/]+)\.md$|agent \1|p'
+    git -C "$1" show "$2:hooks/hooks.json" 2>/dev/null |
+      jq -r '.hooks[]?[]?.hooks[]? | (.args[0] // .command // empty) | split("/") | last | sub("\\.sh$"; "") | "hook \(.)"' 2>/dev/null
+    git -C "$1" show "$2:.mcp.json" 2>/dev/null | jq -r '(.mcpServers // {}) | keys[] | "serveur MCP \(.)"' 2>/dev/null
+  } | sort -u
+}
+
+# change_nature <dir> <tag or "">: NATURE (first, major, minor, patch or none), NATURE_TEXT, and the
+# components ADDED and REMOVED since the tag. A removed component breaks what used it.
+change_nature() {
+  local dir=$1 tag=$2 before="" after list
+  [[ -z $tag ]] || before=$(components_at "$dir" "$tag")
+  after=$(components_at "$dir" HEAD)
+  REMOVED=$(comm -23 <(grep . <<<"$before") <(grep . <<<"$after"))
+  ADDED=$(comm -13 <(grep . <<<"$before") <(grep . <<<"$after"))
+  if [[ -z $tag ]]; then
+    NATURE=first NATURE_TEXT="première publication"
+  elif [[ -n $REMOVED ]]; then
+    list=$(paste -sd, - <<<"$REMOVED" | sed 's/,/, /g')
+    NATURE=major NATURE_TEXT="majeure : $( (($(grep -c . <<<"$REMOVED") > 1)) && echo "composants retirés" || echo "composant retiré") : $list"
+  elif [[ -n $ADDED ]]; then
+    list=$(paste -sd, - <<<"$ADDED" | sed 's/,/, /g')
+    NATURE=minor NATURE_TEXT="mineure : $( (($(grep -c . <<<"$ADDED") > 1)) && echo "composants ajoutés" || echo "composant ajouté") : $list"
+  elif ! git -C "$dir" diff --quiet "$tag" HEAD -- . ':(exclude).plugin-plugin'; then
+    NATURE=patch NATURE_TEXT="correctif : aucun composant ajouté ni retiré"
+  else
+    NATURE=none NATURE_TEXT="aucun changement"
+  fi
+}
+
+bump_rank() { case $1 in patch) echo 1 ;; minor) echo 2 ;; major) echo 3 ;; esac; }
+bump_word() { case $1 in patch) echo correctif ;; minor) echo mineure ;; major) echo majeure ;; esac; }
+# bump <version> <patch|minor|major>
+bump() {
+  local major minor patch
+  IFS=. read -r major minor patch <<<"$1"
+  case $2 in
+    major) printf '%d.0.0' $((major + 1)) ;;
+    minor) printf '%d.%d.0' "$major" $((minor + 1)) ;;
+    patch) printf '%d.%d.%d' "$major" "$minor" $((patch + 1)) ;;
+  esac
+}
+
+# plugin_cost <dir> <name>: COST_TOTAL (always-on tokens), COST_ROWS ("component<TAB>always-on<TAB>
+# on-invoke" per skill or agent) and COST_SUMMARY, as claude plugin details reports them.
+plugin_cost() {
+  local output
+  output=$(claude --plugin-dir "$1" plugin details "$2" 2>&1) || return 1
+  COST_TOTAL=$(sed -n 's/.*Always-on:[[:space:]]*~\([0-9.]*k\{0,1\}\) tok.*/\1/p' <<<"$output" | head -n 1)
+  COST_TOTAL=$(awk -v t="$COST_TOTAL" 'BEGIN { if (t == "") exit; n = t + 0; if (t ~ /k$/) n *= 1000; printf "%d", n }')
+  [[ -n $COST_TOTAL ]] || return 1
+  COST_ROWS=$(awk '/^Per-component/ { table = 1; next } table && $1 == "component" { rows = 1; next }
+    rows && NF == 0 { exit } rows && NF >= 3 { print $1 "\t" $2 "\t" $3 }' <<<"$output")
+  COST_SUMMARY="~$COST_TOTAL tokens"
+  [[ -z $COST_ROWS ]] || COST_SUMMARY+=" — $(awk -F'\t' '{ printf "%s%s %s", (NR > 1 ? ", " : ""), $1, $2 }' <<<"$COST_ROWS")"
+}
+
+# changelog_section <file> <version>: the lines of the section ## [version], trailing blank lines dropped.
+changelog_section() {
+  awk -v heading="## [$2] — " 'index($0, heading) == 1 { on = 1; print; next } on && /^## \[/ { exit } on { print }' "$1" |
+    sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+}
+
+# changelog_write <file> <version> <date> <cost line> <tag or "">: the section ## [version] — date.
+# An « en cours » section at the top is dated and keeps its entries; otherwise a section is drafted
+# from the components added and removed since the tag, or from its commits. Already dated: unchanged.
+changelog_write() {
+  local file=$1 version=$2 date=$3 cost=$4 tag=$5 i first=-1 end en_cours='^## \[[^]]*\] — en cours$'
+  local -a lines section out
+  mapfile -t lines <"$file"
+  for i in "${!lines[@]}"; do
+    [[ ${lines[i]} == "## [$version] — "[0-9]* ]] && return 0
+    [[ $first == -1 && ${lines[i]} == "## ["* ]] && first=$i
+  done
+  if ((first >= 0)) && [[ ${lines[first]} =~ $en_cours ]]; then
+    end=${#lines[@]}
+    for ((i = first + 1; i < ${#lines[@]}; i++)); do [[ ${lines[i]} == "## ["* ]] && { end=$i; break; }; done
+    section=("## [$version] — $date")
+    for ((i = first + 1; i < end; i++)); do [[ ${lines[i]} == "Coût en contexte permanent : "* ]] || section+=("${lines[i]}"); done
+    while ((${#section[@]} > 1)) && [[ -z ${section[-1]} ]]; do unset 'section[-1]'; done
+    section+=("" "$cost")
+    ((end == ${#lines[@]})) || section+=("")
+    out=("${lines[@]:0:first}" "${section[@]}" "${lines[@]:end}")
+  else
+    section=("## [$version] — $date")
+    if [[ -n $ADDED ]]; then section+=("" "### Ajouté" ""); mapfile -t -O "${#section[@]}" section < <(component_items <<<"$ADDED"); fi
+    if [[ -n $REMOVED ]]; then section+=("" "### Retiré" ""); mapfile -t -O "${#section[@]}" section < <(component_items <<<"$REMOVED"); fi
+    if [[ -z $ADDED$REMOVED ]]; then
+      section+=("" "### Modifié" "")
+      mapfile -t -O "${#section[@]}" section < <(git -C "$(dirname "$file")" log --format='- %s' "${tag:+$tag..}HEAD" -- . ':(exclude).plugin-plugin')
+    fi
+    section+=("" "$cost")
+    if ((first >= 0)); then out=("${lines[@]:0:first}" "${section[@]}" "" "${lines[@]:first}")
+    else out=("${lines[@]}" "" "${section[@]}"); fi
+  fi
+  printf '%s\n' "${out[@]}" >"$file"
+}
+
+component_items() {
+  sed -E 's/^skill (.*)$/- Skill `\1`./; s/^agent (.*)$/- Agent `\1`./; s/^hook (.*)$/- Hook `\1`./; s/^serveur MCP (.*)$/- Serveur MCP `\1`./'
+}
+
+# The local gesture that writes a release: the version line of plugin.json and the CHANGELOG entry,
+# with the context cost of the version. The rehearsal runs it on its throwaway clone.
+cmd_release_write() {
+  local dir=${1:-} version="" date name last="" last_version tag="" json
+  date=$(date +%F)
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --version) version=${2:-}; shift 2 ;;
+      --date) date=${2:-}; shift 2 ;;
+      *) die "usage : pp.sh release-write DOSSIER --version X.Y.Z [--date AAAA-MM-JJ]" ;;
+    esac
+  done
+  [[ -n $dir && $version =~ $SEMVER ]] || die "usage : pp.sh release-write DOSSIER --version X.Y.Z [--date AAAA-MM-JJ]"
+  need jq
+  [[ -f $dir/.claude-plugin/plugin.json && -f $dir/CHANGELOG.md ]] \
+    || die "refusé : $dir n'a pas .claude-plugin/plugin.json et CHANGELOG.md."
+  name=$(jq -r '.name // empty' "$dir/.claude-plugin/plugin.json" 2>/dev/null)
+  jq -e 'has("version")' "$dir/.claude-plugin/plugin.json" >/dev/null 2>&1 && [[ -n $name ]] \
+    || die "refusé : nom ou version illisible dans $dir/.claude-plugin/plugin.json."
+  last=$(last_release "$dir" "$name")
+  if [[ -n $last ]]; then
+    last_version=${last%%$'\t'*} tag=${last#*$'\t'}
+    version_lt "$last_version" "$version" \
+      || die "refusé : $version n'est pas plus récente que la dernière version publiée, $last_version ($tag)."
+  fi
+  need claude
+  plugin_cost "$dir" "$name" || die "échec : coût en contexte illisible (claude --plugin-dir $dir plugin details $name)."
+  change_nature "$dir" "$tag"
+  json=$(sed -E '0,/"version"[[:space:]]*:[[:space:]]*"[^"]*"/s//"version": "'"$version"'"/' "$dir/.claude-plugin/plugin.json")
+  jq -e --arg v "$version" '.version == $v' <<<"$json" >/dev/null 2>&1 || die "échec : version non écrite dans plugin.json."
+  [[ $json == "$(<"$dir/.claude-plugin/plugin.json")" ]] || printf '%s\n' "$json" >"$dir/.claude-plugin/plugin.json"
+  changelog_write "$dir/CHANGELOG.md" "$version" "$date" "Coût en contexte permanent : $COST_SUMMARY." "$tag"
+  printf 'écrit : .claude-plugin/plugin.json (version %s), CHANGELOG.md (%s)\n' "$version" "$(head -n 1 < <(changelog_section "$dir/CHANGELOG.md" "$version"))"
+}
+
+# The local gesture that adds a plugin to a copy of the marketplace soon, in the form of its entries.
+cmd_marketplace_entry() {
+  local dir=${1:-} name="" description="" file error
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --name) name=${2:-}; shift 2 ;;
+      --description) description=${2:-}; shift 2 ;;
+      *) die "usage : pp.sh marketplace-entry DOSSIER --name NOM --description TEXTE" ;;
+    esac
+  done
+  [[ -n $dir && -n $name && -n $description ]] || die "usage : pp.sh marketplace-entry DOSSIER --name NOM --description TEXTE"
+  need jq
+  file="$dir/.claude-plugin/marketplace.json"
+  jq -e '.plugins | type == "array"' "$file" >/dev/null 2>&1 || die "refusé : $file illisible, ou sans liste plugins."
+  error=$(name_error "$name")
+  [[ -z $error ]] || die "$error"
+  jq -e --arg n "$name" 'any(.plugins[]; .name == $n)' "$file" >/dev/null && die "refusé : $name est déjà dans $file."
+  jq --arg n "$name" --arg d "$description" --arg repo "$OWNER/$name" \
+    '.plugins += [{name: $n, source: {source: "github", repo: $repo}, description: $d}]' "$file" >"$file.tmp" \
+    && mv "$file.tmp" "$file"
+  printf 'écrit : %s (entrée %s, source github %s/%s)\n' "$file" "$name" "$OWNER" "$name"
+}
+
+cmd_release() {
+  local dir=${1:-} bump_to="" usage="usage : pp.sh release DOSSIER [--bump patch|minor|major]"
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --bump) bump_to=${2:-}; shift 2 ;;
+      *) die "$usage" ;;
+    esac
+  done
+  [[ -n $dir ]] || die "$usage"
+  [[ -z $bump_to || $bump_to =~ ^(patch|minor|major)$ ]] || die "refusé : --bump « $bump_to » inconnu ; patch, minor ou major."
+  need jq
+  need git
+  [[ -f $dir/.claude-plugin/plugin.json ]] || die "refusé : $dir n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  dir=$(cd "$dir" && pwd -P)
+  local manifest="$dir/.claude-plugin/plugin.json" name description current error top branch dirty origin
+  name=$(jq -r '.name // empty' "$manifest" 2>/dev/null)
+  description=$(jq -r '.description // empty' "$manifest" 2>/dev/null)
+  current=$(jq -r '.version // empty' "$manifest" 2>/dev/null)
+  [[ -n $name ]] || die "refusé : nom illisible dans .claude-plugin/plugin.json."
+  error=$(name_error "$name")
+  [[ -z $error ]] || die "$error"
+  [[ $current =~ $SEMVER ]] || die "refusé : version « $current » de plugin.json hors SemVer."
+  [[ -f $dir/tests/run-all.sh ]] || die "refusé : $dir n'a pas de suite tests/run-all.sh."
+
+  # Local state: its own repository, main, a clean tree, an origin that is the plugin's repository.
+  top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
+  [[ $top == "$dir" ]] || die "refusé : $dir n'est pas la racine de son dépôt git${top:+ (dépôt englobant : $top)} ; claude plugin tag étiquetterait le dépôt englobant."
+  branch=$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null || echo "détachée")
+  [[ $branch == main ]] || die "refusé : on publie depuis main ; branche courante : $branch."
+  dirty=$(git -C "$dir" --no-optional-locks status --porcelain --untracked-files=all | cut -c4- | sed 's/^.* -> //')
+  [[ -z $dirty ]] || die "refusé : changements non enregistrés : $(head -n 5 <<<"$dirty" | paste -sd, - | sed 's/,/, /g')$( (($(grep -c . <<<"$dirty") > 5)) && echo ", …") ; les commiter d'abord. Rien n'a été envoyé."
+  local expected="https://github.com/$OWNER/$name.git"
+  origin=$(git -C "$dir" config --get remote.origin.url 2>/dev/null)
+  case $origin in
+    "" | "$expected" | "https://github.com/$OWNER/$name" | "git@github.com:$OWNER/$name.git") ;;
+    *) die "refusé : origin pointe vers $origin, et non vers $expected." ;;
+  esac
+
+  # GitHub, read only: the marketplace soon and the plugin's repository.
+  need gh
+  local market listed=0 repo_exists=0 output
+  market=$(gh api "repos/$MARKETPLACE_REPO/contents/.claude-plugin/marketplace.json" -H "Accept: application/vnd.github.raw+json" 2>/dev/null)
+  jq -e '.plugins | type == "array"' <<<"$market" >/dev/null 2>&1 \
+    || die "bloqué : GitHub illisible (gh api repos/$MARKETPLACE_REPO/contents/.claude-plugin/marketplace.json) ; rien n'a été envoyé." 2
+  jq -e --arg n "$name" 'any(.plugins[]; .name == $n)' <<<"$market" >/dev/null && listed=1
+  if output=$(gh api "repos/$OWNER/$name" 2>&1); then
+    repo_exists=1
+  elif [[ $output != *"HTTP 404"* ]]; then
+    die "bloqué : GitHub illisible (gh api repos/$OWNER/$name) : ${output:0:200} ; rien n'a été envoyé." 2
+  fi
+
+  # The version, by the nature of the change since the last release.
+  local last last_version tag_from="" version nature_line=""
+  last=$(last_release "$dir" "$name")
+  if [[ -z $last ]]; then
+    [[ -z $bump_to ]] || die "refusé : première publication : la version est celle de plugin.json, $current ; --bump ne s'applique qu'après une publication."
+    version=$current
+    nature_line="version : $current (première publication, version de plugin.json)"
+  else
+    last_version=${last%%$'\t'*} tag_from=${last#*$'\t'}
+    change_nature "$dir" "$tag_from"
+    [[ $NATURE != none ]] || die "refusé : rien à publier depuis $tag_from ; aucun changement depuis cette étiquette."
+    version=$(bump "$last_version" "$NATURE")
+    if [[ -n $bump_to ]]; then
+      (($(bump_rank "$bump_to") >= $(bump_rank "$NATURE"))) \
+        || die "refusé : --bump $bump_to est plus faible que la nature du changement ($NATURE_TEXT)."
+      if [[ $bump_to != "$NATURE" ]]; then
+        version=$(bump "$last_version" "$bump_to")
+        nature_line="version : $last_version → $version ($(bump_word "$bump_to"), imposée par --bump ; la nature du changement donne $NATURE_TEXT ; depuis $tag_from)"
+      fi
+    fi
+    [[ -n $nature_line ]] || nature_line="version : $last_version → $version ($NATURE_TEXT ; depuis $tag_from)"
+  fi
+  local tag="$name--v$version"
+  git -C "$dir" rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "refusé : l'étiquette $tag existe déjà ; rien n'a été envoyé."
+
+  printf 'répétition de publication : %s — rien n'"'"'est envoyé\n' "$name"
+  printf 'dépôt : %s, branche main, arbre propre\n' "$dir"
+  printf 'marketplace %s (GitHub) : %s\n' "$MARKETPLACE" "$( ((listed)) && echo "$name présent, aucune PR" || echo "$name absent, PR d'ajout")"
+  printf 'dépôt %s/%s (GitHub) : %s\n' "$OWNER" "$name" "$( ((repo_exists)) && echo présent || echo "absent, à créer")"
+  printf '%s\n' "$nature_line"
+
+  # Everything else on a throwaway clone of HEAD: strict validation, cost, the written version,
+  # the suite, the tag.
+  need claude
+  RELEASE_TMP=$(mktemp -d)
+  trap 'rm -rf "$RELEASE_TMP"' EXIT
+  local clone="$RELEASE_TMP/$name" target results=() failures=""
+  git clone -q "$dir" "$clone" 2>/dev/null || die "échec : copie jetable impossible (git clone $dir)."
+  for target in . .claude-plugin/plugin.json skills agents; do
+    [[ -e $clone/$target ]] || continue
+    if output=$(cd "$clone" && claude plugin validate "$target" --strict 2>&1); then
+      results+=("ok $target")
+    else
+      results+=("ÉCHEC $target")
+      failures+=" $target : $(grep -E '❯' <<<"$output" | head -n 2 | sed 's/^ *❯ *//' | paste -sd';' -) ;"
+    fi
+  done
+  printf 'validation stricte : %s\n' "$(join ', ' "${results[@]}")"
+  [[ -z $failures ]] || die "refusé : la validation stricte n'est pas verte :${failures% ;} ; rien n'a été envoyé."
+
+  plugin_cost "$clone" "$name" || die "échec : coût en contexte illisible (claude --plugin-dir . plugin details $name)."
+  printf 'coût en contexte : ~%d tokens permanents (seuil %d)\n' "$COST_TOTAL" "$MAX_ALWAYS_ON_TOKENS"
+  [[ -z $COST_ROWS ]] || awk -F'\t' '{ printf "  - %s : %s permanent, %s à l'"'"'appel\n", $1, $2, $3 }' <<<"$COST_ROWS"
+  ((COST_TOTAL <= MAX_ALWAYS_ON_TOKENS)) \
+    || printf 'alerte : coût permanent ~%d tokens, au-delà du seuil de %d\n' "$COST_TOTAL" "$MAX_ALWAYS_ON_TOKENS"
+
+  local wrote=0
+  output=$( (cmd_release_write "$clone" --version "$version") 2>&1) || die "échec : release-write sur la copie jetable : $output"
+  if [[ -n $(git -C "$clone" status --porcelain) ]]; then
+    wrote=1
+    git -C "$clone" -c user.name=plugin-plugin -c user.email=release@example.invalid commit -qm "chore(release): $name $version" \
+      -- .claude-plugin/plugin.json CHANGELOG.md || die "échec : commit de version sur la copie jetable."
+  fi
+  printf 'entrée du CHANGELOG :\n'
+  changelog_section "$clone/CHANGELOG.md" "$version" | sed -E 's/^(.)/  \1/'
+
+  local log rc summary
+  log=$(cd "$clone" && bash tests/run-all.sh 2>&1)
+  rc=$?
+  summary=$(grep -E '^(réussies|échouées|sautées|bloquées) : ' <<<"$log" | paste -sd, - | sed 's/,/, /g')
+  printf 'suite du plugin : exit %d (%s)\n' "$rc" "${summary:-bilan illisible}"
+  if ((rc != 0)); then
+    grep -E '^  - ' <<<"$log" | head -n 5
+    die "refusé : la suite du plugin n'est pas verte (exit $rc) ; rien n'a été envoyé."
+  fi
+
+  output=$(claude plugin tag --dry-run "$clone" 2>&1) \
+    || die "refusé : claude plugin tag --dry-run refuse l'étiquette : $(grep -m 1 '✘' <<<"$output" || head -n 1 <<<"$output")"
+  grep -qF "would create tag $tag" <<<"$output" || die "échec : claude plugin tag --dry-run n'annonce pas $tag : $(head -n 3 <<<"$output" | paste -sd' ' -)"
+  printf 'étiquette : %s, vérifiée par claude plugin tag --dry-run (exit 0)\n' "$tag"
+
+  if ((!listed)); then
+    mkdir -p "$RELEASE_TMP/market/.claude-plugin"
+    printf '%s\n' "$market" >"$RELEASE_TMP/market/.claude-plugin/marketplace.json"
+    output=$( (cmd_marketplace_entry "$RELEASE_TMP/market" --name "$name" --description "$description") 2>&1) \
+      || die "refusé : entrée de marketplace impossible : $output"
+    output=$(cd "$RELEASE_TMP/market" && claude plugin validate . --strict 2>&1) \
+      || die "refusé : la marketplace modifiée ne passe pas la validation stricte : $(grep -E '❯' <<<"$output" | head -n 2 | paste -sd';' -)"
+    printf 'marketplace modifiée : validation stricte ok\n'
+  fi
+
+  # The gestures, in order; none is run here.
+  local -a gestures=()
+  local d pp work branch_name="add-$name" body
+  d=$(shell_word "$dir")
+  pp="bash $(shell_word "$PP_ROOT/scripts/pp.sh")"
+  work=$(shell_word "${TMPDIR:-/tmp}/plugin-plugin-release/$name/claude-plugins")
+  if ((wrote)); then
+    gestures+=("[local] écrire la version et le CHANGELOG : $pp release-write $d --version $version")
+    gestures+=("[local] commit de version : git -C $d commit -m $(shell_word "chore(release): $name $version") -- .claude-plugin/plugin.json CHANGELOG.md")
+  fi
+  gestures+=("[local] étiquette : claude plugin tag $d")
+  ((repo_exists)) || gestures+=("[GitHub] création du dépôt : gh repo create $OWNER/$name --public --description $(shell_word "$description")")
+  [[ -n $origin ]] || gestures+=("[local] remote origin : git -C $d remote add origin $expected")
+  gestures+=("[GitHub] push de main : git -C $d push origin main")
+  gestures+=("[GitHub] push de l'étiquette : git -C $d push origin refs/tags/$tag")
+  if ((!listed)); then
+    body="$name $version, source github $OWNER/$name, étiquette $tag. Suite : $summary ; validation stricte : ok. Coût en contexte permanent : $COST_SUMMARY."
+    gestures+=("[local] copie de la marketplace : gh repo clone $MARKETPLACE_REPO $work")
+    gestures+=("[local] branche de marketplace : git -C $work switch -c $branch_name")
+    gestures+=("[local] entrée de marketplace : $pp marketplace-entry $work --name $name --description $(shell_word "$description")")
+    gestures+=("[local] commit de marketplace : git -C $work commit -am $(shell_word "feat: ajouter $name à la marketplace $MARKETPLACE")")
+    gestures+=("[GitHub] push de la branche : git -C $work push origin $branch_name")
+    gestures+=("[GitHub] PR de marketplace : gh pr create --repo $MARKETPLACE_REPO --base main --head $branch_name --title $(shell_word "Ajouter $name $version") --body $(shell_word "$body")")
+  fi
+  printf "gestes, dans l'ordre — aucun n'est exécuté :\n"
+  local i
+  for i in "${!gestures[@]}"; do printf '  %d. %s\n' $((i + 1)) "${gestures[i]}"; done
+  if ((listed)); then
+    printf 'après le push, sur chaque appareil, puis redémarrer Claude Code :\n'
+    printf '  claude plugin marketplace update %s\n  claude plugin update %s@%s\n' "$MARKETPLACE" "$name" "$MARKETPLACE"
+  else
+    printf 'après la fusion de la PR par Soon, sur chaque appareil (sans la marketplace : claude plugin marketplace add %s) :\n' "$MARKETPLACE_REPO"
+    printf '  claude plugin marketplace update %s\n  claude plugin install %s@%s\n' "$MARKETPLACE" "$name" "$MARKETPLACE"
+  fi
+  printf 'répétition terminée : %d gestes listés, aucun exécuté\n' "${#gestures[@]}"
+}
+
 cmd_status() {
   [[ $# == 1 && -f $1 ]] || die "usage : pp.sh status DOCUMENT"
   local status
@@ -1224,5 +1598,8 @@ case ${1:-} in
   add-agent) shift; cmd_add_agent "$@" ;;
   add-mcp) shift; cmd_add_mcp "$@" ;;
   out-of-scope) shift; cmd_out_of_scope "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope" ;;
+  release) shift; cmd_release "$@" ;;
+  release-write) shift; cmd_release_write "$@" ;;
+  marketplace-entry) shift; cmd_marketplace_entry "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope | release | release-write | marketplace-entry" ;;
 esac

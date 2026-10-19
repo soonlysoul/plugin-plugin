@@ -111,7 +111,7 @@ run_pp check-evals "$work/nothing" demo
 expect_pp "suite absente : refusé" 1
 
 echo "# check-evals : les suites de plugin-plugin"
-for skill in reaudit frame create resume; do
+for skill in reaudit frame create resume release; do
   run_pp check-evals "$PLUGIN_ROOT" "$skill"
   expect_pp "evals/$skill conforme" 0
 done
@@ -153,6 +153,12 @@ expect_output "Bash sans bwrap : bloqué, cas nommé" '^bloqué : bwrap absent \
 run_pp eval-plan "$shell" demo -- PATH="$work/stub:$work/sandbox:$NOSANDBOX"
 expect_pp "Bash avec bwrap et socat : exit 0" 0
 expect_output "Bash accordé par la commande, et lui seul" '--allow-tools Bash '
+narrow_case=$(with "$POSITIVE" '.name = "demo-narrow" | .execution.allowed_tools += ["Bash(bash:*)"]')
+narrow=$(suite narrow "$narrow_case" "$NEGATIVE")
+run_pp eval-plan "$narrow" demo -- PATH="$work/stub:$work/sandbox:$NOSANDBOX"
+expect_pp "Bash restreint par un motif : exit 0" 0
+expect_output "le motif du cas est accordé tel quel" '--allow-tools [^ ]*bash:[^ ]* '
+refuse_output "un cas restreint n'accorde jamais Bash entier" '--allow-tools Bash '
 
 echo "# eval-run : rien ne part sans « oui »"
 cat >"$work/green.json" <<'EOF'

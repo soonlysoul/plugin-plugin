@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "name": "release-explicit-rehearsal",
+  "description": "Invocation explicite de la répétition : l'outil tourne, chaque geste est listé avec sa commande, rien n'est envoyé.",
+  "tags": [
+    "release",
+    "positive"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill lance pp.sh release ./plugin-recettes, rapporte la version, les gestes numérotés avec leurs commandes exactes et la commande d'installation, et dit que rien n'a été envoyé.",
+  "context": {
+    "scaffold_script": "setup.sh"
+  },
+  "execution": {
+    "prompt": "/plugin-plugin:release ./plugin-recettes",
+    "max_turns": 12,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Bash(bash:*)"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?release\""
+    },
+    {
+      "name": "ran-the-tool",
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": "pp\\.sh(\\\\\")? release "
+    },
+    {
+      "name": "nothing-pushed",
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": "git[^\"]* push|gh (repo create|pr create)",
+      "min": 0,
+      "max": 0
+    },
+    {
+      "name": "lists-the-gestures",
+      "type": "regex",
+      "target": "last_message",
+      "pattern": "gh repo create soonlysoul/plugin-recettes"
+    },
+    {
+      "name": "says-nothing-was-sent",
+      "type": "regex",
+      "target": "last_message",
+      "pattern": "[Rr]ien n'a été envoyé"
+    }
+  ]
+}

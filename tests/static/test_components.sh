@@ -7,11 +7,13 @@ SUITE=test_components
 HOOKS_JSON="$PLUGIN_ROOT/hooks/hooks.json"
 
 echo "# skills"
-for skill in reaudit frame create resume add; do
+for skill in reaudit frame create resume add release; do
   [[ -f $PLUGIN_ROOT/skills/$skill/SKILL.md ]] && pass "skill $skill présent" || fail "skill $skill présent"
 done
 grep -qx 'disable-model-invocation: true' "$PLUGIN_ROOT/skills/reaudit/SKILL.md" 2>/dev/null \
   && pass "reaudit ne se lance que sur demande explicite" || fail "reaudit ne se lance que sur demande explicite"
+grep -qx 'disable-model-invocation: true' "$PLUGIN_ROOT/skills/release/SKILL.md" 2>/dev/null \
+  && pass "release ne se lance que sur demande explicite" || fail "release ne se lance que sur demande explicite"
 
 echo "# hooks"
 # One line per command hook, fields joined by \x1f (read merges consecutive tabs).

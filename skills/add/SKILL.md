@@ -28,4 +28,4 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skil
 
 ## Step 3 — Close
 
-Run the plugin's suite, `bash tests/run-all.sh` in its folder, and its context cost, `claude --plugin-dir <folder> plugin details <name>`. Report both, with the component's always-on cost; above 1 000 tokens for the plugin, say so. Add the component under « Ajouté » in the topmost section of its `CHANGELOG.md`. Then propose a commit with its exact commands, run only on a literal "oui".
+Run the plugin's suite, `bash tests/run-all.sh` in its folder, and its context cost, `claude --plugin-dir <folder> plugin details <name>`. Report both, with the component's always-on cost; above 1 000 tokens for the plugin, say so. Add the component under « Ajouté » in the « en cours » section at the top of its `CHANGELOG.md`; when the top section is already dated, a release, first open `## [à venir] — en cours` above it — `/plugin-plugin:release` dates it. Then propose a commit with its exact commands, run only on a literal "oui".

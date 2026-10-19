@@ -1005,5 +1005,87 @@
       "target": ".claude-plugin/plugin.json",
       "expect": "pass"
     }
+  },
+  {
+    "id": "plugin-tag-climbs-to-enclosing-repo",
+    "statement": "Lancé sur un dossier qui n'est pas la racine d'un dépôt git, claude plugin tag --dry-run remonte au dépôt englobant et y annonce l'étiquette (exit 0) : la release exige que le plugin soit la racine de son propre dépôt.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 11",
+    "recheck": "claude plugin tag --dry-run <copie de .claude-plugin/ dans un sous-dossier d'un dépôt>",
+    "status": "confirmé"
+  },
+  {
+    "id": "plugin-tag-checks-tree-tag-and-entry",
+    "statement": "claude plugin tag refuse (exit 1) un arbre sale (« Uncommitted changes affecting this release »), fichiers non suivis compris mais fichiers du .gitignore exclus ; une étiquette déjà présente en local ; une version de l'entrée de marketplace qui diffère de plugin.json. Une entrée sans version passe.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 11",
+    "recheck": "claude plugin tag --dry-run . sur un plugin créé : arbre sale, étiquette posée, entrée en 9.9.9",
+    "status": "confirmé"
+  },
+  {
+    "id": "plugin-tag-dry-run-offline",
+    "statement": "claude plugin tag --dry-run répond sans réseau et ne crée rien ; il affiche les commandes qu'il lancerait : git -C <dossier> tag -a <nom>--v<version> -m \"<nom> <version>\", puis git -C <dossier> push origin refs/tags/<étiquette>.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 11",
+    "recheck": "unshare -rn claude plugin tag --dry-run <plugin créé et commité>",
+    "status": "confirmé"
+  },
+  {
+    "id": "plugin-details-per-component",
+    "statement": "plugin details donne, sous « Per-component (rounded) », une ligne par skill et par agent : coût permanent et coût à l'appel (~90, ~1.4k). Sans skill ni agent, ce tableau est absent et le coût permanent est ~0.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 11",
+    "recheck": "claude --plugin-dir . plugin details plugin-plugin ; puis sur un plugin créé, sans composant",
+    "status": "confirmé"
+  },
+  {
+    "id": "marketplace-github-source-validates-offline",
+    "statement": "Une marketplace dont une entrée a une source github vers un dépôt inexistant passe la validation stricte, sans réseau : la PR de marketplace se vérifie avant que le dépôt existe.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 11",
+    "recheck": "unshare -rn claude plugin validate . --strict, dans scripts/facts/probes/marketplace-github-source",
+    "status": "confirmé",
+    "probe": {
+      "example": "marketplace-github-source",
+      "target": ".",
+      "expect": "pass"
+    }
+  },
+  {
+    "id": "marketplace-duplicate-name-refused",
+    "statement": "La validation stricte d'une marketplace refuse deux entrées du même nom (« Duplicate plugin name »).",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 11",
+    "recheck": "claude plugin validate . --strict, dans scripts/facts/probes/marketplace-duplicate-name",
+    "status": "confirmé",
+    "probe": {
+      "example": "marketplace-duplicate-name",
+      "target": ".",
+      "expect": "fail"
+    }
+  },
+  {
+    "id": "marketplace-soon-entry-format",
+    "statement": "Les entrées de la marketplace soon (soonlysoul/claude-plugins, publique, branche main) portent name, source {source: github, repo: soonlysoul/<nom>} et description, sans version ni ref : une mise à jour d'un plugin déjà listé ne demande aucune PR.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "gh api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json, 2026-10-20",
+    "recheck": "gh api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json -H \"Accept: application/vnd.github.raw+json\"",
+    "status": "confirmé"
+  },
+  {
+    "id": "eval-allowed-tools-pattern-narrows-bash",
+    "statement": "claude plugin eval --allow-tools accepte la syntaxe Tool(motif:*) : un cas qui déclare Bash(bash:*) ne reçoit que les commandes commençant par bash, et non git push ni gh. Le bac à sable donne-t-il accès aux identifiants gh du poste ? Non vérifié.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "claude plugin eval --help (« Supports Tool(pattern:*) syntax »)",
+    "recheck": "premier passage réel de evals/release, --keep-temp : la trace montre un git push refusé par permission",
+    "status": "à vérifier"
   }
 ]
