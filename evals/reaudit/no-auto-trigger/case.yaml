@@ -1,23 +1,37 @@
-schema_version: "1.0"
-name: reaudit-no-auto-trigger
-description: Une question naturelle sur une mise à jour ne déclenche pas le ré-audit, réservé à l'invocation explicite.
-tags: [reaudit, negative]
-runs: 3
-expected_outcome: Le skill n'est pas invoqué et aucun résultat de ré-audit n'est inventé.
-execution:
-  prompt: "Claude Code vient de passer à une nouvelle version. Qu'est-ce que je devrais revérifier dans mes plugins ?"
-  max_turns: 6
-  allowed_tools: [Skill, Read]
-graders:
-  - name: skill-not-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?reaudit"'
-    min: 0
-    max: 0
-    arm: both
-  - name: no-invented-report
-    type: regex
-    target: last_message
-    pattern: 'faits à corriger \(la validation stricte'
-    match: not_contains
+{
+  "schema_version": "1.0",
+  "name": "reaudit-no-auto-trigger",
+  "description": "Une question naturelle sur une mise à jour ne déclenche pas le ré-audit, réservé à l'invocation explicite.",
+  "tags": [
+    "reaudit",
+    "negative"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill n'est pas invoqué et aucun résultat de ré-audit n'est inventé.",
+  "execution": {
+    "prompt": "Claude Code vient de passer à une nouvelle version. Qu'est-ce que je devrais revérifier dans mes plugins ?",
+    "max_turns": 6,
+    "allowed_tools": [
+      "Skill",
+      "Read"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-not-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?reaudit\"",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "no-invented-report",
+      "type": "regex",
+      "target": "last_message",
+      "pattern": "faits à corriger \\(la validation stricte",
+      "match": "not_contains"
+    }
+  ]
+}

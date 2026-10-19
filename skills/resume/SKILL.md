@@ -1,6 +1,6 @@
 ---
 name: resume
-description: "Resume interrupted plugin work from disk — checkpoint, git, repository state — in ten lines, changing nothing before Soon agrees. Use to resume or see where work stopped; not for new work. « reprends où on s'est arrêté »."
+description: "Resume interrupted plugin work from disk — checkpoint, git, repository state — in ten lines, changing nothing before Soon agrees. Use when work was interrupted or stopped; not for new work. « reprends où on s'est arrêté »."
 argument-hint: "[dossier du plugin]"
 when_to_use: "In a folder holding .plugin-plugin/."
 ---

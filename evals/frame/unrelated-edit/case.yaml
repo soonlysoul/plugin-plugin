@@ -1,22 +1,36 @@
-schema_version: "1.0"
-name: frame-unrelated-edit
-description: Une retouche de fichier sans rapport avec un nouveau plugin ne déclenche pas le cadrage.
-tags: [frame, negative]
-runs: 3
-expected_outcome: Le skill frame n'est pas invoqué et aucune interview de cadrage ne commence.
-execution:
-  prompt: "Dans mon README, comment j'écris un tableau Markdown à deux colonnes ?"
-  max_turns: 4
-  allowed_tools: [Skill, Read]
-graders:
-  - name: skill-not-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?frame"'
-    min: 0
-    max: 0
-    arm: both
-  - name: answers-the-question
-    type: regex
-    target: last_message
-    pattern: '\|[^|\n]+\|[^|\n]+\|'
+{
+  "schema_version": "1.0",
+  "name": "frame-unrelated-edit",
+  "description": "Une retouche de fichier sans rapport avec un nouveau plugin ne déclenche pas le cadrage.",
+  "tags": [
+    "frame",
+    "negative"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill frame n'est pas invoqué et aucune interview de cadrage ne commence.",
+  "execution": {
+    "prompt": "Dans mon README, comment j'écris un tableau Markdown à deux colonnes ?",
+    "max_turns": 4,
+    "allowed_tools": [
+      "Skill",
+      "Read"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-not-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?frame\"",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "answers-the-question",
+      "type": "regex",
+      "target": "last_message",
+      "pattern": "\\|[^|\\n]+\\|[^|\\n]+\\|"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 98 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 418 tokens. Prochaine étape : phase 6, ajouter un skill avec son évaluation — elle contient le premier passage réel d'une évaluation, payant, qui attend l'accord de Soon.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 102 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 535 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas et se poursuivent.
 
 **À trancher par Soon** — le plan approuvé affirme, dans « Tests et validation », que `claude plugin validate .` ne valide que la marketplace. Mesuré en phase 2 : c'est faux sur 2.1.296 (voir ci-dessous). Rien ne casse — la suite valide toujours chaque cible —, mais la phrase du plan est à corriger, ce qui le repasse en revue. Le plan n'a pas été modifié.
 
@@ -214,3 +214,57 @@ Copies faussées dans `build/mutants/p5/`, une ligne changée chacune :
 | le code de sortie devient facultatif | test_resume | « étape sans code de sortie : refusé » |
 | le rappel ignore `stop_hook_active` | test_checkpoint_reminder | « stop_hook_active : silencieux, un seul rappel » |
 | le rappel ne met plus `.plugin-plugin/` à part | test_checkpoint_reminder | « seul .plugin-plugin/ a changé : silencieux » |
+
+## Phase 6 — Ajouter un skill avec son évaluation — faite, sauf le passage réel
+
+- [x] `pp.sh check-evals <plugin> <skill>` vérifie une suite sans la lancer : `case.yaml` écrit en JSON (sous-ensemble du YAML, lu par `jq` sans autre dépendance), `schema_version` `"1.0"`, nom préfixé par le skill, `runs` ≥ 3 déclaré, `execution.prompt`, au moins un correcteur de résultat par cas (pas une regex sur la trace), au moins un cas positif et un cas négatif par suite, un négatif en `min: 0`, `max: 0`, `arm: both`. Chaque règle manquante produit un refus qui la nomme (US-10). Les suites des phases 2 à 5, converties en JSON, la passent.
+- [x] `pp.sh check-skill` : analyseur strict d'en-tête repris de plugin-flutter (sept formes cassées refusées), forme du modèle (`Use when …`, `not for …`, phrase française citée), `allowed-tools` refusé, 1 536 caractères au plus, moins de 500 lignes, aucun `$0`–`$9`. Il a trouvé un vrai écart : la description de `resume` disait « Use to », corrigée.
+- [x] `pp.sh eval-plan` annonce le nombre de sessions, la fourchette de coût (0,13 à 0,23 USD par session, mesuré), le plafond (3 USD par défaut, `--max-cost` avant l'annonce), le compte qui paie, et la commande exacte ; `pp.sh eval-run` ne lance rien sans un « oui » littéral — « ok », « oui mais … », « d'accord », un message vide sont refusés et la doublure de `claude` n'est jamais appelée (US-11).
+- [x] La commande porte toujours `--no-publish`, `--max-cost-usd` et `--output-dir` sous `evals/results/` (ignoré par git), jamais `--trust-plugin` ; `--allow-tools Bash` seulement pour un cas qui l'exige ; `--ablation none` pour un passage à un bras (`--one-arm`).
+- [x] `pp.sh eval-verdict` : un cas positif que le témoin réussit est refusé (US-9) ; un cas qui exige Bash sans bwrap ni socat est « bloqué : bwrap absent », jamais réussi (US-12) ; une erreur de bac à sable, « bloqué » ; un passage partiel, « partiel ».
+- [x] Skill `add` (volet skill, détails dans `skills/add/reference/skill.md`).
+- [x] Sonde : confiance hors terminal interactif (ci-dessous).
+- [ ] Sonde : compte annoncé par `claude auth status`, comparé au titulaire réel — **en attente**.
+- [ ] Sonde : autres plugins installés chargés dans le bras témoin — **en attente du passage réel** (`--keep-temp`).
+- [ ] Premier passage réel, sur accord : rouge avant le skill, vert avec Δ > 0 (critères 4, 5) — **en attente de l'accord de Soon**.
+
+### Sondes
+
+| Sonde | Commande | Résultat |
+| --- | --- | --- |
+| Confiance hors terminal | `claude plugin eval build/temoin-p6/plugin-codenames --case 'aucun-*' --no-publish --max-cost-usd 0.01 --ablation none --runs 1 </dev/null` | exit 1, avant tout chargement : « is not a trusted plugin directory, and this run cannot stop to ask you about it (no interactive terminal …) ». Aucune session, aucun coût. `eval-run` le dit désormais « bloqué », avec la commande gratuite qui approuve le dossier. |
+| Compte qui paie | `claude auth status --json` | Pour `~/.claude`, il annonce le compte pro (abonnement `pro`), alors que le CLAUDE.md du poste attribue `~/.claude` au compte ordinaire. Ce bloc peut ne pas dire le titulaire du jeton ; seul `/api/oauth/profile` tranche, avec le jeton du profil : non fait, geste sensible laissé à Soon. L'adresse n'est pas recopiée ici : ce dépôt sera public. |
+| Isolement du bras témoin | doc plugin-evals, « How runs are isolated » | La doc dit qu'aucun autre plugin installé n'est chargé dans une exécution : l'hypothèse du PRD (flutter-forge chargé dans le témoin) serait fausse. À confirmer par les traces du passage réel (`--keep-temp`). |
+
+### Témoin du premier passage réel
+
+`build/temoin-p6/plugin-codenames`, créé par `pp.sh create` — suite du plugin créé : exit 0. Son cadrage a été approuvé par un accord **de fixture** (« oui » écrit par le test, non par Soon) : ce dossier, ignoré par git, n'est jamais publié. Skill `codename`, encore absent : il donnera des noms de code inventés (Atlas → Héron-7, Borée → Lynx-3), que le modèle ne peut pas connaître sans lui, et s'évalue donc sans Bash. Suite : `conforme : 3 cas (2 positifs, 1 négatif), 3 exécutions par cas au moins`.
+
+### Rouge puis vert (partie sans quota)
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/static/test_frontmatter.sh` (bibliothèque mise de côté) | 1 | 18 échecs, dont « scripts/lib/frontmatter.sh présent » |
+| ROUGE | `bash tests/static/test_evals.sh` | 1 | 45 échecs : commandes inconnues |
+| ROUGE | `bash tests/static/test_evals.sh` (cas ajoutés) | 1 | « un seul bras : … » (2), puis « dossier non approuvé : … » (2) |
+| VERT | `bash tests/run-all.sh` | 0 | `test_evals : 61`, `test_frontmatter : 26` réussis ; « coût permanent : 535 tokens (seuil 1000) » ; bilan « réussies : 18, échouées : 0, sautées : 1, bloquées : 0 » |
+
+### Les tests discriminent
+
+| Copie faussée (une ligne) | Suite | Premier échec |
+| --- | --- | --- |
+| plus de règle « au moins un cas négatif » | test_evals | « aucun cas négatif : refusé, règle nommée » |
+| `--trust-plugin` ajouté à la commande | test_evals | « jamais --trust-plugin » |
+| tout message vaut accord | test_evals | « « ok » : refusé », « « ok » : rien n'est lancé » |
+| un positif réussi par le témoin est accepté | test_evals | « positif réussi par le témoin : refusé » |
+| Bash n'est plus détecté | test_evals | « Bash sans bwrap ni socat : exit 2 » |
+| `allowed-tools` accepté | test_frontmatter | « allowed-tools : refusé, règle nommée » |
+
+### Phase 6 — En attente
+
+Le passage réel exige trois gestes de Soon, dans cet ordre :
+
+1. **Approuver le dossier du témoin, sans coût**, une fois, dans un terminal :
+   `cd build/temoin-p6/plugin-codenames && claude plugin eval . --case 'aucun-*' --no-publish --max-cost-usd 0.01 --ablation none --runs 1`, puis répondre `y`.
+2. **Rouge** — un « oui » à cette annonce : 9 sessions (3 cas × 3 exécutions × 1 bras), 1,17 à 2,07 USD, plafond 3 USD, compte annoncé : le compte pro de `~/.claude` (voir la sonde).
+3. **Vert**, après l'écriture du skill — un « oui » à cette annonce : 18 sessions (3 cas × 3 exécutions × 2 bras), 2,34 à 4,14 USD, plafond proposé 4,5 USD.

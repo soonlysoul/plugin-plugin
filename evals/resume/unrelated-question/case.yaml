@@ -1,23 +1,37 @@
-schema_version: "1.0"
-name: resume-unrelated-question
-description: Une question générale sur git ne déclenche pas la reprise.
-tags: [resume, negative]
-runs: 3
-expected_outcome: Le skill resume n'est pas invoqué ; la question reçoit sa réponse.
-execution:
-  prompt: "C'est quoi la différence entre git rebase et git merge, en deux phrases ?"
-  max_turns: 4
-  allowed_tools: [Skill, Read]
-graders:
-  - name: skill-not-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?resume"'
-    min: 0
-    max: 0
-    arm: both
-  - name: answers
-    type: regex
-    target: last_message
-    pattern: '(?:rebase)[\s\S]*(?:merge)|(?:merge)[\s\S]*(?:rebase)'
-    flags: i
+{
+  "schema_version": "1.0",
+  "name": "resume-unrelated-question",
+  "description": "Une question générale sur git ne déclenche pas la reprise.",
+  "tags": [
+    "resume",
+    "negative"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill resume n'est pas invoqué ; la question reçoit sa réponse.",
+  "execution": {
+    "prompt": "C'est quoi la différence entre git rebase et git merge, en deux phrases ?",
+    "max_turns": 4,
+    "allowed_tools": [
+      "Skill",
+      "Read"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-not-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?resume\"",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "answers",
+      "type": "regex",
+      "target": "last_message",
+      "pattern": "(?:rebase)[\\s\\S]*(?:merge)|(?:merge)[\\s\\S]*(?:rebase)",
+      "flags": "i"
+    }
+  ]
+}

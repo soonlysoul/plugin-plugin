@@ -1,24 +1,39 @@
-schema_version: "1.0"
-name: frame-delegated-name
-description: Une décision déléguée est tranchée, motivée, et dite révisable ; le nom suit plugin-<domaine>.
-tags: [frame, positive]
-runs: 3
-expected_outcome: Le nom proposé suit plugin-<domaine>, la raison du choix est donnée et la décision est dite révisable.
-execution:
-  prompt: "Cadre un plugin Claude Code pour gérer mes recettes de cuisine. Pour le nom, tranche le mieux, je te fais confiance."
-  max_turns: 8
-  allowed_tools: [Skill, Read, Glob]
-graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?frame"'
-  - name: name-follows-the-rule
-    type: regex
-    target: last_message
-    pattern: '\bplugin-[a-z0-9]+(-[a-z0-9]+)*\b'
-  - name: delegated-decision-explained
-    type: llm
-    criteria: |
-      PASS if the reply states the chosen plugin name, gives a reason for that choice, and says the decision can be revised.
-      FAIL if the name is not justified, or if the reply asks Soon to choose the name anyway.
+{
+  "schema_version": "1.0",
+  "name": "frame-delegated-name",
+  "description": "Une décision déléguée est tranchée, motivée, et dite révisable ; le nom suit plugin-<domaine>.",
+  "tags": [
+    "frame",
+    "positive"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le nom proposé suit plugin-<domaine>, la raison du choix est donnée et la décision est dite révisable.",
+  "execution": {
+    "prompt": "Cadre un plugin Claude Code pour gérer mes recettes de cuisine. Pour le nom, tranche le mieux, je te fais confiance.",
+    "max_turns": 8,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Glob"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?frame\""
+    },
+    {
+      "name": "name-follows-the-rule",
+      "type": "regex",
+      "target": "last_message",
+      "pattern": "\\bplugin-[a-z0-9]+(-[a-z0-9]+)*\\b"
+    },
+    {
+      "name": "delegated-decision-explained",
+      "type": "llm",
+      "criteria": "PASS if the reply states the chosen plugin name, gives a reason for that choice, and says the decision can be revised.\nFAIL if the name is not justified, or if the reply asks Soon to choose the name anyway.\n"
+    }
+  ]
+}

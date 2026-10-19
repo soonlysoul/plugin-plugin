@@ -1,24 +1,39 @@
-schema_version: "1.0"
-name: frame-new-plugin-request
-description: Une demande de nouveau plugin ouvre le cadrage par une seule question, avec une recommandation motivée.
-tags: [frame, positive]
-runs: 3
-expected_outcome: Le skill frame est invoqué ; la réponse pose une seule question et recommande une option en disant pourquoi ; aucun fichier du plugin n'est écrit.
-execution:
-  prompt: "Je voudrais un plugin Claude Code qui m'aide à tenir mon journal de lecture. On peut le cadrer ensemble ?"
-  max_turns: 8
-  allowed_tools: [Skill, Read, Glob]
-graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?frame"'
-  - name: one-question-with-recommendation
-    type: llm
-    criteria: |
-      PASS if the final reply asks exactly one question, and recommends one answer with a reason.
-      FAIL if it asks two or more questions, gives no recommendation, or claims to have created plugin files.
-  - name: no-plugin-file
-    type: file_exists
-    path: "**/.claude-plugin/plugin.json"
-    exists: false
+{
+  "schema_version": "1.0",
+  "name": "frame-new-plugin-request",
+  "description": "Une demande de nouveau plugin ouvre le cadrage par une seule question, avec une recommandation motivée.",
+  "tags": [
+    "frame",
+    "positive"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill frame est invoqué ; la réponse pose une seule question et recommande une option en disant pourquoi ; aucun fichier du plugin n'est écrit.",
+  "execution": {
+    "prompt": "Je voudrais un plugin Claude Code qui m'aide à tenir mon journal de lecture. On peut le cadrer ensemble ?",
+    "max_turns": 8,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Glob"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?frame\""
+    },
+    {
+      "name": "one-question-with-recommendation",
+      "type": "llm",
+      "criteria": "PASS if the final reply asks exactly one question, and recommends one answer with a reason.\nFAIL if it asks two or more questions, gives no recommendation, or claims to have created plugin files.\n"
+    },
+    {
+      "name": "no-plugin-file",
+      "type": "file_exists",
+      "path": "**/.claude-plugin/plugin.json",
+      "exists": false
+    }
+  ]
+}

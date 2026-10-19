@@ -14,6 +14,11 @@
 #   create DIR --name NAME --description TEXT
 #   checkpoint DIR start --skill S --steps "a|b" | done N --command C --exit E [--test T] | block REASON
 #   resume DIR
+#   check-skill SKILL.md
+#   check-evals PLUGIN SKILL
+#   eval-plan PLUGIN SKILL [--max-cost USD] [--keep-temp] [--one-arm]
+#   eval-run PLUGIN SKILL --quote MESSAGE [--max-cost USD] [--keep-temp] [--one-arm]
+#   eval-verdict PLUGIN SKILL aggregate-result.json
 # Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
@@ -21,6 +26,8 @@ PP_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FACTS_DIR="$PP_ROOT/scripts/facts"
 # shellcheck source=lib/doc-status.sh
 source "$PP_ROOT/scripts/lib/doc-status.sh"
+# shellcheck source=lib/frontmatter.sh
+source "$PP_ROOT/scripts/lib/frontmatter.sh"
 # Account, marketplace and its catalogue repository: written in hard, as the PRD says.
 OWNER=soonlysoul
 MARKETPLACE=soon
@@ -530,6 +537,265 @@ cmd_resume() {
   printf 'blocages : %s\n' "$( ((${#CP_BLOCKERS[@]})) && join ' ; ' "${CP_BLOCKERS[@]}" || echo aucun)"
 }
 
+# A skill header at the model: every broken rule is named, none is silent.
+cmd_check_skill() {
+  local file=${1:-} dir key errors=() listing lines
+  [[ -f $file ]] || die "usage : pp.sh check-skill CHEMIN/SKILL.md"
+  dir=$(basename "$(dirname "$file")")
+  if ! read_frontmatter "$file"; then
+    die "refusé : $file : en-tête illisible par l'analyseur strict : $FM_ERROR."
+  fi
+  for key in "${!FM[@]}"; do
+    case $key in
+      name | description | argument-hint | when_to_use | disable-model-invocation) ;;
+      allowed-tools) errors+=("allowed-tools accorde des outils sans demander et ne restreint rien : à retirer") ;;
+      *) errors+=("clé inconnue : $key") ;;
+    esac
+  done
+  for key in name description argument-hint when_to_use; do
+    [[ -n ${FM[$key]-} ]] || errors+=("$key absent")
+  done
+  [[ ${FM[name]-} == "$dir" ]] || errors+=("le nom « ${FM[name]-} » n'est pas celui du dossier « $dir »")
+  [[ ${FM[description]-} == *"Use when"* ]] || errors+=("la description ne dit pas « Use when … »")
+  [[ ${FM[description]-} == *"not for"* ]] || errors+=("la description ne dit pas « not for … »")
+  [[ ${FM[description]-} =~ «\ [^»]+\ » ]] || errors+=("la description ne cite aucune phrase de déclenchement en français (« … »)")
+  listing="${FM[description]-}${FM[when_to_use]-}"
+  ((${#listing} <= 1536)) || errors+=("description et when_to_use font ${#listing} caractères, au-delà de 1 536")
+  lines=$(wc -l <"$file")
+  ((lines < 500)) || errors+=("$lines lignes : 500 lignes ou plus, détails à mettre dans reference/")
+  grep -qE '\$[0-9]' "$file" && errors+=("\$0-\$9 présent, substitué comme argument du skill : $(grep -nE '\$[0-9]' "$file" | head -n 1)")
+  if ((${#errors[@]})); then
+    printf 'refusé : %s\n' "${errors[@]/#/$file : }" >&2
+    exit 1
+  fi
+  printf 'conforme : %s\n' "$file"
+}
+
+# Eval suites: evals/<skill>/<case>/case.yaml, written in JSON (a subset of YAML) so that jq
+# checks them with no other dependency. A case is positive when a tool_used Skill grader naming
+# the skill must fire, negative when it must not (min: 0, max: 0, arm: both).
+EVAL_CASE_KIND='def skill_grader($skill): .type == "tool_used" and .tool == "Skill" and ((.input_match // "") | contains($skill));
+  if any(.graders[]?; skill_grader($skill) and .max == 0) then "négatif"
+  elif any(.graders[]?; skill_grader($skill) and ((.max // 1) > 0) and ((.min // 1) >= 1)) then "positif"
+  else "aucun" end'
+EVAL_CASE_RULES='def skill_grader($skill): .type == "tool_used" and .tool == "Skill" and ((.input_match // "") | contains($skill));
+  def result_grader: (.type == "regex" and ((.target // "last_message") | type == "object" or (IN("trace", "mock_calls") | not)))
+    or .type == "file_exists" or .type == "baseline"
+    or (.type == "llm" and ((.focus // "last_message") | type == "object" or (IN("trace", "mock_calls") | not)));
+  (if .schema_version != "1.0" then "schema_version \"1.0\" exigé" else empty end),
+  (if (.name // "" | startswith($skill + "-")) | not then "nom sans le préfixe \($skill)-" else empty end),
+  (if (.runs | type) != "number" or .runs < 3 then "trois exécutions au moins, déclarées par runs" else empty end),
+  (if (.execution.prompt // "" | length) == 0 then "execution.prompt absent" else empty end),
+  (if ([.graders[]? | select(result_grader)] | length) == 0
+   then "aucun correcteur de résultat (regex, file_exists, llm ou baseline sur le résultat)" else empty end),
+  (if any(.graders[]?; skill_grader($skill) and .max == 0)
+      and (any(.graders[]?; skill_grader($skill) and .max == 0 and .min == 0 and .arm == "both") | not)
+   then "cas négatif sans min: 0, max: 0 et arm: both" else empty end)'
+COST_LOW=0.13 COST_HIGH=0.23 COST_MEASURED=2026-10-19
+
+# eval_cases <plugin> <skill>: the case files of the suite, one per line.
+eval_cases() {
+  find "$1/evals/$2" -mindepth 2 -maxdepth 2 -name case.yaml 2>/dev/null | sort
+}
+
+# suite_errors <plugin> <skill>: one refusal per broken rule; empty when the suite conforms.
+suite_errors() {
+  local plugin=$1 skill=$2 file rel kind positives=0 negatives=0 problem
+  local -a files
+  mapfile -t files < <(eval_cases "$plugin" "$skill")
+  if ((${#files[@]} == 0)); then
+    echo "refusé : aucun cas dans evals/$skill/."
+    return
+  fi
+  for file in "${files[@]}"; do
+    rel=${file#"$plugin"/}
+    if ! jq -e 'type == "object"' "$file" >/dev/null 2>&1; then
+      echo "refusé : $rel : écrire case.yaml en JSON (sous-ensemble du YAML), pour qu'il se vérifie sans dépendance."
+      continue
+    fi
+    while IFS= read -r problem; do
+      [[ -z $problem ]] || echo "refusé : $rel : $problem."
+    done < <(jq -r --arg skill "$skill" "$EVAL_CASE_RULES" "$file")
+    kind=$(jq -r --arg skill "$skill" "$EVAL_CASE_KIND" "$file")
+    [[ $kind == positif ]] && positives=$((positives + 1))
+    [[ $kind == négatif ]] && negatives=$((negatives + 1))
+  done
+  ((positives > 0)) || echo "refusé : evals/$skill/ : aucun cas positif (tool_used Skill qui doit déclencher $skill)."
+  ((negatives > 0)) || echo "refusé : evals/$skill/ : aucun cas négatif (tool_used Skill, min: 0, max: 0, arm: both)."
+}
+
+cmd_check_evals() {
+  local plugin=${1:-} skill=${2:-} errors files count positives negatives
+  [[ -n $plugin && -n $skill ]] || die "usage : pp.sh check-evals PLUGIN SKILL"
+  need jq
+  errors=$(suite_errors "$plugin" "$skill")
+  [[ -z $errors ]] || die "$errors"
+  files=$(eval_cases "$plugin" "$skill")
+  count=$(grep -c . <<<"$files")
+  positives=0 negatives=0
+  while IFS= read -r file; do
+    case $(jq -r --arg skill "$skill" "$EVAL_CASE_KIND" "$file") in
+      positif) positives=$((positives + 1)) ;;
+      négatif) negatives=$((negatives + 1)) ;;
+    esac
+  done <<<"$files"
+  printf 'conforme : %d cas (%d positif%s, %d négatif%s), 3 exécutions par cas au moins\n' \
+    "$count" "$positives" "$( ((positives > 1)) && echo s)" "$negatives" "$( ((negatives > 1)) && echo s)"
+}
+
+# usd <amount>: an amount with two decimals and a decimal comma, as the announcement prints it.
+usd() { LC_ALL=C awk -v n="$1" 'BEGIN { s = sprintf("%.2f", n); sub(/\./, ",", s); print s }'; }
+
+# eval_plan <plugin> <skill> <cap> <keep: --keep-temp or ""> <arms: 1 or 2>: checks, then sets
+# EVAL_COMMAND (an array) and prints the announcement. Exits 1 on a non-conforming suite, 2 when
+# a case is blocked.
+eval_plan() {
+  local plugin=$1 skill=$2 cap=$3 keep=${4:-} arms=${5:-2} errors files runs count sessions low high
+  local -a bash_cases=() runs_list=()
+  need jq
+  [[ $cap =~ ^[0-9]+([.,][0-9]+)?$ ]] && LC_ALL=C awk -v c="${cap/,/.}" 'BEGIN { exit !(c > 0) }' \
+    || die "refusé : plafond « $cap » invalide ; un montant positif en USD est attendu."
+  cap=${cap/,/.}
+  errors=$(suite_errors "$plugin" "$skill")
+  [[ -z $errors ]] || die "$errors"
+  files=$(eval_cases "$plugin" "$skill")
+  count=$(grep -c . <<<"$files")
+  while IFS= read -r file; do
+    runs_list+=("$(jq -r '.runs' "$file")")
+    jq -e '(.execution.allowed_tools // []) | any(startswith("Bash"))' "$file" >/dev/null && bash_cases+=("$(jq -r '.name' "$file")")
+  done <<<"$files"
+  if ((${#bash_cases[@]})); then
+    local missing
+    for missing in bwrap socat; do
+      command -v "$missing" >/dev/null 2>&1 || die "bloqué : $missing absent ($(join ', ' "${bash_cases[@]}") exige$( ((${#bash_cases[@]} > 1)) && echo nt) Bash) ; le bac à sable de claude plugin eval en a besoin." 2
+    done
+  fi
+  need claude
+  runs=0
+  for count_runs in "${runs_list[@]}"; do runs=$((runs + count_runs)); done
+  sessions=$((runs * arms))
+  low=$(LC_ALL=C awk -v s="$sessions" -v c="$COST_LOW" 'BEGIN { print s * c }')
+  high=$(LC_ALL=C awk -v s="$sessions" -v c="$COST_HIGH" 'BEGIN { print s * c }')
+  if [[ $(printf '%s\n' "${runs_list[@]}" | sort -u | grep -c .) == 1 ]]; then
+    printf 'sessions : %d (%d cas × %d exécutions × %d bras)\n' "$sessions" "$count" "${runs_list[0]}" "$arms"
+  else
+    printf 'sessions : %d (%d exécutions × %d bras)\n' "$sessions" "$runs" "$arms"
+  fi
+  printf 'coût estimé : %s à %s USD (%s à %s USD par session, mesuré le %s)\n' \
+    "$(usd "$low")" "$(usd "$high")" "$(usd "$COST_LOW")" "$(usd "$COST_HIGH")" "$COST_MEASURED"
+  printf 'plafond : %s USD\n' "${cap/./,}"
+  if LC_ALL=C awk -v h="$high" -v c="$cap" 'BEGIN { exit !(h > c) }'; then
+    printf "avertissement : l'estimation haute, %s USD, va au-delà du plafond ; le passage peut s'arrêter avant la fin (exit 2, résultats partiels).\n" "$(usd "$high")"
+  fi
+  local account
+  account=$(claude auth status --json 2>/dev/null | jq -r '"\(.email // "inconnu") (\(.subscriptionType // "?"))"' 2>/dev/null)
+  printf 'compte qui paie : %s, annoncé par claude auth status ; seul /api/oauth/profile dit le titulaire réel\n' "${account:-inconnu}"
+  EVAL_OUTPUT="$plugin/evals/results/$skill-$(date +%Y%m%dT%H%M%S)"
+  EVAL_COMMAND=(claude plugin eval "$plugin" --case "$skill-*" --no-publish --max-cost-usd "$cap")
+  ((arms == 1)) && EVAL_COMMAND+=(--ablation none)
+  ((${#bash_cases[@]})) && EVAL_COMMAND+=(--allow-tools Bash)
+  [[ $keep == --keep-temp ]] && EVAL_COMMAND+=(--keep-temp)
+  EVAL_COMMAND+=(--output-dir "$EVAL_OUTPUT")
+  local shown
+  shown=$(printf '%q ' "${EVAL_COMMAND[@]}")
+  printf 'commande : %s\n' "${shown% }" | sed "s/ --case $skill-\\\\\\* / --case '$skill-*' /"
+  printf 'accord : seul un « oui » lance ce passage.\n'
+}
+
+# eval_options <args...>: --max-cost, --keep-temp and --one-arm into CAP, KEEP and ARMS;
+# --quote into QUOTE.
+eval_options() {
+  CAP=3 KEEP="" ARMS=2 QUOTE="" QUOTED=0
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --one-arm) ARMS=1; shift ;;
+      --max-cost) CAP=${2:-}; shift 2 ;;
+      --keep-temp) KEEP=--keep-temp; shift ;;
+      --quote) QUOTE=${2:-}; QUOTED=1; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+}
+
+cmd_eval_plan() {
+  local plugin=${1:-} skill=${2:-}
+  [[ -n $plugin && -n $skill ]] || die "usage : pp.sh eval-plan PLUGIN SKILL [--max-cost USD] [--keep-temp]"
+  shift 2
+  eval_options "$@"
+  eval_plan "$plugin" "$skill" "$CAP" "$KEEP" "$ARMS"
+}
+
+cmd_eval_run() {
+  local plugin=${1:-} skill=${2:-} normalized rc
+  [[ -n $plugin && -n $skill ]] || die "usage : pp.sh eval-run PLUGIN SKILL --quote MESSAGE [--max-cost USD] [--keep-temp]"
+  shift 2
+  eval_options "$@"
+  normalized=$(tr '[:upper:]' '[:lower:]' <<<"$QUOTE" | sed -E 's/^ +//; s/[ .!]+$//')
+  [[ $QUOTED == 1 && $normalized == oui ]] || die "refusé : « $QUOTE » n'est pas un « oui » ; rien n'est lancé."
+  eval_plan "$plugin" "$skill" "$CAP" "$KEEP" "$ARMS" || exit $?
+  local log
+  log=$(mktemp)
+  "${EVAL_COMMAND[@]}" 2>&1 | tee "$log"
+  rc=${PIPESTATUS[0]}
+  printf 'claude plugin eval : exit %d\n' "$rc"
+  # Outside a terminal, a directory never trusted is refused before anything loads. Trusting it
+  # is Soon's gesture, free with a case filter that matches nothing; --trust-plugin is never used.
+  if grep -q 'is not a trusted plugin directory' "$log"; then
+    rm -f "$log"
+    die "bloqué : $plugin n'est pas un dossier de confiance pour claude plugin eval. À lancer une fois dans un terminal, sans coût : cd $(printf '%q' "$plugin") && claude plugin eval . --case 'aucun-*' --no-publish --max-cost-usd 0.01 --ablation none --runs 1 — puis répondre y." 2
+  fi
+  rm -f "$log"
+  [[ -f $EVAL_OUTPUT/aggregate-result.json ]] || die "échec : aucun résultat écrit dans $EVAL_OUTPUT."
+  cmd_eval_verdict "$plugin" "$skill" "$EVAL_OUTPUT/aggregate-result.json"
+}
+
+# The verdict of a pass: a positive case must score 1.00 with a positive gap over the baseline,
+# and is refused when the baseline already passes it; a negative case must score 1.00.
+cmd_eval_verdict() {
+  local plugin=${1:-} skill=${2:-} result=${3:-} name score delta error kind case_file failing=0 blocked=0
+  [[ -n $plugin && -n $skill && -f $result ]] || die "usage : pp.sh eval-verdict PLUGIN SKILL aggregate-result.json"
+  jq -e '.cases | type == "array"' "$result" >/dev/null 2>&1 || die "résultat illisible : $result"
+  if jq -e '.partial == true' "$result" >/dev/null; then
+    printf 'partiel : %s ; résultats incomplets, à ne pas comparer\n' "$(jq -r '.partialReason // "raison inconnue"' "$result")"
+    blocked=1
+  fi
+  while IFS=$'\t' read -r name score delta error; do
+    kind=aucun
+    while IFS= read -r case_file; do
+      jq -e --arg name "$name" '.name == $name' "$case_file" >/dev/null 2>&1 || continue
+      kind=$(jq -r --arg skill "$skill" "$EVAL_CASE_KIND" "$case_file")
+    done < <(eval_cases "$plugin" "$skill")
+    if [[ $error =~ sandbox|bubblewrap|bwrap|socat ]]; then
+      printf 'bloqué : %s : %s\n' "$name" "$error"
+      blocked=1
+      continue
+    fi
+    local shown_delta="—" without=""
+    if [[ $delta != null ]]; then
+      shown_delta=$(LC_ALL=C awk -v d="$delta" 'BEGIN { printf "%+.2f", d }')
+      without=$(LC_ALL=C awk -v s="$score" -v d="$delta" 'BEGIN { printf "%.2f", s - d }')
+    fi
+    score=$(LC_ALL=C awk -v s="$score" 'BEGIN { printf "%.2f", s }')
+    if [[ $kind == positif && -n $without ]] && LC_ALL=C awk -v w="$without" 'BEGIN { exit !(w >= 1) }'; then
+      printf 'refusé : le témoin réussit %s (WITH %s, W/OUT %s) : le cas ne prouve rien, à réécrire\n' "$name" "$score" "$without"
+      failing=1
+    elif LC_ALL=C awk -v s="$score" 'BEGIN { exit !(s < 1) }'; then
+      printf 'rouge : %s : WITH %s, Δ %s\n' "$name" "$score" "$shown_delta"
+      failing=1
+    elif [[ $kind == positif ]] && { [[ -z $without ]] || LC_ALL=C awk -v d="$delta" 'BEGIN { exit !(d <= 0) }'; }; then
+      printf 'non prouvé : %s : WITH %s, Δ %s : aucun écart positif avec le témoin\n' "$name" "$score" "$shown_delta"
+      failing=1
+    else
+      printf 'ok : %s (%s) : WITH %s, Δ %s\n' "$name" "$kind" "$score" "$shown_delta"
+    fi
+  done < <(jq -r '.cases[] | [.name, (.aggregates.score // 0), (.aggregates.delta // "null"),
+                  ([(.arms.with // [])[], (.arms.without // [])[] | .error // empty] | first // "")] | @tsv' "$result")
+  printf 'coût : %s USD\n' "$(usd "$(jq -r '.costUsd // 0' "$result")")"
+  if ((blocked)); then printf 'verdict : bloqué\n'; exit 2; fi
+  if ((failing)); then printf 'verdict : rouge\n'; exit 1; fi
+  printf 'verdict : vert\n'
+}
+
 cmd_status() {
   [[ $# == 1 && -f $1 ]] || die "usage : pp.sh status DOCUMENT"
   local status
@@ -550,5 +816,10 @@ case ${1:-} in
   create) shift; cmd_create "$@" ;;
   checkpoint) shift; cmd_checkpoint "$@" ;;
   resume) shift; cmd_resume "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume" ;;
+  check-skill) shift; cmd_check_skill "$@" ;;
+  check-evals) shift; cmd_check_evals "$@" ;;
+  eval-plan) shift; cmd_eval_plan "$@" ;;
+  eval-run) shift; cmd_eval_run "$@" ;;
+  eval-verdict) shift; cmd_eval_verdict "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-evals | eval-plan | eval-run | eval-verdict" ;;
 esac

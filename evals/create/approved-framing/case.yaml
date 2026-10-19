@@ -1,28 +1,49 @@
-schema_version: "1.0"
-name: create-approved-framing
-description: Un cadrage approuvé donne un plugin créé, dont la suite est lancée et rapportée.
-tags: [create, positive]
-runs: 3
-expected_outcome: Le skill create lance pp.sh create sur ./plugin-recettes ; le manifeste existe ; le rapport donne le code de sortie de la suite du plugin créé.
-context:
-  scaffold_script: setup.sh
-execution:
-  prompt: "Le cadrage de plugin-recettes est approuvé, dans ./plugin-recettes. Crée le plugin."
-  max_turns: 12
-  allowed_tools: [Skill, Read, Glob, Bash]
-graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:[\w-]+:)?create"'
-  - name: ran-create
-    type: tool_used
-    tool: Bash
-    input_match: 'pp\.sh(\\")? create'
-  - name: manifest-created
-    type: file_exists
-    path: "plugin-recettes/.claude-plugin/plugin.json"
-  - name: reports-the-suite
-    type: regex
-    target: last_message
-    pattern: 'suite du plugin créé : exit [0-9]+|échouées : [0-9]+'
+{
+  "schema_version": "1.0",
+  "name": "create-approved-framing",
+  "description": "Un cadrage approuvé donne un plugin créé, dont la suite est lancée et rapportée.",
+  "tags": [
+    "create",
+    "positive"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill create lance pp.sh create sur ./plugin-recettes ; le manifeste existe ; le rapport donne le code de sortie de la suite du plugin créé.",
+  "context": {
+    "scaffold_script": "setup.sh"
+  },
+  "execution": {
+    "prompt": "Le cadrage de plugin-recettes est approuvé, dans ./plugin-recettes. Crée le plugin.",
+    "max_turns": 12,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Glob",
+      "Bash"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?create\""
+    },
+    {
+      "name": "ran-create",
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": "pp\\.sh(\\\\\")? create"
+    },
+    {
+      "name": "manifest-created",
+      "type": "file_exists",
+      "path": "plugin-recettes/.claude-plugin/plugin.json"
+    },
+    {
+      "name": "reports-the-suite",
+      "type": "regex",
+      "target": "last_message",
+      "pattern": "suite du plugin créé : exit [0-9]+|échouées : [0-9]+"
+    }
+  ]
+}
