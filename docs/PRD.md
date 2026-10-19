@@ -1,12 +1,13 @@
-# PRD — plugin-agent
+# PRD — plugin-plugin
 
 2026-10-19 · Soon
 
-**Statut : APPROUVÉ** le 2026-10-19, par Soon (« oui »), après une modification
-faite à sa demande : plugin-flutter sert seul de modèle, et la réécriture de
-plugin-nixos devient un test de plugin-agent. Première approbation le même jour
-(« je valide »), à l'issue du cadrage. Toute modification d'un document approuvé
-le repasse en revue.
+**Statut : APPROUVÉ** le 2026-10-19, par Soon (« je valide »), après le
+renommage du plugin, d'abord nommé plugin-agent, en plugin-plugin. Approbations
+antérieures du même jour : « oui », après la modification qui fait de
+plugin-flutter le seul modèle et de la réécriture de plugin-nixos un test de
+plugin-plugin ; « je valide », à l'issue du cadrage. Toute modification d'un
+document approuvé le repasse en revue.
 
 ## Problème
 
@@ -34,7 +35,7 @@ commencera à dater à la prochaine mise à jour.
 
 ## Solution
 
-plugin-agent permet à Soon de :
+plugin-plugin permet à Soon de :
 
 - **cadrer** un plugin : décrire le besoin, être interrogé une question à la
   fois, approuver le cadrage et l'architecture avant toute écriture ;
@@ -127,7 +128,7 @@ condition qu'elle soit motivée et révisable.
   sans toucher à son contenu métier, afin de faire évoluer mes plugins publiés.
 - **US-18** — En tant que Soon, je veux qu'un plugin hors modèle soit signalé
   avec la liste de ses écarts, sans aucune modification, afin de savoir pourquoi
-  plugin-agent ne s'en charge pas.
+  plugin-plugin ne s'en charge pas.
 - **US-19** — En tant que Soon, je veux reconstruire un plugin existant dans un
   dossier à part et y faire passer sa propre suite de tests, sans jamais modifier
   l'original, afin de confronter le modèle à mes plugins réels.
@@ -163,7 +164,7 @@ condition qu'elle soit motivée et révisable.
 - **US-29** — En tant que Soon, je veux recevoir à la fin la commande
   d'installation ou de mise à jour à lancer moi-même sur chaque appareil, afin
   que l'installation reste mon geste.
-- **US-30** — En tant que Soon, je veux que plugin-agent publie lui-même sa
+- **US-30** — En tant que Soon, je veux que plugin-plugin publie lui-même sa
   version 0.1.1, chaque geste après mon accord, afin de prouver la chaîne de
   publication sur la vraie marketplace.
 
@@ -205,21 +206,21 @@ condition qu'elle soit motivée et révisable.
 6. Aucune création de dépôt, aucun push, aucune PR sans un accord explicite
    enregistré ; la marketplace `soon` ne change que par une PR fusionnée par
    Soon.
-7. plugin-agent publie lui-même sa version 0.1.1 : version et journal à jour,
+7. plugin-plugin publie lui-même sa version 0.1.1 : version et journal à jour,
    étiquette de version présente, et un appareil qui met à jour reçoit 0.1.1.
 8. Après un changement de version de la plateforme, le ré-audit liste les faits
    mesurés sur une version antérieure et les formats changés ; à version
    inchangée, les deux listes sont vides.
-9. Le coût en contexte permanent de plugin-agent lui-même reste sous le seuil
+9. Le coût en contexte permanent de plugin-plugin lui-même reste sous le seuil
    d'alerte.
 
 ## Hors périmètre
 
-- Le contenu métier des plugins (consignes Flutter, règles NixOS) : plugin-agent
+- Le contenu métier des plugins (consignes Flutter, règles NixOS) : plugin-plugin
   fournit la charpente et la méthode.
 - Les plugins hors modèle — plugins de tiers, anciennes formes non dédiées — et
   leur mise en conformité. La réécriture de plugin-nixos au modèle est un test de
-  plugin-agent, pas une fonction : elle se fait dans un dossier à part et n'est
+  plugin-plugin, pas une fonction : elle se fait dans un dossier à part et n'est
   jamais publiée.
 - Le plugin embarqué dans le dépôt qu'il sert, remplacé par le montage en
   sous-module.
@@ -236,7 +237,7 @@ condition qu'elle soit motivée et révisable.
 - Les gestes destructifs sur GitHub : supprimer un dépôt, forcer un push,
   réécrire un historique publié, retirer un plugin de la marketplace.
 - L'intégration continue sur GitHub.
-- Modifier la configuration du poste : plugin-agent signale une dépendance
+- Modifier la configuration du poste : plugin-plugin signale une dépendance
   machine manquante, il ne la déclare pas.
 - Publier un rapport d'évaluation hors du poste.
 
@@ -285,7 +286,7 @@ condition qu'elle soit motivée et révisable.
   le compte s'applique à toutes les sessions.
 - **Catalogue local**, mesuré le 2026-10-19 : la copie locale de la marketplace
   retardait de plusieurs heures sur GitHub.
-- **Amorçage** : la version 0.1.0 se construit à la main ; plugin-agent ne se
+- **Amorçage** : la version 0.1.0 se construit à la main ; plugin-plugin ne se
   publie lui-même qu'à partir de 0.1.1. La base de faits initiale reprend les
   mesures de la phase A de plugin-flutter.
 - **Hypothèse** : l'exécution sans le plugin d'une évaluation charge peut-être
