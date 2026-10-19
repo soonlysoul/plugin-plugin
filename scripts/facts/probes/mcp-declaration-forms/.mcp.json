@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "local": {"command": "bash", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/sonde.sh"], "env": {"SONDE_TOKEN": "${SONDE_TOKEN}"}},
+    "distant": {"type": "http", "url": "https://sonde.example.invalid/mcp", "headers": {"Authorization": "Bearer ${SONDE_TOKEN}"}},
+    "flux": {"type": "ws", "url": "wss://sonde.example.invalid/mcp"}
+  }
+}

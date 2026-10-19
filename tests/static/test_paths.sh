@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Paths: every ${CLAUDE_PLUGIN_ROOT}/… cited by a skill or an agent exists; scripts under
-# scripts/ and hooks/scripts/ are bash scripts that parse; no /bin/bash, no personal or store
-# path anywhere in the components.
+# Paths: every ${CLAUDE_PLUGIN_ROOT}/… cited by a skill, an agent or .mcp.json exists; scripts
+# under scripts/ and hooks/scripts/ are bash scripts that parse; MCP servers follow tests/mcp.sh;
+# no /bin/bash, no personal or store path anywhere in the components.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_paths
@@ -9,7 +9,10 @@ shopt -s nullglob
 
 echo "# chemins cités"
 substituted=("$PLUGIN_ROOT"/skills/*/SKILL.md "$PLUGIN_ROOT"/agents/*.md)
-cited=$(cat "${substituted[@]}" /dev/null | grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]' | sort -u)
+MCP_JSON="$PLUGIN_ROOT/.mcp.json"
+mcp=()
+[[ -f $MCP_JSON ]] && mcp=("$MCP_JSON")
+cited=$(cat "${substituted[@]}" ${mcp[@]+"${mcp[@]}"} /dev/null | grep -oE '\$\{CLAUDE_PLUGIN_ROOT\}/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]' | sort -u)
 while IFS= read -r ref; do
   [[ -n $ref ]] || continue
   [[ -e $PLUGIN_ROOT/${ref#'${CLAUDE_PLUGIN_ROOT}/'} ]] && pass "chemin cité présent : $ref" || fail "chemin cité présent : $ref"
@@ -58,6 +61,35 @@ else
   done
 fi
 
+echo "# .mcp.json"
+if [[ ! -e $MCP_JSON ]]; then
+  skip ".mcp.json" "aucun serveur MCP"
+elif ! jq -e '.mcpServers | type == "object"' "$MCP_JSON" >/dev/null 2>&1; then
+  fail ".mcp.json est du JSON avec une enveloppe \"mcpServers\"" "$MCP_JSON"
+elif [[ ! -f $PLUGIN_ROOT/tests/mcp.sh ]]; then
+  fail "tests/mcp.sh présent" "les règles d'une déclaration MCP"
+else
+  pass ".mcp.json est du JSON avec une enveloppe \"mcpServers\""
+  # shellcheck source=../mcp.sh
+  source "$PLUGIN_ROOT/tests/mcp.sh"
+  while IFS= read -r server; do
+    entry=$(jq -c --arg s "$server" '.mcpServers[$s]' "$MCP_JSON")
+    if jq -e 'has("command")' <<<"$entry" >/dev/null; then
+      error=$(mcp_launcher_error "$entry")
+      [[ -z $error ]] && pass "serveur $server : lancé par bash, lanceur de scripts/" || fail "serveur $server : lancé par bash, lanceur de scripts/" "$error"
+    else
+      error=$(mcp_remote_error "$entry")
+      [[ -z $error ]] && pass "serveur $server : distant en HTTPS ou WSS" || fail "serveur $server : distant en HTTPS ou WSS" "$error"
+    fi
+    error=$(mcp_install_error "$entry" "$PLUGIN_ROOT")
+    [[ -z $error ]] && pass "aucune installation impérative (serveur $server)" || fail "aucune installation impérative (serveur $server)" "$error"
+    error=$(mcp_variable_error "$entry")
+    [[ -z $error ]] && pass "variables en \${VAR} (serveur $server)" || fail "variables en \${VAR} (serveur $server)" "$error"
+    error=$(mcp_secret_error "$entry")
+    [[ -z $error ]] && pass "aucune valeur secrète en clair (serveur $server)" || fail "aucune valeur secrète en clair (serveur $server)" "$error"
+  done < <(jq -r '.mcpServers | keys_unsorted[]' "$MCP_JSON")
+fi
+
 echo "# gabarits et annexes"
 annexes=()
 while IFS= read -r -d '' file; do annexes+=("$file"); done \
@@ -90,13 +122,14 @@ for script in ${scripts[@]+"${scripts[@]}"}; do
 done
 for script in "$PLUGIN_ROOT"/scripts/*.sh "$PLUGIN_ROOT"/hooks/scripts/*.sh; do
   name=${script##*/}
-  grep -qF "\${CLAUDE_PLUGIN_ROOT}/${script#"$PLUGIN_ROOT"/}" "${substituted[@]}" "$PLUGIN_ROOT"/hooks/hooks.json /dev/null \
+  grep -qF "\${CLAUDE_PLUGIN_ROOT}/${script#"$PLUGIN_ROOT"/}" "${substituted[@]}" "$PLUGIN_ROOT"/hooks/hooks.json ${mcp[@]+"${mcp[@]}"} /dev/null \
     && pass "$name est cité par \${CLAUDE_PLUGIN_ROOT}" || fail "$name est cité par \${CLAUDE_PLUGIN_ROOT}"
 done
 
 # The fact base describes these paths, it does not use them: scripts/facts/ is left out.
 components=()
 for dir in agents skills hooks scripts templates; do [[ -d $PLUGIN_ROOT/$dir ]] && components+=("$PLUGIN_ROOT/$dir"); done
+components+=(${mcp[@]+"${mcp[@]}"})
 bin_bash=$(grep -rn --exclude-dir=facts '/bin/bash' ${components[@]+"${components[@]}"} /dev/null 2>/dev/null)
 [[ -z $bin_bash ]] && pass "aucun /bin/bash (absent sous NixOS)" || fail "aucun /bin/bash (absent sous NixOS)" "$bin_bash"
 personal=$(grep -rnE --exclude-dir=facts '/(home|Users)/|/nix/(store)/' ${components[@]+"${components[@]}"} /dev/null 2>/dev/null)

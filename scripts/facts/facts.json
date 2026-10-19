@@ -963,5 +963,47 @@
     "source": "plugin-plugin, sonde de phase 6 ; CLAUDE.md du poste (oauthAccount trompeur, mesuré le 2026-08-31)",
     "recheck": "comparer claude auth status --json et /api/oauth/profile appelé avec le jeton du profil",
     "status": "à vérifier"
+  },
+  {
+    "id": "mcp-validated-with-manifest",
+    "statement": "claude plugin validate .claude-plugin/plugin.json --strict valide aussi le .mcp.json de la racine du plugin (« Validating mcp ») : JSON cassé ou type de serveur inconnu échouent. Visé seul, .mcp.json est lu comme un manifeste de plugin et échoue toujours.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-19",
+    "source": "plugin-plugin, sonde de phase 9",
+    "recheck": "claude plugin validate .claude-plugin/plugin.json --strict sur un .mcp.json de type telepathy",
+    "status": "confirmé",
+    "probe": {
+      "example": "mcp-unknown-type",
+      "target": ".claude-plugin/plugin.json",
+      "expect": "fail"
+    }
+  },
+  {
+    "id": "mcp-declaration-forms",
+    "statement": "Un serveur local en command: bash avec le lanceur dans args et env en ${VAR}, un distant en type: http avec headers en ${VAR}, et un distant en type: ws passent la validation stricte. plugin-nixos 0.1.2 déclare déjà son serveur en bash + ${CLAUDE_PLUGIN_ROOT}/scripts/mcp-nixos.sh.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-19",
+    "source": "plugin-plugin, sonde de phase 9 ; .mcp.json de plugin-nixos 0.1.2",
+    "recheck": "claude plugin validate .claude-plugin/plugin.json --strict sur les trois formes",
+    "status": "confirmé",
+    "probe": {
+      "example": "mcp-declaration-forms",
+      "target": ".claude-plugin/plugin.json",
+      "expect": "pass"
+    }
+  },
+  {
+    "id": "mcp-server-unknown-field-tolerated",
+    "statement": "Un champ inconnu dans l'entrée d'un serveur de .mcp.json passe la validation stricte : la forme du lanceur, l'absence d'installation et de secret se contrôlent par test_paths.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-19",
+    "source": "plugin-plugin, sonde de phase 9",
+    "recheck": "claude plugin validate .claude-plugin/plugin.json --strict sur un serveur portant un champ frobnicate",
+    "status": "confirmé",
+    "probe": {
+      "example": "mcp-server-unknown-field",
+      "target": ".claude-plugin/plugin.json",
+      "expect": "pass"
+    }
   }
 ]

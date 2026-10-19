@@ -70,6 +70,10 @@ for id in validate-root-marketplace-only plugin-init-scaffold plugin-eval-comman
   plugin-details-cost flutter-forge-guard-rm-rf local-catalog-lag homepage-missing-repo-loads; do
   expect_fact "$id" ""
 done
+# Phase 9: what the strict validation sees of an MCP declaration.
+for id in mcp-validated-with-manifest mcp-declaration-forms mcp-server-unknown-field-tolerated; do
+  expect_fact "$id" confirmé
+done
 # From plugin-dev, unverified, with its two contradictions of phase A.
 expect_fact plugindev-when-to-use-deprecated "à vérifier"
 expect_fact plugindev-hooks-need-restart "à vérifier"

@@ -22,6 +22,8 @@
 #   eval-verdict PLUGIN SKILL aggregate-result.json
 #   add-hook PLUGIN --name N --event E [--matcher M] --mode fail-open|fail-closed [--timeout S] [--dry-run]
 #   add-agent PLUGIN --name N --tools T --model M [--writes D,…] [--bash C,…] [--test-only]
+#   add-mcp PLUGIN --name N (--launcher scripts/S.sh [--args A,…] [--env VAR,…] | --url U [--header K=V]…) [--test-only]
+#   out-of-scope KIND
 # Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
@@ -31,6 +33,8 @@ FACTS_DIR="$PP_ROOT/scripts/facts"
 source "$PP_ROOT/scripts/lib/doc-status.sh"
 # shellcheck source=../tests/headers.sh
 source "$PP_ROOT/tests/headers.sh"
+# shellcheck source=../tests/mcp.sh
+source "$PP_ROOT/tests/mcp.sh"
 # Account, marketplace and its catalogue repository: written in hard, as the PRD says.
 OWNER=soonlysoul
 MARKETPLACE=soon
@@ -370,7 +374,7 @@ cmd_create() {
   done
   render "$scaffold/gitignore" "$dir/.gitignore"
   # The harness is plugin-plugin's own, so that both suites behave the same way.
-  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/headers.sh" "$PP_ROOT/tests/run-all.sh" "$dir/tests/"
+  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/headers.sh" "$PP_ROOT/tests/mcp.sh" "$PP_ROOT/tests/run-all.sh" "$dir/tests/"
   cp "$PP_ROOT/tests/static/test_paths.sh" "$PP_ROOT/tests/static/test_run_all.sh" "$PP_ROOT/tests/static/test_headers.sh" "$dir/tests/static/"
   sed "s/^NAME=plugin-plugin$/NAME=$NAME/" "$PP_ROOT/tests/static/test_manifest.sh" >"$dir/tests/static/test_manifest.sh"
   git -C "$dir" init -q -b main || die "échec : git init dans $dir"
@@ -1036,6 +1040,160 @@ cmd_add_agent() {
   printf 'écrit : %s%s\n' "$file" "$( ((scoped)) && echo ", hooks/agent-scope.json")"
 }
 
+# MCP: an existing server declared in .mcp.json, never its code — local through a bash launcher of
+# scripts/, remote in HTTPS or WSS — with the user's values as ${VAR}, by the rules of tests/mcp.sh.
+
+# mcp_test <server> <entry>: the test that fails while .mcp.json does not declare the server.
+mcp_test() {
+  local variables
+  variables=$(mcp_variables "$2" | paste -sd' ' -)
+  printf '#!/usr/bin/env bash\n'
+  printf '# .mcp.json: the %s server, declared as pp.sh add-mcp wrote it; its variables in the README.\n' "$1"
+  printf '# shellcheck source=../lib.sh\nsource "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"\n'
+  printf 'SUITE=test_mcp_%s\nMCP="$PLUGIN_ROOT/.mcp.json"\n\n' "${1//-/_}"
+  printf "if ! jq -e --arg s %s '.mcpServers[\$s]' \"\$MCP\" >/dev/null 2>&1; then\n" "$1"
+  printf '  fail "serveur %s déclaré" ".mcp.json absent, ou sans le serveur %s"\n  finish\n  exit\nfi\n' "$1" "$1"
+  printf 'pass "serveur %s déclaré"\n' "$1"
+  printf "want=\$(cat <<'JSON'\n%s\nJSON\n)\n" "$2"
+  printf "jq -e --arg s %s --argjson want \"\$want\" '.mcpServers[\$s] == \$want' \"\$MCP\" >/dev/null \\\\\n" "$1"
+  printf '  && pass "déclaration de %s" || fail "déclaration de %s" "$(jq -c --arg s %s '"'"'.mcpServers[$s]'"'"' "$MCP")"\n' "$1" "$1" "$1"
+  if [[ -n $variables ]]; then
+    printf 'for var in %s; do\n' "$variables"
+    printf '  grep -qF "\\`$var\\`" "$PLUGIN_ROOT/README.md" && pass "README : $var documentée" || fail "README : $var documentée"\ndone\n'
+  fi
+  printf '\nfinish\n'
+}
+
+# readme_mcp <plugin>: the « Serveurs MCP » section of README.md, rewritten from .mcp.json, before
+# « ## Tests », or at the end.
+readme_mcp() {
+  local plugin=$1 readme="$1/README.md" section server entry where variables
+  section=$(mktemp)
+  {
+    cat <<'TEXT'
+## Serveurs MCP
+
+Déclarés dans `.mcp.json`, sans rien installer : chaque valeur vient de l'environnement de l'utilisateur, en `${VAR}`. Un skill qui dépend d'un serveur a besoin d'une doublure dans `evals/mocks/<serveur>/` pour être évalué ; sans elle, le serveur n'est pas démarré pendant une évaluation.
+
+TEXT
+    while IFS= read -r server; do
+      entry=$(jq -c --arg s "$server" '.mcpServers[$s]' "$plugin/.mcp.json")
+      if jq -e 'has("url")' <<<"$entry" >/dev/null; then
+        where="distant, \`$(jq -r '.url' <<<"$entry")\`"
+      else
+        where="local, lancé par \`$(jq -r '.args[0] | ltrimstr("${CLAUDE_PLUGIN_ROOT}/")' <<<"$entry")\`"
+      fi
+      variables=$(mcp_variables "$entry" | sed 's/.*/`&`/' | paste -sd, - | sed 's/,/, /g')
+      printf -- "- \`%s\` — %s ; variables : %s ; doublure d'évaluation : \`evals/mocks/%s/\`.\n" \
+        "$server" "$where" "${variables:-aucune}" "$server"
+    done < <(jq -r '.mcpServers | keys_unsorted[]' "$plugin/.mcp.json")
+  } >"$section"
+  touch "$readme"
+  awk -v section="$section" '
+    function emit(  line) { while ((getline line < section) > 0) print line; close(section); print ""; done = 1 }
+    /^## Serveurs MCP$/ { skip = 1; next }
+    skip && /^## / { skip = 0 }
+    skip { next }
+    /^## Tests$/ && !done { emit() }
+    { print }
+    END { if (!done) { print ""; emit() } }' "$readme" >"$readme.tmp" && mv "$readme.tmp" "$readme"
+  rm -f "$section"
+}
+
+cmd_add_mcp() {
+  local plugin=${1:-} name="" launcher="" url="" args="" envs="" test_only=0 item type entry error variables
+  local -a headers=() names=()
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --name) name=${2:-}; shift 2 ;;
+      --launcher) launcher=${2:-}; shift 2 ;;
+      --url) url=${2:-}; shift 2 ;;
+      --args) args=${2:-}; shift 2 ;;
+      --env) envs=${2:-}; shift 2 ;;
+      --header) headers+=("${2:-}"); shift 2 ;;
+      --test-only) test_only=1; shift ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n $plugin && -n $name && -n $launcher$url && (-z $launcher || -z $url) ]] \
+    || die "usage : pp.sh add-mcp PLUGIN --name NOM (--launcher scripts/NOM.sh [--args A,…] [--env VAR,…] | --url https://…|wss://… [--header 'Nom=valeur']…) [--test-only]"
+  need jq
+  [[ -f $plugin/.claude-plugin/plugin.json ]] || die "refusé : $plugin n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  [[ $name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || die "refusé : « $name » n'est pas en kebab-case."
+  if [[ -e $plugin/.mcp.json ]]; then
+    jq -e '.mcpServers | type == "object"' "$plugin/.mcp.json" >/dev/null 2>&1 || die "refusé : $plugin/.mcp.json illisible, sans enveloppe « mcpServers »."
+    jq -e --arg s "$name" '.mcpServers | has($s)' "$plugin/.mcp.json" >/dev/null && die "refusé : le serveur $name est déjà déclaré dans .mcp.json."
+  fi
+  if [[ -n $launcher ]]; then
+    ((${#headers[@]} == 0)) || die "refusé : --header ne vaut que pour un serveur distant (--url)."
+    launcher=${launcher#'${CLAUDE_PLUGIN_ROOT}/'}
+    [[ $launcher =~ ^scripts/[A-Za-z0-9_-][A-Za-z0-9_.-]*\.sh$ ]] \
+      || die "refusé : lanceur « $launcher » : un script bash du plugin, scripts/<nom>.sh, que la déclaration lance par bash depuis \${CLAUDE_PLUGIN_ROOT} ; le code d'un serveur n'est pas écrit ici."
+    [[ -f $plugin/$launcher ]] || die "refusé : lanceur absent : $launcher n'existe pas dans $plugin."
+    launcher="\${CLAUDE_PLUGIN_ROOT}/$launcher"
+    [[ -z $envs ]] || IFS=',' read -ra names <<<"$envs"
+    for item in ${names[@]+"${names[@]}"}; do
+      [[ $item =~ ^[A-Z_][A-Z0-9_]*$ ]] \
+        || die "refusé : variable « $item » : un nom en majuscules, chiffres et _, dont la valeur vient de l'environnement de l'utilisateur, en \${NOM}."
+    done
+    entry=$(jq -nc --arg launcher "$launcher" --arg args "$args" --arg envs "$envs" '
+      {command: "bash", args: ([$launcher] + ($args | split(",") | map(select(length > 0))))}
+      + (if $envs == "" then {} else {env: ($envs | split(",") | map({key: ., value: "${\(.)}"}) | from_entries)} end)')
+  else
+    [[ -z $envs && -z $args ]] || die "refusé : --env et --args ne valent que pour un serveur local (--launcher) ; un serveur distant reçoit ses valeurs par --header."
+    case $url in
+      https://*) type=http ;;
+      wss://*) type=ws ;;
+      *) die "refusé : adresse « $url » : un serveur distant en HTTPS ou WSS seulement." ;;
+    esac
+    for item in ${headers[@]+"${headers[@]}"}; do
+      [[ $item =~ ^[A-Za-z0-9-]+=.+$ ]] || die "refusé : en-tête « $item » : Nom=valeur attendu."
+    done
+    entry=$(jq -nc --arg type "$type" --arg url "$url" '{type: $type, url: $url}
+      + (if ($ARGS.positional | length) == 0 then {}
+         else {headers: ($ARGS.positional | map(capture("^(?<key>[^=]+)=(?<value>.*)$")) | from_entries)} end)' \
+      --args ${headers[@]+"${headers[@]}"})
+  fi
+  for error in "$(mcp_variable_error "$entry")" "$(mcp_secret_error "$entry")" "$(mcp_install_error "$entry" "$plugin")"; do
+    [[ -z $error ]] || die "refusé : $error ; rien n'a été écrit."
+  done
+
+  local test="tests/static/test_mcp_${name//-/_}.sh"
+  ((test_only == 0)) || [[ ! -e $plugin/$test ]] || die "refusé : le test $test existe déjà."
+  if [[ ! -e $plugin/$test ]]; then
+    mkdir -p "$plugin/tests/static"
+    mcp_test "$name" "$entry" >"$plugin/$test"
+  fi
+  if ((test_only)); then
+    printf "écrit : %s (le test du serveur, rouge tant que .mcp.json ne le déclare pas)\n" "$test"
+    return 0
+  fi
+  jq --arg s "$name" --argjson entry "$entry" '.mcpServers[$s] = $entry' \
+    <<<"$(cat "$plugin/.mcp.json" 2>/dev/null || echo '{"mcpServers": {}}')" >"$plugin/.mcp.json.tmp" \
+    && mv "$plugin/.mcp.json.tmp" "$plugin/.mcp.json"
+  readme_mcp "$plugin"
+  variables=$(mcp_variables "$entry" | paste -sd, - | sed 's/,/, /g')
+  printf 'écrit : .mcp.json (serveur %s), README.md (section « Serveurs MCP »)\n' "$name"
+  printf "variables à définir par l'utilisateur : %s\n" "${variables:-aucune}"
+  printf "rappel : un skill qui dépend du serveur %s a besoin d'une doublure dans evals/mocks/%s/ pour être évalué ; sans elle, le serveur n'est pas démarré pendant une évaluation.\n" "$name" "$name"
+}
+
+# Out of scope (PRD, « Hors périmètre ») : each refusal names its reason and what would reopen it.
+cmd_out_of_scope() {
+  local cli="rouvert au premier plugin qui a besoin d'un système sans ligne de commande, ou d'un channel"
+  case ${1:-} in
+    mcp-code) die "refusé : écrire le code d'un serveur MCP est hors périmètre ; plugin-plugin déclare un serveur existant (add-mcp), il n'en écrit pas ; $cli." ;;
+    channel) die "refusé : un channel est hors périmètre ; il exige le code d'un serveur MCP écrit pour le plugin ; $cli." ;;
+    lsp) die "refusé : la déclaration d'un serveur de langage est hors périmètre de la v0.1 ; rouvert en v0.2, où elle est prévue." ;;
+    output-style) die "refusé : un style de sortie est hors périmètre ; aucun plugin du modèle n'en a l'usage, et le plugin reste petit ; rouvert par une révision du PRD." ;;
+    command) die "refusé : une commande classique (commands/) est une forme ancienne, exclue par le PRD ; rouvert : jamais, un skill la remplace et s'invoque déjà par /<plugin>:<skill>." ;;
+    plugin-option) die "refusé : une option de plugin est hors périmètre ; compte, marketplace et langue des messages restent écrits en dur ; rouvert par une révision du PRD, le jour où un plugin doit se régler par utilisateur." ;;
+    plugin-dependency) die "refusé : une dépendance entre plugins est hors périmètre ; un plugin du modèle s'installe et fonctionne seul ; rouvert par une révision du PRD, quand un plugin ne peut pas fonctionner sans un autre plugin." ;;
+    *) die "usage : pp.sh out-of-scope mcp-code | channel | lsp | output-style | command | plugin-option | plugin-dependency" ;;
+  esac
+}
+
 cmd_status() {
   [[ $# == 1 && -f $1 ]] || die "usage : pp.sh status DOCUMENT"
   local status
@@ -1064,5 +1222,7 @@ case ${1:-} in
   eval-verdict) shift; cmd_eval_verdict "$@" ;;
   add-hook) shift; cmd_add_hook "$@" ;;
   add-agent) shift; cmd_add_agent "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent" ;;
+  add-mcp) shift; cmd_add_mcp "$@" ;;
+  out-of-scope) shift; cmd_out_of_scope "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope" ;;
 esac

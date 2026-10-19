@@ -5,7 +5,9 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 102 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 552 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7 et 8 terminées**. Arrêt demandé par Soon à la fin de la phase 8 ; prochaine étape : phase 9 (son test, écrit, attend dans `build/p9-pending/`).
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7, 8 et 9 terminées**. La phase 10 attend la phase 6 ; prochaine étape : phase 11 (répétition de publication).
+
+**Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create` et `resume`, pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes : à recueillir auprès de Soon avant d'écrire `evals/add/`.
 
 **À trancher par Soon** — le plan approuvé affirme, dans « Tests et validation », que `claude plugin validate .` ne valide que la marketplace. Mesuré en phase 2 : c'est faux sur 2.1.296 (voir ci-dessous). Rien ne casse — la suite valide toujours chaque cible —, mais la phrase du plan est à corriger, ce qui le repasse en revue. Le plan n'a pas été modifié.
 
@@ -330,3 +332,59 @@ Réorganisation : l'analyseur et les règles d'en-tête vivent dans `tests/heade
 | le garde laisse passer une commande composée | « substitution de commande : bloquée » |
 | le garde s'applique aux agents des autres plugins | « agent d'un autre plugin : inerte » |
 | `tools` absent toléré | « tools absent : refusé, règle nommée » |
+
+## Phase 9 — Déclarer un serveur MCP existant ; refuser le hors-périmètre — terminée
+
+- [x] `pp.sh add-mcp <plugin> --name N (--launcher scripts/S.sh [--args …] [--env VAR,…] | --url U [--header Nom=valeur]…) [--test-only]` ajoute le serveur à `.mcp.json` sans rien écrire d'autre que sa déclaration : un serveur local est lancé par `bash`, son lanceur dans `args`, cité par `${CLAUDE_PLUGIN_ROOT}/scripts/` — la forme des hooks du modèle, et celle de plugin-nixos 0.1.2, sans dépendre du bit d'exécution ; un serveur distant est en `type: http` (HTTPS) ou `ws` (WSS), jamais en HTTP ni WS.
+- [x] Valeurs de l'utilisateur en `${VAR}` seulement : `--env` ne prend que des noms ; un `$VAR` sans accolades, un secret en clair (suite de 20 caractères mêlant lettres et chiffres, en-tête sensible ou paramètre d'adresse sans `${VAR}`) sont refusés, sans jamais recopier le secret.
+- [x] Aucune installation impérative (`npm install`, `npx`, `bun install`, `pip install`, `uvx`, `cargo install`…), ni dans la commande ni dans le lanceur. Un lanceur absent, hors de `scripts/` ou qui remonte (`..`) est refusé ; aucun refus n'écrit quoi que ce soit.
+- [x] Variables documentées : la section « Serveurs MCP » du README, réécrite depuis `.mcp.json` à chaque déclaration, nomme chaque serveur, ses variables et sa doublure `evals/mocks/<serveur>/`. `add-mcp` le rappelle à l'écran : sans doublure, le serveur n'est pas démarré pendant une évaluation.
+- [x] Le test du serveur, `tests/static/test_mcp_<nom>.sh`, s'écrit avant lui (`--test-only`) et échoue sur « serveur <nom> déclaré » ; la déclaration écrite, il passe (critère 4).
+- [x] `pp.sh out-of-scope` refuse, avec sa raison et son déclencheur : code d'un serveur MCP et channel (« premier plugin qui a besoin d'un système sans ligne de commande, ou d'un channel »), serveur de langage (« v0.2 »), style de sortie et option de plugin (révision du PRD), commande classique (jamais : un skill la remplace), dépendance entre plugins (révision du PRD, quand un plugin ne peut pas fonctionner sans un autre) — US-16.
+- [x] Skill `add`, volet MCP (`skills/add/reference/mcp.md`) ; toute autre sorte de composant passe par `out-of-scope`, et le skill s'arrête.
+
+Règles en source unique `tests/mcp.sh`, chargée par `pp.sh` et recopiée par `create` : `test_paths` les applique à tout plugin du modèle qui a un `.mcp.json`, même écrit à la main — lanceur par `bash`, HTTPS ou WSS, aucune installation, variables en `${VAR}`, aucun secret —, et compte `.mcp.json` parmi les sources qui citent un chemin ou un script.
+
+Écart au test d'abord écrit : il attendait `command: "${CLAUDE_PLUGIN_ROOT}/scripts/mcp-notes.sh"`. Son lanceur d'essai n'a pas le bit d'exécution, comme ceux de `.claude/hooks/` dans l'arbre de travail : la déclaration n'aurait pas démarré. Le test attend désormais `command: "bash"`, avant toute implémentation.
+
+### Sondes
+
+| Sonde | Commande | Résultat |
+| --- | --- | --- |
+| `.mcp.json` est-il validé ? | `claude plugin validate .claude-plugin/plugin.json --strict` sur quatre `.mcp.json` | « Validating mcp » : JSON cassé et type `telepathy` échouent (exit 1) ; `bash` + lanceur, `http` + `headers`, `ws` passent (exit 0). Fait `mcp-validated-with-manifest`, `mcp-declaration-forms` |
+| `.mcp.json` visé seul | `claude plugin validate .mcp.json --strict` | exit 1 « name: expected string » : lu comme un manifeste ; `run-all.sh` n'en fait pas une cible |
+| Champ inconnu dans un serveur | `… --strict` sur `"frobnicate": 1` | exit 0, toléré : les règles du modèle se contrôlent par `test_paths`. Fait `mcp-server-unknown-field-tolerated` |
+
+Trois sondes rejouées par `pp.sh reaudit` (`scripts/facts/probes/mcp-*`) : « faits à corriger : 0 ».
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/integration/test_add_mcp.sh` | 1 | 4 réussis, 36 échoués : `add-mcp` et `out-of-scope` inconnus |
+| ROUGE | `bash tests/integration/test_create.sh` | 1 | « créé : tests/mcp.sh » |
+| ROUGE | `bash tests/static/test_facts.sh` | 1 | « fait mcp-validated-with-manifest », « fait mcp-declaration-forms », « fait mcp-server-unknown-field-tolerated » : absents |
+| ROUGE | `bash tests/integration/test_add_mcp.sh` | 1 | 2 échecs : le refus disait « valeur secrète », le test cherche « secret » ; message reformulé, « secret écrit en clair » |
+| ROUGE | `bash tests/run-all.sh` | 1 | `test_paths` : « skills/add/reference/mcp.md ne contient pas ${CLAUDE_PLUGIN_ROOT} » — la règle des annexes, prise sur un vrai cas ; `--launcher` prend donc `scripts/<nom>.sh` et `pp.sh` écrit le préfixe |
+| ROUGE | `bash tests/integration/test_add_mcp.sh` | 1 | « lanceur absent : refusé, raison nommée » … : un chemin relatif encore refusé |
+| VERT | `bash tests/integration/test_add_mcp.sh` | 0 | 41 réussis, dont « suite du plugin : rouge, le serveur n'est pas déclaré », puis « suite du plugin : verte » |
+| VERT | `bash tests/run-all.sh` | 0 | `test_add_mcp : 41`, `test_paths : 51`, `test_facts : 58`, `test_create : 60` réussis ; « coût permanent : 571 tokens (seuil 1000) » ; « réussies : 22, échouées : 0, sautées : 1, bloquées : 0 » |
+
+### Les tests discriminent
+
+| Copie faussée (une ligne) | Premier échec de `test_add_mcp` |
+| --- | --- |
+| refus du serveur de langage sans déclencheur | « lsp : refusé, raison et déclencheur » |
+| `http://` accepté | « serveur distant en HTTP : refusé, raison nommée » |
+| installation jamais détectée (`tests/mcp.sh`) | « installation impérative : refusé, raison nommée » |
+| `--test-only` écrit aussi la déclaration | « --test-only écrit le test, pas la déclaration » |
+| secret jamais détecté | « valeur secrète en clair : refusé, raison nommée » |
+| README non complété | « variables documentées dans le README » |
+| `test_paths` accepte un serveur hors lanceur bash | « test_paths refuse un serveur local hors lanceur bash » |
+| `$VAR` sans accolades accepté | « $VAR sans accolades : refusé, raison nommée » |
+| lanceur absent accepté | « lanceur absent : refusé, raison nommée » |
+| préfixe `${CLAUDE_PLUGIN_ROOT}/` non écrit | « lanceur qui installe : refusé, raison nommée » |
+| lanceur qui remonte accepté | « lanceur qui remonte : refusé, raison nommée » |
+| `create` ne recopie pas `tests/mcp.sh` | « suite du plugin : verte » (le `test_paths` du plugin créé : « tests/mcp.sh présent ») ; `test_create` : « créé : tests/mcp.sh » |
+
+Non pris : faire passer, dans `test_paths`, une annexe qui contient `${CLAUDE_PLUGIN_ROOT}`. Règle antérieure à la phase 9, hors de `test_add_mcp` ; aucun test ne la met à l'épreuve sur une copie faussée, mais elle a échoué pour la bonne raison sur `mcp.md` (rouge ci-dessus).

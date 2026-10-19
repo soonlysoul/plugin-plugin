@@ -1,6 +1,6 @@
 ---
 name: add
-description: "Add a component to a plugin of the model — skill with its eval suite, hook on simulated inputs, agent with declared tools — its test seen failing before it passes. Use when Soon wants a new component in such a plugin; not for framing or creating one. « ajoute un agent à plugin-… »."
+description: "Add a component to a plugin of the model — skill with its eval suite, hook on simulated inputs, agent with declared tools, existing MCP server — its test seen failing before it passes; an out-of-scope one is refused. Use when Soon wants a new component in such a plugin; not for framing or creating one. « ajoute un agent à plugin-… »."
 argument-hint: "[dossier du plugin] [type] [nom]"
 when_to_use: "In a plugin created by /plugin-plugin:create or at the plugin-flutter model."
 ---
@@ -15,7 +15,7 @@ A component answers a user story of the plugin's PRD; nothing is added « au cas
 
 ## Step 1 — Plugin and component
 
-Take the plugin folder, the kind and the name from the arguments, or ask for them one at a time. Check the name with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check-name plugin-<name>` when it names a plugin, and that the component name is kebab-case and free in the plugin.
+Take the plugin folder, the kind and the name from the arguments, or ask for them one at a time. Any other kind — the code of an MCP server, a channel, a language server, an output style, a classic command, a plugin option, a dependency between plugins —: run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" out-of-scope <mcp-code|channel|lsp|output-style|command|plugin-option|plugin-dependency>`, relay its refusal — the reason and what would reopen it — and stop. Check the name with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check-name plugin-<name>` when it names a plugin, and that the component name is kebab-case and free in the plugin.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skill add --steps "<the steps of the kind>"`. After each step: `… checkpoint <folder> done <n> --command "<command>" --exit <code>`. The same command failing twice the same way: stop and expose the blocker.
 
@@ -24,6 +24,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skil
 - **Skill**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/skill.md` and follow it.
 - **Hook**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/hook.md` and follow it.
 - **Agent**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/agent.md` and follow it.
+- **MCP server**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/mcp.md` and follow it.
 
 ## Step 3 — Close
 
