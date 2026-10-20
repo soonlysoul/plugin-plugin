@@ -20,7 +20,7 @@ Branche `main`, publiée ; `feat/v0.1.0` reste en local sur `c103f67`, l'avant-p
 
 **Restes de l'incident de la phase 13** — `/tmp/tmp.TkiXQogIFk`, environ 14 Go de nix, sur le disque racine. Le garde interdit à Claude de l'effacer hors de `build/` : Soon l'efface lui-même (choix du 2026-10-20).
 
-**plugin-nixos et Claude Code 2.1.223 — à trancher plus tard** (Soon, le 2026-10-20) : sans effet en v0.1, la réécriture n'étant jamais publiée ; rouvert le jour où plugin-nixos passe réellement au modèle (voir phase 14).
+**plugin-nixos et Claude Code 2.1.223 — tranché le 2026-10-20** : la réécriture remplace l'original dans la marketplace, avec Claude Code 2.1.295 au moins ; un poste resté à la 2.1.223 de NixOS 26.05 n'a plus de garde garanti (choix de Soon, phase 17).
 
 Mesures de référence : Claude Code 2.1.296.
 
@@ -932,3 +932,24 @@ Constats de la publication :
 - La première commande lancée après le premier « oui » portait `; echo "exit=$?"` en plus : `gesture-guard` l'a refusée (« seule celle-là passe, telle quelle »), rien n'a été exécuté. La commande exacte est passée ensuite sur le même accord. Le garde a fait ce qu'il doit ; l'écart venait de Claude.
 - « fusionne pour moi » : refusé par Claude, la fusion étant réservée à Soon (plan, skill `release`, `gesture-guard`) ; commande donnée, Soon a fusionné. Rouvrir ce point serait un changement du plan.
 - Deux plugin-plugin actifs sur ce poste : `plugin-plugin@plugin-plugin` (scope local, ce dossier, depuis la phase 15) et `plugin-plugin@soon` (scope user). Dans ce projet, les deux étaient chargés. Choix de Soon, le 2026-10-20 : garder celle de la marketplace ; `claude plugin disable plugin-plugin@plugin-plugin --scope local`, exit 0. La copie locale reste installée, désactivée (`.claude/settings.local.json`, ignoré par git) : une modification de ce dossier ne se voit plus qu'après publication, ou par `claude --plugin-dir .`.
+
+## Phase 17 — plugin-nixos réécrit, publié à la place de l'original — en cours
+
+Demande de Soon, le 2026-10-20 : remplacer l'ancien plugin-nixos de la marketplace par celui que plugin-plugin a réécrit. L'entrée `plugin-nixos` de la marketplace `soon` suit `soonlysoul/plugin-nixos` sans `ref` : la remplacer, c'est y publier la réécriture comme nouvelle version, sans PR de marketplace.
+
+- [x] Recette rejouée avec le plugin-plugin du jour : `bash tests/rewrite/plugin-nixos.sh ../plugin-nixos build/p17/plugin-nixos`, exit 0, 2 min 52 s — suite portée verte (réussies 11, alertes 1, le coût de 1 126 tokens), `check` à zéro écart, 0 cas d'origine sans équivalent, original intact. Identique, fichier pour fichier, à `build/rewrite/plugin-nixos` de la phase 14.
+- [x] La réécriture n'avait aucun commit : la pousser telle quelle aurait demandé un push forcé. Posée à la place sur `main` de `../plugin-nixos`, au-dessus de `dc6ea53` (`v0.1.2`, le `main` de GitHub) : arbre remplacé, déplacements vus comme renommages, bits d'exécution gardés. Trois textes retouchés, qui ne tiendraient plus publiés : le PROGRESS de la réécriture (« jamais publié »), la version du README, une section `[à venir] — en cours` au CHANGELOG. Suite exit 0, `check` à zéro écart ; commit `ce5da8a`, local, avance rapide sur `origin/main`.
+- [x] Décisions de Soon : Claude Code 2.1.295 au moins accepté ; version 0.2.0 par `--bump minor` — l'outil lit un correctif, mais le minimum relevé casse un poste plus ancien, et une mineure le signale en 0.x sans annoncer de 1.0.
+- [x] Défaut de `pp.sh` révélé, corrigé rouge puis vert (ci-dessous) ; suite complète de plugin-plugin exit 0 — réussies 32, échouées 0, sautées 1, coût permanent 880 tokens.
+- [x] Répétition par le `pp.sh` corrigé : `pp.sh release ../plugin-nixos --bump minor`, exit 0 — 0.1.2 → 0.2.0 depuis `v0.1.2`, validation stricte ok, suite exit 0, étiquette `plugin-nixos--v0.2.0` vérifiée, cinq gestes dont deux vers GitHub (push de `main`, de l'étiquette), aucune PR, rien d'envoyé.
+- [ ] Publication, par Soon, dans une session ouverte dans `../plugin-nixos` avec le plugin-plugin de ce dossier (`claude --plugin-dir`, fait `plugin-dir-inline`) : la copie installée, 0.1.1, a encore le défaut et refuserait 0.2.0.
+- [ ] Mise à jour de chaque poste : `claude plugin marketplace update soon`, `claude plugin update plugin-nixos@soon`.
+
+### Défaut de `pp.sh release` : un hook en forme shell lu avec son guillemet
+
+`components_at` nommait un hook par le dernier segment de `args[0]` ou de `command`. En forme shell, le chemin entre guillemets (`bash "${CLAUDE_PLUGIN_ROOT}/hooks/garde-nixos.sh"`) donnait `garde-nixos.sh"`, et la forme exec `garde-nixos` : le même hook comptait pour retiré puis ajouté, la nature devenait majeure, et `--bump minor` était refusé (« composant retiré : hook garde-nixos.sh" »). Correctif : guillemets ôtés, le mot de la commande qui porte un chemin. Le cas même de toute réécriture d'un plugin en forme shell.
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/integration/test_release.sh` | 1 | 103 réussis, 2 échoués : « forme shell entre guillemets, puis exec : correctif », « aucun hook retiré au CHANGELOG » (`- Hook \`garde\`.` présent) |
+| VERT | même test | 0 | 105 réussis, 0 échoué |

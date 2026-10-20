@@ -1447,12 +1447,16 @@ last_release() {
 }
 
 # components_at <dir> <rev>: the components of the plugin at that commit, one "kind name" per line.
+# A hook is named by its script: args[0] in exec form; in shell form, the last word of the command
+# that holds a path, quotes removed.
 components_at() {
   {
     git -C "$1" ls-tree -r --name-only "$2" -- skills agents 2>/dev/null |
       sed -nE 's|^skills/([^/]+)/SKILL\.md$|skill \1|p; s|^agents/([^/]+)\.md$|agent \1|p'
     git -C "$1" show "$2:hooks/hooks.json" 2>/dev/null |
-      jq -r '.hooks[]?[]?.hooks[]? | (.args[0] // .command // empty) | split("/") | last | sub("\\.sh$"; "") | "hook \(.)"' 2>/dev/null
+      jq -r '.hooks[]?[]?.hooks[]? | (.args[0] // .command // empty) | gsub("[\"'"'"']"; "") | split(" ")
+        | map(select(length > 0)) | ((map(select(contains("/"))) | last) // last // empty)
+        | split("/") | last | sub("\\.sh$"; "") | "hook \(.)"' 2>/dev/null
     git -C "$1" show "$2:.mcp.json" 2>/dev/null | jq -r '(.mcpServers // {}) | keys[] | "serveur MCP \(.)"' 2>/dev/null
   } | sort -u
 }

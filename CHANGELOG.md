@@ -2,6 +2,12 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
+## [à venir] — en cours
+
+### Corrigé
+
+- `pp.sh release` : un hook déclaré en forme shell, son chemin entre guillemets (`bash "${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"`), se lisait `x.sh"`. Passé en forme exec, il comptait pour retiré puis ajouté, et la répétition imposait une majeure. Révélé par la publication de plugin-nixos 0.2.0.
+
 ## [0.1.1] — 2026-10-20
 
 Clôture de 0.1.0 : la relecture des sept skills par `plugin-dev:skill-reviewer`, ses constats traités.

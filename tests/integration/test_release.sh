@@ -387,6 +387,23 @@ run_release "$p" -- STUB_REPOS="$NAME" STUB_LISTED="$NAME"
 expect_line "consigne corrigée : correctif" "^version : 0\.1\.0 → 0\.1\.1 \(correctif : aucun composant ajouté ni retiré ; depuis $NAME--v0\.1\.0\)$"
 expect_line "commits repris au CHANGELOG" '^  - fix: consigne de demo précisée$'
 
+echo "# hook passé de la forme shell à la forme exec"
+# As plugin-nixos 0.1.2 declared its guard, under a former vX.Y.Z tag: the path in quotes inside
+# the command string. Moved to hooks/scripts/ in exec form, it is the same component.
+p=$(published shellform)
+trial "$p" && mkdir -p "$p/hooks" && printf '#!/usr/bin/env bash\nexit 0\n' >"$p/hooks/garde.sh"
+trial "$p" && jq -n '{hooks: {PreToolUse: [{matcher: "Bash", hooks: [{type: "command",
+  command: "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/garde.sh\"", timeout: 15}]}]}}' >"$p/hooks/hooks.json"
+commit "$p" "feat: garde en forme shell"
+trial "$p" && git -C "$p" tag -d "$NAME--v0.1.0" >/dev/null && git -C "$p" tag -a v0.1.0 -m "$NAME 0.1.0"
+trial "$p" && mkdir -p "$p/hooks/scripts" && git -C "$p" mv hooks/garde.sh hooks/scripts/garde.sh
+trial "$p" && jq -n '{hooks: {PreToolUse: [{matcher: "Bash", hooks: [{type: "command", command: "bash",
+  args: ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/garde.sh"], timeout: 15, onFailure: "block"}]}]}}' >"$p/hooks/hooks.json"
+commit "$p" "refactor: garde en forme exec"
+run_release "$p" -- STUB_REPOS="$NAME" STUB_LISTED="$NAME"
+expect_line "forme shell entre guillemets, puis exec : correctif" "^version : 0\.1\.0 → 0\.1\.1 \(correctif : aucun composant ajouté ni retiré ; depuis v0\.1\.0\)$"
+refuse_line "aucun hook retiré au CHANGELOG" '^  - Hook `'
+
 echo "# alerte de coût (US-25)"
 # Beyond the budget, a produced plugin's suite alerts and stays green: the rehearsal goes on.
 p=$(copy heavy)
