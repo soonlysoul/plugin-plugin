@@ -20,7 +20,9 @@ Take the folder from the arguments, or ask for it. It must be the root of the pl
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" release <folder>` and show its output verbatim, with the exit code.
 
-- Exit 1 with `refusé` — uncommitted changes, a red strict validation or suite, another branch, a folder inside another repository, an `origin` elsewhere, nothing since the last tag, a tag the check refuses. Quote the reason and stop: the fix goes into the plugin and a commit, then a new rehearsal.
+- Exit 1 with `refusé` — uncommitted changes, a red strict validation or suite, another branch, a folder inside another repository, an `origin` elsewhere, nothing since the last tag and the descriptions aligned, a tag the check refuses, a description absent, on several lines or beyond 350 characters, a marketplace branch already on GitHub (its open PR named, for Soon to merge). Quote the reason and stop: the fix goes into the plugin and a commit, then a new rehearsal.
+- Exit 1 because the README has no `Version **X.Y.Z**` line, or does not name a component: the prose is yours to write. Propose the README change — the line, or a sentence for each component named, in the style of the README — show the diff, and commit only after Soon agrees; then rehearse again.
+- Exit 0 with `alignement :` — nothing to release since the tag, but descriptions differ from plugin.json's: no version, no CHANGELOG, no tag. Skip step 3.
 - Exit 1 with `échec` or `usage` — quote it and stop.
 - Exit 2 — blocked: a prerequisite missing (`gh`, `claude`, `jq`, `git`) or GitHub unreadable. Name the cause, then stop.
 - The same command failing twice the same way: stop and expose the blocker.
@@ -35,7 +37,8 @@ Otherwise the tool reads the nature of the change from the components: one remov
 
 Present, from the output:
 
-- the version, and why;
+- the version, and why — or the alignment;
+- the descriptions: aligned on plugin.json, or each surface that differs (GitHub repository, marketplace entry, marketplace README), with the gesture that aligns it;
 - the CHANGELOG entry drafted;
 - the context cost of each component, and the alert above 1 000 tokens if there is one;
 - the gestures in order, each with its exact command, those marked `[GitHub]` going out of the machine;
@@ -51,7 +54,7 @@ The session must be open in the plugin's folder: the « oui » is captured there
 2. Show the announcement verbatim — the gestures, the line `commande : …` — and stop. Do not answer for Soon; run nothing.
 3. Soon's next message is « oui », and the hook confirms it: run exactly the `commande : …` line, once, and show its output with the exit code. It ends with the next announcement: back to 2. Any other answer withdraws the announcement: run nothing, and announce again only if Soon asks.
 4. `échoué` or `refusé` with a `reprise : …` line: show the report — the gesture, what is done, what remains, that line — and stop. Resume only when Soon asks, by running that line, which announces the step again. Without a `reprise : …` line: quote the reason and stop, as in step 2.
-5. `publication terminée`: give the commands Soon runs on each device. The PR of the marketplace is merged by Soon, never by Claude.
+5. `publication terminée` or `alignement terminé`: give the commands Soon runs on each device. The PR of the marketplace is merged by Soon, never by Claude.
 
 ## Step 6 — Mount as a submodule, on request
 

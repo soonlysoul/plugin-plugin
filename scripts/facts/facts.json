@@ -1073,7 +1073,7 @@
   },
   {
     "id": "marketplace-soon-entry-format",
-    "statement": "Les entrées de la marketplace soon (soonlysoul/claude-plugins, publique, branche main) portent name, source {source: github, repo: soonlysoul/<nom>} et description, sans version ni ref : une mise à jour d'un plugin déjà listé ne demande aucune PR.",
+    "statement": "Les entrées de la marketplace soon (soonlysoul/claude-plugins, publique, branche main) portent name, source {source: github, repo: soonlysoul/<nom>} et description, sans version ni ref : une mise à jour d'un plugin déjà listé ne demande aucune PR, sauf pour aligner sa description sur son plugin.json (décision h du plan, 2026-10-20).",
     "claude_version": "2.1.296",
     "date": "2026-10-20",
     "source": "gh api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json, 2026-10-20",
@@ -1186,6 +1186,24 @@
     "date": "2026-10-20",
     "source": "plugin-plugin, sonde de phase 6 menée au passage réel de la phase 15 (traces gardées par --keep-temp)",
     "recheck": "claude plugin eval … --keep-temp ; lire l'événement system/init de la trace d'une exécution de chaque bras",
+    "status": "confirmé"
+  },
+  {
+    "id": "github-description-max-350",
+    "statement": "GitHub refuse une description de dépôt au-delà de 350 caractères ; la répétition de plugin-plugin refuse donc une description de plugin.json plus longue, comptée en caractères et non en octets.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "Unity Issue Tracker 22197 : création d'un dépôt GitHub refusée au-delà de 350 caractères de description ; aucune documentation de GitHub trouvée",
+    "recheck": "gh repo edit sur un dépôt jetable avec une description de 351 caractères, puis de 350",
+    "status": "à vérifier"
+  },
+  {
+    "id": "marketplace-soon-readme-format",
+    "statement": "Le README de la marketplace soon liste ses plugins dans un tableau « | Plugin | Rôle | Dépôt | », une ligne par plugin (`nom`, rôle, [soonlysoul/nom](https://github.com/soonlysoul/nom)), et ses commandes « claude plugin install <nom>@soon --scope user » à la suite de « claude plugin marketplace add soonlysoul/claude-plugins », dans le premier bloc ; un second bloc reprend plugin-flutter. plugin-plugin n'y figurait pas après sa publication 0.1.1.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "gh api repos/soonlysoul/claude-plugins/contents/README.md, 2026-10-20",
+    "recheck": "gh api repos/soonlysoul/claude-plugins/contents/README.md -H \"Accept: application/vnd.github.raw+json\"",
     "status": "confirmé"
   }
 ]

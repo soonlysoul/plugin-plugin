@@ -50,10 +50,23 @@ Un composant hors périmètre — code d'un serveur MCP, channel, serveur de lan
 
 Ne se lance que sur votre demande explicite, `/plugin-plugin:release <dossier>`.
 
-1. **La répétition** n'envoie rien. Elle refuse un arbre non enregistré, une validation ou une suite rouge, une autre branche que `main`. Elle propose la version (correctif, mineure, majeure selon le changement), rédige l'entrée du CHANGELOG, éprouve l'étiquette, mesure le coût en contexte par composant et liste chaque geste avec sa commande exacte.
-2. **La publication**, à votre demande, avance étape par étape. Chaque étape est annoncée avec ses commandes ; tapez **« oui »**, littéralement, pour la lancer. Toute autre réponse la retire, et une annonce sans réponse pendant trente minutes aussi.
-3. Un nouveau plugin entre dans la marketplace `soon` par une PR. **La fusion est à vous.**
-4. À la fin : la commande d'installation ou de mise à jour.
+1. **La répétition** n'envoie rien. Elle refuse :
+   - un arbre non enregistré ;
+   - une validation ou une suite rouge ;
+   - une autre branche que `main` ;
+   - un README sans ligne `Version **X.Y.Z**`, ou qui ne nomme pas un composant ;
+   - une description de `plugin.json` absente, sur plusieurs lignes ou au-delà de 350 caractères.
+
+   Elle propose la version (correctif, mineure, majeure selon le changement), rédige l'entrée du CHANGELOG, éprouve l'étiquette, mesure le coût en contexte par composant et liste chaque geste avec sa commande exacte.
+2. **Les descriptions** suivent celle de `plugin.json`, recopiée telle quelle. Cela vaut pour la description du dépôt GitHub, l'entrée du plugin dans la marketplace `soon`, sa ligne dans le README de la marketplace avec sa commande d'installation, et la marketplace locale. La répétition lit les trois premières sur GitHub et ajoute un geste pour chacune qui diverge :
+   - `gh repo edit … --description` ;
+   - une PR de marketplace.
+
+   La version s'écrit aussi dans le README du plugin.
+3. **Rien à publier, des descriptions en retard** : la répétition propose un alignement seul, sans version, ni CHANGELOG, ni étiquette.
+4. **La publication**, à votre demande, avance étape par étape. Chaque étape est annoncée avec ses commandes ; tapez **« oui »**, littéralement, pour la lancer. Toute autre réponse la retire, et une annonce sans réponse pendant trente minutes aussi.
+5. La marketplace `soon` ne change que par une PR, pour un ajout comme pour un alignement. **La fusion est à vous.**
+6. À la fin : la commande d'installation ou de mise à jour ; après un alignement, `claude plugin marketplace update soon`, une fois la PR fusionnée.
 
 Une publication coupée se reprend sans rien refaire : ce qui est fait se lit dans les dépôts.
 

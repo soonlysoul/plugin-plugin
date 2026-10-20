@@ -24,15 +24,20 @@ export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.invalid GIT_COMMITTER_
 
 # Stubs. gh: a read (gh api without a method or a field) is logged to STUB_GH_READS and answered;
 # any other call is a gesture, logged to STUB_GH_LOG and refused. The marketplace soon lists
-# plugin-flutter, plugin-nixos and the names of STUB_LISTED; the repositories of STUB_REPOS exist;
-# STUB_GH_FAIL=1 fails every read like a network error. git: push is a gesture, logged to
-# STUB_PUSH_LOG and refused; anything else is the real git. claude: plugin details answers
-# STUB_ALWAYS_ON tokens when it is set; plugin tag is logged to STUB_TAG_LOG, and refused with
-# STUB_TAG_REFUSE when it is set; anything else is the real claude.
+# plugin-flutter, plugin-nixos and the names of STUB_LISTED, these described by
+# STUB_ENTRY_DESCRIPTION (« Plugin d'essai. » by default) in its marketplace.json and by
+# STUB_README_DESCRIPTION in the table of its README, whose install commands leave them out with
+# STUB_README_NO_INSTALL=1; the repositories of STUB_REPOS exist, described by
+# STUB_REPO_DESCRIPTION; the branches of STUB_BRANCHES exist in the marketplace, with STUB_PR as
+# their open PR; STUB_GH_FAIL=1 fails every read like a network error. git: push is a gesture,
+# logged to STUB_PUSH_LOG and refused; anything else is the real git. claude: plugin details
+# answers STUB_ALWAYS_ON tokens when it is set; plugin tag is logged to STUB_TAG_LOG, and refused
+# with STUB_TAG_REFUSE when it is set; anything else is the real claude.
 real_git=$(command -v git) real_claude=$(command -v claude)
 mkdir -p "$work/stub" "$work/stub-nogh"
-cat >"$work/stub/gh" <<'EOF'
-#!/usr/bin/env bash
+printf '#!/usr/bin/env bash\nsource %q\n' "$PLUGIN_ROOT/tests/helpers/plugin.sh" >"$work/stub/gh"
+cat >>"$work/stub/gh" <<'EOF'
+essai="Plugin d'essai."
 gesture=0
 [[ $1 == api ]] || gesture=1
 for arg in "$@"; do
@@ -47,12 +52,25 @@ printf '%s\n' "$*" >>"${STUB_GH_READS:-/dev/null}"
 if [[ ${STUB_GH_FAIL:-0} == 1 ]]; then echo "error connecting to api.github.com" >&2; exit 1; fi
 case $2 in
   repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json)
-    jq -n --arg listed "${STUB_LISTED:-}" '{name: "soon", description: "Plugins Claude Code de Soon.", owner: {name: "Soon"},
-      plugins: (["plugin-flutter", "plugin-nixos"] + ($listed | split(" ") | map(select(length > 0)))
-        | map({name: ., source: {source: "github", repo: "soonlysoul/\(.)"}, description: "Plugin \(.)."}))}' ;;
+    jq -n --arg listed "${STUB_LISTED:-}" --arg d "${STUB_ENTRY_DESCRIPTION-$essai}" \
+      '{name: "soon", description: "Plugins Claude Code de Soon.", owner: {name: "Soon"},
+      plugins: ((["plugin-flutter", "plugin-nixos"] | map({name: ., description: "Plugin \(.)."}))
+        + ($listed | split(" ") | map(select(length > 0)) | map({name: ., description: $d}))
+        | map({name, source: {source: "github", repo: "soonlysoul/\(.name)"}, description}))}' ;;
+  repos/soonlysoul/claude-plugins/contents/README.md)
+    {
+      printf 'plugin-flutter\tPlugin plugin-flutter.\nplugin-nixos\tPlugin plugin-nixos.\n'
+      for name in ${STUB_LISTED:-}; do printf '%s\t%s\n' "$name" "${STUB_README_DESCRIPTION-$essai}"; done
+    } | market_readme | if [[ ${STUB_README_NO_INSTALL:-0} == 1 ]]; then grep -v "install plugin-essai"; else cat; fi ;;
+  repos/soonlysoul/claude-plugins/branches/*)
+    if [[ " ${STUB_BRANCHES:-} " == *" ${2##*/} "* ]]; then printf '{"name": "%s"}\n' "${2##*/}"
+    else echo '{"message": "Branch not found", "status": "404"}'; echo "gh: Branch not found (HTTP 404)" >&2; exit 1; fi ;;
+  repos/soonlysoul/claude-plugins/pulls\?*)
+    if [[ -n ${STUB_PR:-} ]]; then printf '[{"number": 7, "html_url": "%s"}]\n' "$STUB_PR"; else echo '[]'; fi ;;
   repos/soonlysoul/*)
     if [[ " ${STUB_REPOS:-} " == *" ${2#repos/soonlysoul/} "* ]]; then
-      printf '{"full_name": "%s", "default_branch": "main", "visibility": "public"}\n' "${2#repos/}"
+      jq -n --arg n "${2#repos/}" --arg d "${STUB_REPO_DESCRIPTION-$essai}" \
+        '{full_name: $n, default_branch: "main", visibility: "public", description: $d}'
     else
       echo '{"message": "Not Found", "status": "404"}'
       echo "gh: Not Found (HTTP 404)" >&2
@@ -122,8 +140,13 @@ trial() {
   return 1
 }
 commit() { trial "$1" && git -C "$1" add -A && git -C "$1" commit -qm "$2"; }
-# demo_skill <plugin> <skill>: a skill whose header holds the structure rules of the model.
+# demo_skill <plugin> <skill>: a skill whose header holds the structure rules of the model, named
+# in the README; bare_skill, the same skill, the README left as it was.
 demo_skill() {
+  bare_skill "$@" || return 1
+  printf '\n- Skill `%s`.\n' "$2" >>"$1/README.md"
+}
+bare_skill() {
   trial "$1" || return 1
   mkdir -p "$1/skills/$2"
   cat >"$1/skills/$2/SKILL.md" <<EOF
@@ -147,18 +170,22 @@ gesture_keys() {
   while IFS= read -r command; do
     case $command in
       *" release-write "*" --version "*) echo write ;;
-      "git -C "*" commit -m "*" -- .claude-plugin/plugin.json CHANGELOG.md") echo commit ;;
+      "git -C "*" commit -m "*" -- "*) echo commit ;;
       "claude plugin tag "*) echo tag ;;
       "gh repo create soonlysoul/$NAME --public --description "*) echo repo ;;
       "git -C "*" remote add origin https://github.com/soonlysoul/$NAME.git") echo origin ;;
       "git -C "*" push origin main") echo push-main ;;
       "git -C "*" push origin refs/tags/$NAME--v"*) echo push-tag ;;
+      "gh repo edit soonlysoul/$NAME --description "*) echo describe ;;
       "gh repo clone soonlysoul/claude-plugins "*) echo clone ;;
       "git -C "*" switch -c add-$NAME") echo branch ;;
+      "git -C "*" switch -c align-$NAME-"*) echo branch ;;
+      *" marketplace-entry "*" --name $NAME --description "*" --update") echo entry-update ;;
       *" marketplace-entry "*" --name $NAME --description "*) echo entry ;;
       "git -C "*" commit -am "*) echo market-commit ;;
-      "git -C "*" push origin add-$NAME") echo push-branch ;;
+      "git -C "*" push origin add-$NAME" | "git -C "*" push origin align-$NAME-"*) echo push-branch ;;
       "gh pr create --repo soonlysoul/claude-plugins --base main --head add-$NAME "*) echo pr ;;
+      "gh pr create --repo soonlysoul/claude-plugins --base main --head align-$NAME-"*) echo pr ;;
       *) echo "inconnu[$command]" ;;
     esac
   done < <(gestures) | paste -sd' ' -
@@ -252,6 +279,34 @@ refused "claude plugin tag --dry-run refuse" "$p" 1 "refusé : claude plugin tag
 refused "--bump inconnu" "$p" 1 'refusé : --bump' --bump huge
 refused "--bump à la première publication" "$p" 1 'refusé : première publication' --bump minor
 
+echo "# refus : documents et description (US-36, US-35)"
+# describe <dir> <jq filter>: plugin.json rewritten by the filter, then committed.
+describe() {
+  trial "$1" && jq "$2" "$1/.claude-plugin/plugin.json" >"$1/manifest.tmp" && mv "$1/manifest.tmp" "$1/.claude-plugin/plugin.json"
+  commit "$1" "chore: description retouchée"
+}
+p=$(copy noversion)
+sed -i -E 's/^Version \*\*[0-9.]+\*\*/Version inconnue/' "$p/README.md"
+commit "$p" "docs: version retirée du README"
+refused "README sans ligne de version" "$p" 1 'refusé : README\.md n.a pas de ligne « Version \*\*X\.Y\.Z\*\* »'
+p=$(copy unnamed)
+bare_skill "$p" secret
+commit "$p" "feat: skill secret, absent du README"
+refused "README qui ne nomme pas un composant" "$p" 1 'refusé : le README ne nomme pas : skill secret ;'
+p=$(copy nodesc)
+describe "$p" 'del(.description)'
+refused "description absente" "$p" 1 'refusé : description absente de \.claude-plugin/plugin\.json'
+p=$(copy multiline)
+describe "$p" '.description = "Deux\nlignes."'
+refused "description sur deux lignes" "$p" 1 'refusé : la description de plugin\.json tient sur plusieurs lignes'
+p=$(copy longdesc)
+describe "$p" '.description = ([range(351)] | map("x") | join(""))'
+refused "description au-delà de 350 caractères" "$p" 1 'refusé : description de plugin\.json de 351 caractères, au-delà des 350 que GitHub accepte'
+p=$(copy accents)
+describe "$p" '.description = ([range(350)] | map("é") | join(""))'
+run_release "$p"
+expect_exit "350 caractères accentués : acceptés, comptés en caractères" 0
+
 echo "# première publication : la répétition"
 p=$(copy first)
 before=$(tree_sum "$p")
@@ -313,6 +368,12 @@ changed=$(git -C "$p" diff --numstat -- .claude-plugin/plugin.json | cut -f1-2)
 [[ $changed == $'1\t1' ]] && pass "plugin.json : seule la ligne de version change" || fail "plugin.json : seule la ligne de version change" "$changed"
 [[ $(jq -r .version "$p/.claude-plugin/plugin.json") == 0.2.0 ]] && pass "plugin.json : 0.2.0" || fail "plugin.json : 0.2.0"
 grep -qx "## \[0.2.0\] — $TODAY" "$p/CHANGELOG.md" && pass "section en cours datée : [0.2.0] — $TODAY" || fail "section en cours datée : [0.2.0] — $TODAY"
+grep -qF 'Version **0.2.0**' "$p/README.md" && pass "README : Version **0.2.0** (US-36)" || fail "README : Version **0.2.0** (US-36)" "$(grep -m 1 'Version' "$p/README.md")"
+changed=$(git -C "$p" diff --numstat -- README.md | cut -f1-2)
+[[ $changed == $'1\t1' ]] && pass "README : seule la ligne de version change" || fail "README : seule la ligne de version change" "$changed"
+[[ -z $(git -C "$p" diff --name-only -- .claude-plugin/marketplace.json) ]] && pass "marketplace locale déjà alignée : inchangée" \
+  || fail "marketplace locale déjà alignée : inchangée" "$(git -C "$p" diff -- .claude-plugin/marketplace.json)"
+expect_line "release-write nomme le README" '^écrit : .*, README\.md \(Version \*\*0\.2\.0\*\*\)$'
 snapshot=$(tree_sum "$p")
 run_write "$p" --version 0.2.0
 [[ $PP_STATUS == 0 && $(tree_sum "$p") == "$snapshot" ]] && pass "release-write rejoué : rien ne change" || fail "release-write rejoué : rien ne change" "exit $PP_STATUS"
@@ -320,6 +381,24 @@ p=$(published write-old)
 run_write "$p" --version 0.1.0
 expect_exit "version déjà étiquetée : refusé" 1
 expect_line "raison : version pas plus récente" 'refusé : 0\.1\.0 .*plus récente.*0\.1\.0'
+p=$(copy write-local)
+trial "$p" && jq '.plugins[0].description = "Ancienne."' "$p/.claude-plugin/marketplace.json" >"$p/m.tmp" && mv "$p/m.tmp" "$p/.claude-plugin/marketplace.json"
+commit "$p" "chore: marketplace locale en retard"
+run_write "$p" --version 0.2.0
+expect_exit "marketplace locale divergente : exit 0" 0
+[[ $(jq -r '.plugins[0].description' "$p/.claude-plugin/marketplace.json") == "Plugin d'essai." ]] \
+  && pass "marketplace locale : la description de plugin.json (US-35)" || fail "marketplace locale : la description de plugin.json (US-35)"
+changed=$(git -C "$p" diff --numstat -- .claude-plugin/marketplace.json | cut -f1-2)
+[[ $changed == $'1\t1' ]] && pass "marketplace locale : seule la description change" || fail "marketplace locale : seule la description change" "$changed"
+expect_line "release-write nomme la marketplace locale" '^écrit : .*, \.claude-plugin/marketplace\.json \(description\)$'
+p=$(copy write-noversion)
+sed -i -E 's/^Version \*\*[0-9.]+\*\*/Version inconnue/' "$p/README.md"
+commit "$p" "docs: version retirée du README"
+before=$(tree_sum "$p")
+run_write "$p" --version 0.2.0
+expect_exit "release-write, README sans ligne de version : refusé" 1
+expect_line "release-write : raison nommée" 'refusé : .*README\.md n.a pas de ligne « Version \*\*X\.Y\.Z\*\* »'
+[[ $(tree_sum "$p") == "$before" ]] && pass "release-write refusé : plugin identique" || fail "release-write refusé : plugin identique"
 
 # After a release, add opens « ## [à venir] — en cours » above the dated section.
 p=$(published unreleased)
@@ -339,14 +418,52 @@ grep -qx "## \[0.2.0\] — $TODAY" <<<"$section" && grep -qxF -- '- Skill `extra
 echo "# marketplace-entry"
 mkdir -p "$work/market/.claude-plugin"
 PATH="$STUBPATH" gh api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json >"$work/market/.claude-plugin/marketplace.json"
+PATH="$STUBPATH" gh api repos/soonlysoul/claude-plugins/contents/README.md >"$work/market/README.md"
+cp "$work/market/README.md" "$work/readme-before.md"
 run_entry() { PP_OUTPUT=$("$BASH" "$PP" marketplace-entry "$@" 2>&1); PP_STATUS=$?; }
+row="| \`$NAME\` | Plugin d'essai. | [soonlysoul/$NAME](https://github.com/soonlysoul/$NAME) |"
+install="claude plugin install $NAME@soon --scope user"
 run_entry "$work/market" --name "$NAME" --description "Plugin d'essai."
 expect_exit "marketplace-entry : exit 0" 0
 jq -e --arg n "$NAME" '.plugins[-1] == {name: $n, source: {source: "github", repo: "soonlysoul/\($n)"}, description: "Plugin d'"'"'essai."}
                        and (.plugins | length) == 3' "$work/market/.claude-plugin/marketplace.json" >/dev/null \
   && pass "entrée au format de la marketplace soon" || fail "entrée au format de la marketplace soon" "$(jq -c '.plugins[-1]' "$work/market/.claude-plugin/marketplace.json")"
+added=$(diff "$work/readme-before.md" "$work/market/README.md" | grep -E '^[<>]')
+[[ $added == "> $row"$'\n'"> $install" ]] && pass "README : la ligne du plugin et sa commande d'installation, rien d'autre (US-35)" \
+  || fail "README : la ligne du plugin et sa commande d'installation, rien d'autre (US-35)" "$(tr '\n' '|' <<<"$added")"
+[[ $(grep -n -A1 -F '| `plugin-nixos` |' "$work/market/README.md" | tail -n 1) == *"-$row" ]] \
+  && pass "README : la ligne à la fin du tableau" || fail "README : la ligne à la fin du tableau"
+[[ $(grep -n -A1 -Fx 'claude plugin install plugin-nixos@soon --scope user' "$work/market/README.md" | tail -n 1) == *"-$install" ]] \
+  && pass "README : la commande à la suite des autres, dans le premier bloc" || fail "README : la commande à la suite des autres, dans le premier bloc"
+expect_line "marketplace-entry nomme le README" "^écrit : $work/market/README\.md \(ligne de $NAME, commande d'installation\)$"
 run_entry "$work/market" --name plugin-flutter --description "Doublon."
 expect_exit "nom déjà présent : refusé" 1
+expect_line "nom déjà présent : --update proposé" 'refusé : plugin-flutter est déjà dans .* ; --update pour aligner sa description'
+cp "$work/market/README.md" "$work/readme-before.md"
+run_entry "$work/market" --name "$NAME" --description "Nouvelle | description." --update
+expect_exit "marketplace-entry --update : exit 0" 0
+jq -e --arg n "$NAME" '(.plugins | length) == 3 and (.plugins[-1] == {name: $n, source: {source: "github", repo: "soonlysoul/\($n)"}, description: "Nouvelle | description."})' \
+  "$work/market/.claude-plugin/marketplace.json" >/dev/null \
+  && pass "--update : la description de l'entrée, rien d'autre" || fail "--update : la description de l'entrée, rien d'autre" "$(jq -c '.plugins[-1]' "$work/market/.claude-plugin/marketplace.json")"
+changed=$(diff "$work/readme-before.md" "$work/market/README.md" | grep -E '^[<>]')
+[[ $changed == "< $row"$'\n'"> | \`$NAME\` | Nouvelle \\| description. | [soonlysoul/$NAME](https://github.com/soonlysoul/$NAME) |" ]] \
+  && pass "--update : la ligne remplacée en place, la barre échappée" || fail "--update : la ligne remplacée en place, la barre échappée" "$(tr '\n' '|' <<<"$changed")"
+[[ $(grep -cFx "$install" "$work/market/README.md") == 1 ]] && pass "--update : la commande d'installation n'est pas doublée" \
+  || fail "--update : la commande d'installation n'est pas doublée"
+run_entry "$work/market" --name plugin-absent --description "x" --update
+expect_exit "--update d'un plugin absent : refusé" 1
+expect_line "--update d'un plugin absent : raison nommée" "refusé : plugin-absent n'est pas dans .*marketplace\.json"
+mkdir -p "$work/market-notable/.claude-plugin"
+cp "$work/market/.claude-plugin/marketplace.json" "$work/market-notable/.claude-plugin/"
+printf '# Marketplace\n\nSans tableau.\n' >"$work/market-notable/README.md"
+before=$(tree_sum "$work/market-notable")
+run_entry "$work/market-notable" --name plugin-autre --description "x"
+expect_exit "README sans tableau des plugins : refusé" 1
+expect_line "README sans tableau : raison nommée" 'refusé : .*README\.md : pas de tableau des plugins'
+[[ $(tree_sum "$work/market-notable") == "$before" ]] && pass "README sans tableau : rien d'écrit, ni l'entrée" || fail "README sans tableau : rien d'écrit, ni l'entrée"
+rm "$work/market-notable/README.md"
+run_entry "$work/market-notable" --name plugin-autre --description "x"
+expect_exit "README absent : refusé" 1
 run_entry "$work/nowhere" --name "$NAME" --description "x"
 expect_exit "marketplace absente : refusé" 1
 
@@ -365,6 +482,8 @@ expect_line "dépôt déjà présent" "^dépôt soonlysoul/$NAME \(GitHub\) : pr
 expect_line "plugin déjà dans la marketplace" "^marketplace soon \(GitHub\) : $NAME présent, aucune PR$"
 keys=$(gesture_keys)
 [[ $keys == "write commit tag push-main push-tag" ]] && pass "gestes d'une mise à jour" || fail "gestes d'une mise à jour" "obtenu : $keys"
+expect_line "descriptions déjà alignées" '^descriptions : alignées sur plugin\.json$'
+expect_line "commit de version : README et marketplace locale compris" "^  2\. \[local\] commit de version : git -C $p commit -m .* -- \.claude-plugin/plugin\.json CHANGELOG\.md README\.md$"
 expect_line "mise à jour sur chaque appareil (US-29)" "^  claude plugin update $NAME@soon$"
 nothing_sent "mise à jour"
 [[ -z $(git --git-dir="$work/minor/remotes/$NAME.git" for-each-ref) ]] && pass "dépôt distant (nu) vide" || fail "dépôt distant (nu) vide"
@@ -372,6 +491,67 @@ nothing_sent "mise à jour"
 run_release "$p" --bump major -- STUB_REPOS="$NAME" STUB_LISTED="$NAME"
 expect_line "--bump plus fort : imposé, nature rappelée" "^version : 0\.1\.0 → 1\.0\.0 \(majeure, imposée par --bump ; la nature du changement donne mineure : composant ajouté : skill extra ; depuis $NAME--v0\.1\.0\)$"
 refused "--bump plus faible que la nature du changement" "$p" 1 'refusé : --bump patch est plus faible que la nature du changement \(mineure' --bump patch -- STUB_REPOS="$NAME" STUB_LISTED="$NAME"
+
+echo "# descriptions divergentes après une publication (US-35)"
+p=$(published describe)
+demo_skill "$p" extra
+commit "$p" "feat: ajouter le skill extra"
+before=$(tree_sum "$p")
+rm -f "$work/gh-gestures.log" "$work/push.log"
+listed=(STUB_REPOS="$NAME" STUB_LISTED="$NAME")
+run_release "$p" -- "${listed[@]}" STUB_REPO_DESCRIPTION="" STUB_ENTRY_DESCRIPTION="Ancienne." STUB_README_DESCRIPTION="Ancienne."
+expect_exit "trois surfaces divergentes : exit 0" 0
+expect_line "chaque surface divergente nommée" '^descriptions : à aligner sur plugin\.json — dépôt GitHub, entrée de marketplace, README de marketplace$'
+keys=$(gesture_keys)
+want="write commit tag push-main push-tag describe clone branch entry-update market-commit push-branch pr"
+[[ $keys == "$want" ]] && pass "gestes : la mise à jour, puis l'alignement" || fail "gestes : la mise à jour, puis l'alignement" "obtenu : $keys"
+expect_line "description du dépôt, celle de plugin.json" "^  6\. \[GitHub\] description du dépôt : gh repo edit soonlysoul/$NAME --description \"Plugin d'essai\.\"$"
+expect_line "copie de la marketplace propre à la branche" "^  7\. \[local\] copie de la marketplace : gh repo clone soonlysoul/claude-plugins .*/plugin-plugin-release/$NAME/align-$NAME-0\.2\.0$"
+expect_line "branche d'alignement à la version" "^  8\. \[local\] branche de marketplace : git -C .* switch -c align-$NAME-0\.2\.0$"
+expect_line "entrée mise à jour, pas ajoutée" "^  9\. \[local\] entrée de marketplace : .* marketplace-entry .* --name $NAME --description \"Plugin d'essai\.\" --update$"
+expect_line "PR de mise à jour" "^  12\. \[GitHub\] PR de marketplace : gh pr create --repo soonlysoul/claude-plugins --base main --head align-$NAME-0\.2\.0 --title \"Mettre à jour la description de $NAME 0\.2\.0\""
+expect_line "marketplace modifiée : validée" '^marketplace modifiée : validation stricte ok$'
+expect_line "mise à jour, puis marketplace rafraîchie" "^  claude plugin update $NAME@soon$"
+nothing_sent "descriptions divergentes"
+[[ $(tree_sum "$p") == "$before" ]] && pass "plugin identique après la répétition" || fail "plugin identique après la répétition"
+run_release "$p" -- "${listed[@]}" STUB_REPO_DESCRIPTION="Ancienne."
+expect_line "seul le dépôt diverge : nommé" '^descriptions : à aligner sur plugin\.json — dépôt GitHub$'
+keys=$(gesture_keys)
+[[ $keys == "write commit tag push-main push-tag describe" ]] && pass "seul le dépôt diverge : un geste de plus" || fail "seul le dépôt diverge : un geste de plus" "obtenu : $keys"
+run_release "$p" -- "${listed[@]}" STUB_README_NO_INSTALL=1
+expect_line "commande d'installation absente : README à aligner" '^descriptions : à aligner sur plugin\.json — README de marketplace$'
+keys=$(gesture_keys)
+[[ $keys == "write commit tag push-main push-tag clone branch entry-update market-commit push-branch pr" ]] \
+  && pass "commande d'installation absente : une PR" || fail "commande d'installation absente : une PR" "obtenu : $keys"
+refused "branche d'alignement déjà sur GitHub, PR ouverte nommée" "$p" 1 \
+  "refusé : la branche align-$NAME-0\.2\.0 est déjà sur GitHub \(soonlysoul/claude-plugins\) ; PR ouverte : https://github\.com/soonlysoul/claude-plugins/pull/7" \
+  -- "${listed[@]}" STUB_ENTRY_DESCRIPTION="Ancienne." STUB_BRANCHES="align-$NAME-0.2.0" STUB_PR="https://github.com/soonlysoul/claude-plugins/pull/7"
+
+echo "# alignement, rien à publier (US-37)"
+p=$(published align)
+before=$(tree_sum "$p")
+rm -f "$work/gh-gestures.log" "$work/push.log" "$work/tag.log"
+run_release "$p" -- "${listed[@]}" STUB_REPO_DESCRIPTION="Ancienne." STUB_ENTRY_DESCRIPTION="Ancienne."
+expect_exit "alignement : exit 0" 0
+expect_line "alignement annoncé" "^alignement : rien à publier depuis $NAME--v0\.1\.0 ; ni version, ni CHANGELOG, ni étiquette$"
+refuse_line "aucune version proposée" '^version : '
+expect_line "surfaces nommées" '^descriptions : à aligner sur plugin\.json — dépôt GitHub, entrée de marketplace$'
+keys=$(gesture_keys)
+[[ $keys == "describe clone branch entry-update market-commit push-branch pr" ]] && pass "alignement : ses seuls gestes" || fail "alignement : ses seuls gestes" "obtenu : $keys"
+expect_line "branche d'alignement à la version publiée" "switch -c align-$NAME-0\.1\.0$"
+expect_line "PR d'alignement" "--head align-$NAME-0\.1\.0 --title \"Aligner la description de $NAME\" "
+expect_line "après la fusion, la marketplace se rafraîchit" '^  claude plugin marketplace update soon$'
+refuse_line "aucune mise à jour du plugin sur les appareils" "claude plugin (update|install) $NAME@soon"
+expect_line "alignement : gestes listés, aucun exécuté" '^répétition terminée : 7 gestes listés, aucun exécuté$'
+nothing_sent "alignement"
+[[ ! -s $work/tag.log ]] && pass "alignement : claude plugin tag jamais lancé" || fail "alignement : claude plugin tag jamais lancé" "$(cat "$work/tag.log")"
+[[ $(tree_sum "$p") == "$before" ]] && pass "alignement : plugin identique" || fail "alignement : plugin identique"
+run_release "$p" -- "${listed[@]}" STUB_REPO_DESCRIPTION="Ancienne."
+keys=$(gesture_keys)
+[[ $keys == "describe" ]] && pass "alignement du seul dépôt : un geste, aucune PR" || fail "alignement du seul dépôt : un geste, aucune PR" "obtenu : $keys"
+expect_line "sans PR : rien à lancer sur les appareils" "^aucune commande sur les appareils : aucune version nouvelle, aucune PR$"
+refused "--bump sur un alignement" "$p" 1 "refusé : alignement sans version : --bump ne s'applique pas" --bump patch -- "${listed[@]}" STUB_REPO_DESCRIPTION="Ancienne."
+refused "tout aligné : rien à publier" "$p" 1 "refusé : rien à publier depuis $NAME--v0\.1\.0 ; aucun changement depuis cette étiquette, descriptions alignées sur plugin\.json" -- "${listed[@]}"
 
 echo "# composant retiré, consigne corrigée"
 p=$(published major)
@@ -392,6 +572,7 @@ echo "# hook passé de la forme shell à la forme exec"
 # the command string. Moved to hooks/scripts/ in exec form, it is the same component.
 p=$(published shellform)
 trial "$p" && mkdir -p "$p/hooks" && printf '#!/usr/bin/env bash\nexit 0\n' >"$p/hooks/garde.sh"
+printf '\n- Hook `garde`.\n' >>"$p/README.md"
 trial "$p" && jq -n '{hooks: {PreToolUse: [{matcher: "Bash", hooks: [{type: "command",
   command: "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/garde.sh\"", timeout: 15}]}]}}' >"$p/hooks/hooks.json"
 commit "$p" "feat: garde en forme shell"

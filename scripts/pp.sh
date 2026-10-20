@@ -723,7 +723,8 @@ publication_in_progress() {
   local plan="$1/.plugin-plugin/publication.json" dir
   [[ -f $plan ]] || return 0
   dir=$(cd "$1" && pwd -P)
-  printf 'publication en cours : %s ; reprise : bash %s publish %s\n' \
+  printf '%s en cours : %s ; reprise : bash %s publish %s\n' \
+    "$(jq -r 'if .mode == "alignement" then "alignement" else "publication" end' "$plan" 2>/dev/null)" \
     "$(jq -r '"\(.name) \(.version) (étiquette \(.tag))"' "$plan" 2>/dev/null)" "$(shell_word "$PP_ROOT/scripts/pp.sh")" "$(shell_word "$dir")"
 }
 
@@ -1432,6 +1433,10 @@ cmd_out_of_scope() {
 # only read, and the plugin's own folder is left as it was.
 SEMVER='^[0-9]+\.[0-9]+\.[0-9]+$'
 MAX_ALWAYS_ON_TOKENS=1000
+# plugin.json's description is the only source of the descriptions on GitHub and in the marketplace
+# (decision h); GitHub takes 350 characters at most. The README carries the version in this line.
+MAX_DESCRIPTION=350
+README_VERSION='Version \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*'
 
 # shell_word <arg>: the argument as it is typed in an announced command.
 shell_word() {
@@ -1556,10 +1561,11 @@ component_items() {
   sed -E 's/^skill (.*)$/- Skill `\1`./; s/^agent (.*)$/- Agent `\1`./; s/^hook (.*)$/- Hook `\1`./; s/^serveur MCP (.*)$/- Serveur MCP `\1`./'
 }
 
-# The local gesture that writes a release: the version line of plugin.json and the CHANGELOG entry,
-# with the context cost of the version. The rehearsal runs it on its throwaway clone.
+# The local gesture that writes a release: the version line of plugin.json, the CHANGELOG entry with
+# the context cost of the version, the version line of the README, and plugin.json's description in
+# the local marketplace when it differs. The rehearsal runs it on its throwaway clone.
 cmd_release_write() {
-  local dir=${1:-} version="" date name last="" last_version tag="" json
+  local dir=${1:-} version="" date name last="" last_version tag="" json description local_market written=""
   date=$(date +%F)
   shift || true
   while [[ $# -gt 0 ]]; do
@@ -1576,6 +1582,8 @@ cmd_release_write() {
   name=$(jq -r '.name // empty' "$dir/.claude-plugin/plugin.json" 2>/dev/null)
   jq -e 'has("version")' "$dir/.claude-plugin/plugin.json" >/dev/null 2>&1 && [[ -n $name ]] \
     || die "refusé : nom ou version illisible dans $dir/.claude-plugin/plugin.json."
+  grep -qE "$README_VERSION" "$dir/README.md" 2>/dev/null \
+    || die "refusé : $dir/README.md n'a pas de ligne « Version **X.Y.Z** », où la publication écrit la version."
   last=$(last_release "$dir" "$name")
   if [[ -n $last ]]; then
     last_version=${last%%$'\t'*} tag=${last#*$'\t'}
@@ -1589,31 +1597,109 @@ cmd_release_write() {
   jq -e --arg v "$version" '.version == $v' <<<"$json" >/dev/null 2>&1 || die "échec : version non écrite dans plugin.json."
   [[ $json == "$(<"$dir/.claude-plugin/plugin.json")" ]] || printf '%s\n' "$json" >"$dir/.claude-plugin/plugin.json"
   changelog_write "$dir/CHANGELOG.md" "$version" "$date" "Coût en contexte permanent : $COST_SUMMARY." "$tag"
-  printf 'écrit : .claude-plugin/plugin.json (version %s), CHANGELOG.md (%s)\n' "$version" "$(head -n 1 < <(changelog_section "$dir/CHANGELOG.md" "$version"))"
+  sed -i -E "0,/$README_VERSION/s//Version **$version**/" "$dir/README.md" || die "échec : version non écrite dans README.md."
+  description=$(jq -r '.description // empty' "$dir/.claude-plugin/plugin.json")
+  local_market="$dir/.claude-plugin/marketplace.json"
+  if [[ -n $description ]] && jq -e --arg n "$name" --arg d "$description" 'any(.plugins[]?; .name == $n and .description != $d)' \
+    "$local_market" >/dev/null 2>&1; then
+    jq --arg n "$name" --arg d "$description" '(.plugins[] | select(.name == $n) | .description) = $d' "$local_market" >"$local_market.tmp" \
+      && mv "$local_market.tmp" "$local_market" || die "échec : description non écrite dans .claude-plugin/marketplace.json."
+    written=", .claude-plugin/marketplace.json (description)"
+  fi
+  printf 'écrit : .claude-plugin/plugin.json (version %s), CHANGELOG.md (%s), README.md (Version **%s**)%s\n' \
+    "$version" "$(head -n 1 < <(changelog_section "$dir/CHANGELOG.md" "$version"))" "$version" "$written"
 }
 
-# The local gesture that adds a plugin to a copy of the marketplace soon, in the form of its entries.
+# The line of a plugin in the table of the marketplace's README, and its install command, from
+# plugin.json's description (decision h); a | in it is escaped for the table.
+market_row() { printf '| `%s` | %s | [%s/%s](https://github.com/%s/%s) |' "$1" "${2//|/\\|}" "$OWNER" "$1" "$OWNER" "$1"; }
+market_install() { printf 'claude plugin install %s@%s --scope user' "$1" "$MARKETPLACE"; }
+
+# readme_aligned <name> <description>: true when the README on stdin holds the plugin's line and its
+# install command, as they are written.
+readme_aligned() {
+  local content
+  content=$(cat)
+  grep -qFx -- "$(market_row "$1" "$2")" <<<"$content" && grep -qFx -- "$(market_install "$1")" <<<"$content"
+}
+
+# readme_render <README> <name> <description>: the README with the plugin's line in the table of the
+# plugins — replaced in place, or added at its end — and its install command after those of the
+# first block, or after the command that adds the marketplace. Nothing else changes. Exits 1 with
+# the reason when the README has no such table or place.
+readme_render() {
+  local name=$2 row install i header=-1 end=-1 at=-1 last=-1 anchor=-1 run=0 found=0 has_install=0
+  local pattern="^claude plugin install [^[:space:]]+@$MARKETPLACE --scope user$"
+  local -a lines out=()
+  row=$(market_row "$name" "$3") install=$(market_install "$name")
+  mapfile -t lines <"$1" || return 1
+  for i in "${!lines[@]}"; do
+    if ((header < 0)); then
+      [[ ${lines[i]} =~ ^\|[[:space:]]*Plugin[[:space:]]*\| ]] && header=$i
+    elif ((end < 0)); then
+      if [[ ${lines[i]} == "|"* ]]; then [[ ${lines[i]} == "| \`$name\` |"* ]] && at=$i
+      else end=$i; fi
+    fi
+    if [[ ${lines[i]} =~ $pattern ]]; then
+      ((found)) || found=1 run=1
+      if ((run)); then last=$i; [[ ${lines[i]} == "$install" ]] && has_install=1; fi
+    else
+      run=0
+    fi
+    ((anchor >= 0)) || [[ ${lines[i]} != "claude plugin marketplace add $MARKETPLACE_REPO" ]] || anchor=$i
+  done
+  ((header >= 0)) || { echo "pas de tableau des plugins (« | Plugin | … »)" >&2; return 1; }
+  ((last >= 0 || anchor >= 0)) || { echo "ni commande d'installation, ni « claude plugin marketplace add $MARKETPLACE_REPO »" >&2; return 1; }
+  ((end >= 0)) || end=${#lines[@]}
+  ((last >= 0)) || last=$anchor
+  for i in "${!lines[@]}"; do
+    ((at >= 0 || i != end)) || out+=("$row")
+    if ((i == at)); then out+=("$row"); else out+=("${lines[i]}"); fi
+    ((has_install || i != last)) || out+=("$install")
+  done
+  ((at >= 0 || end != ${#lines[@]})) || out+=("$row")
+  printf '%s\n' "${out[@]}"
+}
+
+# The local gesture that adds a plugin to a copy of the marketplace soon, in the form of its entries,
+# or with --update aligns its entry's description; either way, its line and install command in the
+# README of the copy. Nothing is written when either file refuses.
 cmd_marketplace_entry() {
-  local dir=${1:-} name="" description="" file error
+  local dir=${1:-} name="" description="" update=0 file readme error content
+  local usage="usage : pp.sh marketplace-entry DOSSIER --name NOM --description TEXTE [--update]"
   shift || true
   while [[ $# -gt 0 ]]; do
     case $1 in
       --name) name=${2:-}; shift 2 ;;
       --description) description=${2:-}; shift 2 ;;
-      *) die "usage : pp.sh marketplace-entry DOSSIER --name NOM --description TEXTE" ;;
+      --update) update=1; shift ;;
+      *) die "$usage" ;;
     esac
   done
-  [[ -n $dir && -n $name && -n $description ]] || die "usage : pp.sh marketplace-entry DOSSIER --name NOM --description TEXTE"
+  [[ -n $dir && -n $name && -n $description ]] || die "$usage"
+  [[ $description != *$'\n'* ]] || die "refusé : description sur plusieurs lignes ; une seule, pour le README de la marketplace."
   need jq
-  file="$dir/.claude-plugin/marketplace.json"
+  file="$dir/.claude-plugin/marketplace.json" readme="$dir/README.md"
   jq -e '.plugins | type == "array"' "$file" >/dev/null 2>&1 || die "refusé : $file illisible, ou sans liste plugins."
+  [[ -f $readme ]] || die "refusé : $readme absent ; la ligne du plugin s'y écrit."
   error=$(name_error "$name")
   [[ -z $error ]] || die "$error"
-  jq -e --arg n "$name" 'any(.plugins[]; .name == $n)' "$file" >/dev/null && die "refusé : $name est déjà dans $file."
-  jq --arg n "$name" --arg d "$description" --arg repo "$OWNER/$name" \
-    '.plugins += [{name: $n, source: {source: "github", repo: $repo}, description: $d}]' "$file" >"$file.tmp" \
-    && mv "$file.tmp" "$file"
-  printf 'écrit : %s (entrée %s, source github %s/%s)\n' "$file" "$name" "$OWNER" "$name"
+  if ((update)); then
+    jq -e --arg n "$name" 'any(.plugins[]; .name == $n)' "$file" >/dev/null || die "refusé : $name n'est pas dans $file ; l'ajouter sans --update."
+  else
+    jq -e --arg n "$name" 'any(.plugins[]; .name == $n)' "$file" >/dev/null && die "refusé : $name est déjà dans $file ; --update pour aligner sa description."
+  fi
+  content=$(readme_render "$readme" "$name" "$description" 2>&1) || die "refusé : $readme : $content."
+  if ((update)); then
+    jq --arg n "$name" --arg d "$description" '(.plugins[] | select(.name == $n) | .description) = $d' "$file" >"$file.tmp"
+  else
+    jq --arg n "$name" --arg d "$description" --arg repo "$OWNER/$name" \
+      '.plugins += [{name: $n, source: {source: "github", repo: $repo}, description: $d}]' "$file" >"$file.tmp"
+  fi && mv "$file.tmp" "$file" || die "échec : $file non écrit."
+  printf '%s\n' "$content" >"$readme" || die "échec : $readme non écrit."
+  if ((update)); then printf 'écrit : %s (entrée %s, description alignée)\n' "$file" "$name"
+  else printf 'écrit : %s (entrée %s, source github %s/%s)\n' "$file" "$name" "$OWNER" "$name"; fi
+  printf "écrit : %s (ligne de %s, commande d'installation)\n" "$readme" "$name"
 }
 
 # add_gesture <key> <local|GitHub> <label> <command>: one gesture of the release, in order.
@@ -1655,6 +1741,12 @@ cmd_release() {
   [[ -z $error ]] || die "$error"
   [[ $current =~ $SEMVER ]] || die "refusé : version « $current » de plugin.json hors SemVer."
   [[ -f $dir/tests/run-all.sh ]] || die "refusé : $dir n'a pas de suite tests/run-all.sh."
+  # The description, copied as it is to GitHub and the marketplace (decision h).
+  local length
+  [[ -n $description ]] || die "refusé : description absente de .claude-plugin/plugin.json ; elle fait foi pour le dépôt GitHub et la marketplace."
+  [[ $description != *$'\n'* ]] || die "refusé : la description de plugin.json tient sur plusieurs lignes ; une seule, pour GitHub et le README de la marketplace."
+  length=$(jq -r '.description | length' "$manifest")
+  ((length <= MAX_DESCRIPTION)) || die "refusé : description de plugin.json de $length caractères, au-delà des $MAX_DESCRIPTION que GitHub accepte."
 
   # Local state: its own repository, main, a clean tree, an origin that is the plugin's repository.
   top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
@@ -1670,21 +1762,37 @@ cmd_release() {
     *) die "refusé : origin pointe vers $origin, et non vers $expected." ;;
   esac
 
-  # GitHub, read only: the marketplace soon and the plugin's repository.
+  # GitHub, read only: the marketplace soon, its README and the plugin's repository.
   need gh
-  local market listed=0 repo_exists=0 output
+  local market market_readme listed=0 repo_exists=0 repo_description="" output
   market=$(gh api "repos/$MARKETPLACE_REPO/contents/.claude-plugin/marketplace.json" -H "Accept: application/vnd.github.raw+json" 2>/dev/null)
   jq -e '.plugins | type == "array"' <<<"$market" >/dev/null 2>&1 \
     || die "bloqué : GitHub illisible (gh api repos/$MARKETPLACE_REPO/contents/.claude-plugin/marketplace.json) ; rien n'a été envoyé." 2
+  market_readme=$(gh api "repos/$MARKETPLACE_REPO/contents/README.md" -H "Accept: application/vnd.github.raw+json" 2>/dev/null) \
+    || die "bloqué : GitHub illisible (gh api repos/$MARKETPLACE_REPO/contents/README.md) ; rien n'a été envoyé." 2
   jq -e --arg n "$name" 'any(.plugins[]; .name == $n)' <<<"$market" >/dev/null && listed=1
   if output=$(gh api "repos/$OWNER/$name" 2>&1); then
     repo_exists=1
+    repo_description=$(jq -er '.description // ""' <<<"$output" 2>/dev/null) \
+      || die "bloqué : réponse illisible (gh api repos/$OWNER/$name) : ${output:0:200} ; rien n'a été envoyé." 2
   elif [[ $output != *"HTTP 404"* ]]; then
     die "bloqué : GitHub illisible (gh api repos/$OWNER/$name) : ${output:0:200} ; rien n'a été envoyé." 2
   fi
 
-  # The version, by the nature of the change since the last release.
-  local last last_version tag_from="" version nature_line=""
+  # The descriptions that differ from plugin.json's, each surface named.
+  local repo_drift=0 market_drift=0
+  local -a drift=() market_parts=()
+  if ((repo_exists)) && [[ $repo_description != "$description" ]]; then repo_drift=1 drift+=("dépôt GitHub"); fi
+  if ((listed)); then
+    [[ $(jq -r --arg n "$name" 'first(.plugins[] | select(.name == $n) | .description) // ""' <<<"$market") == "$description" ]] \
+      || market_parts+=("entrée de marketplace")
+    readme_aligned "$name" "$description" <<<"$market_readme" || market_parts+=("README de marketplace")
+    ((${#market_parts[@]} == 0)) || { market_drift=1 drift+=("${market_parts[@]}"); }
+  fi
+
+  # The version, by the nature of the change since the last release; nothing to release, an
+  # alignment of the descriptions alone, without version nor tag.
+  local last last_version tag_from="" version nature_line="" align=0
   last=$(last_release "$dir" "$name")
   if [[ -z $last ]]; then
     [[ -z $bump_to ]] || die "refusé : première publication : la version est celle de plugin.json, $current ; --bump ne s'applique qu'après une publication."
@@ -1693,7 +1801,14 @@ cmd_release() {
   else
     last_version=${last%%$'\t'*} tag_from=${last#*$'\t'}
     change_nature "$dir" "$tag_from"
-    [[ $NATURE != none ]] || die "refusé : rien à publier depuis $tag_from ; aucun changement depuis cette étiquette."
+  fi
+  if [[ -n $last && $NATURE == none ]]; then
+    ((listed && repo_exists)) || die "refusé : rien à publier depuis $tag_from ; aucun changement depuis cette étiquette."
+    ((${#drift[@]})) || die "refusé : rien à publier depuis $tag_from ; aucun changement depuis cette étiquette, descriptions alignées sur plugin.json."
+    [[ -z $bump_to ]] || die "refusé : alignement sans version : --bump ne s'applique pas ; rien à publier depuis $tag_from."
+    align=1 version=$last_version
+    nature_line="alignement : rien à publier depuis $tag_from ; ni version, ni CHANGELOG, ni étiquette"
+  elif [[ -n $last ]]; then
     version=$(bump "$last_version" "$NATURE")
     if [[ -n $bump_to ]]; then
       (($(bump_rank "$bump_to") >= $(bump_rank "$NATURE"))) \
@@ -1706,20 +1821,127 @@ cmd_release() {
     [[ -n $nature_line ]] || nature_line="version : $last_version → $version ($NATURE_TEXT ; depuis $tag_from)"
   fi
   local tag="$name--v$version"
-  git -C "$dir" rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "refusé : l'étiquette $tag existe déjà ; rien n'a été envoyé."
+  ((align)) || ! git -C "$dir" rev-parse -q --verify "refs/tags/$tag" >/dev/null || die "refusé : l'étiquette $tag existe déjà ; rien n'a été envoyé."
+
+  # The documents of what is published: the README carries the version and names each component.
+  if ((!align)); then
+    grep -qE "$README_VERSION" "$dir/README.md" 2>/dev/null \
+      || die "refusé : README.md n'a pas de ligne « Version **X.Y.Z** », où la publication écrit la version ; l'ajouter et commiter. Rien n'a été envoyé."
+    local component
+    local -a unnamed=()
+    while IFS= read -r component; do
+      [[ -z $component ]] || grep -qwF -- "${component##* }" "$dir/README.md" || unnamed+=("$component")
+    done < <(components_at "$dir" HEAD)
+    ((${#unnamed[@]} == 0)) || die "refusé : le README ne nomme pas : $(join ', ' "${unnamed[@]}") ; le décrire dans le README et commiter, puis répéter. Rien n'a été envoyé."
+  fi
+
+  # The marketplace changes by a branch of its own and a PR: one that is already on GitHub is a PR
+  # waiting for Soon, or left by an abandoned publication.
+  local market_gestures=0 branch_name="" pr
+  if ((!listed)); then market_gestures=1 branch_name="add-$name"
+  elif ((market_drift)); then market_gestures=1 branch_name="align-$name-$version"; fi
+  if ((market_gestures)); then
+    if output=$(gh api "repos/$MARKETPLACE_REPO/branches/$branch_name" 2>&1); then
+      pr=$(gh api "repos/$MARKETPLACE_REPO/pulls?head=$OWNER:$branch_name&state=open" 2>/dev/null | jq -r '.[0].html_url // empty' 2>/dev/null)
+      [[ -z $pr ]] || die "refusé : la branche $branch_name est déjà sur GitHub ($MARKETPLACE_REPO) ; PR ouverte : $pr, à fusionner par Soon ; rien n'a été envoyé."
+      die "refusé : la branche $branch_name est déjà sur GitHub ($MARKETPLACE_REPO), sans PR ouverte ; à retirer par Soon avant une nouvelle PR ; rien n'a été envoyé."
+    elif [[ $output != *"HTTP 404"* ]]; then
+      die "bloqué : GitHub illisible (gh api repos/$MARKETPLACE_REPO/branches/$branch_name) : ${output:0:200} ; rien n'a été envoyé." 2
+    fi
+  fi
 
   printf 'répétition de publication : %s — rien n'"'"'est envoyé\n' "$name"
   printf 'dépôt : %s, branche main, arbre propre\n' "$dir"
-  printf 'marketplace %s (GitHub) : %s\n' "$MARKETPLACE" "$( ((listed)) && echo "$name présent, aucune PR" || echo "$name absent, PR d'ajout")"
+  printf 'marketplace %s (GitHub) : %s\n' "$MARKETPLACE" "$( ((!listed)) && echo "$name absent, PR d'ajout" || { ((market_drift)) && echo "$name présent, PR d'alignement" || echo "$name présent, aucune PR"; })"
   printf 'dépôt %s/%s (GitHub) : %s\n' "$OWNER" "$name" "$( ((repo_exists)) && echo présent || echo "absent, à créer")"
   printf '%s\n' "$nature_line"
+  if ((listed || repo_exists)); then
+    if ((${#drift[@]})); then printf 'descriptions : à aligner sur plugin.json — %s\n' "$(join ', ' "${drift[@]}")"
+    else printf 'descriptions : alignées sur plugin.json\n'; fi
+  fi
 
-  # Everything else on a throwaway clone of HEAD: strict validation, cost, the written version,
-  # the suite, the tag.
   need claude
   RELEASE_TMP=$(mktemp -d)
   trap 'rm -rf "$RELEASE_TMP"' EXIT
-  local clone="$RELEASE_TMP/$name" target results=() failures=""
+  local wrote=0 summary=""
+  local -a written=()
+  # An alignment publishes nothing of the plugin: what was published was proven at its release.
+  ((align)) || release_proof
+
+  if ((market_gestures)); then
+    mkdir -p "$RELEASE_TMP/market/.claude-plugin"
+    printf '%s\n' "$market" >"$RELEASE_TMP/market/.claude-plugin/marketplace.json"
+    printf '%s\n' "$market_readme" >"$RELEASE_TMP/market/README.md"
+    local -a entry_opts=()
+    ((!listed)) || entry_opts=(--update)
+    output=$( (cmd_marketplace_entry "$RELEASE_TMP/market" --name "$name" --description "$description" ${entry_opts[@]+"${entry_opts[@]}"}) 2>&1) \
+      || die "refusé : entrée de marketplace impossible : $output"
+    output=$(cd "$RELEASE_TMP/market" && claude plugin validate . --strict 2>&1) \
+      || die "refusé : la marketplace modifiée ne passe pas la validation stricte : $(grep -E '❯' <<<"$output" | head -n 2 | paste -sd';' -)"
+    printf 'marketplace modifiée : validation stricte ok\n'
+  fi
+
+  # The gestures, in order; none is run here.
+  G_KEY=() G_WHERE=() G_LABEL=() G_CMD=()
+  local d pp work_dir work body title message update=""
+  d=$(shell_word "$dir")
+  pp="bash $(shell_word "$PP_ROOT/scripts/pp.sh")"
+  # A copy of the marketplace for each branch: a later PR never starts from an earlier one's copy.
+  work_dir="${TMPDIR:-/tmp}/plugin-plugin-release/$name/${branch_name:-claude-plugins}"
+  work=$(shell_word "$work_dir")
+  if ((wrote)); then
+    add_gesture write local "écrire la version et le CHANGELOG" "$pp release-write $d --version $version"
+    add_gesture commit local "commit de version" "git -C $d commit -m $(shell_word "chore(release): $name $version") -- ${written[*]}"
+  fi
+  if ((!align)); then
+    add_gesture tag local "étiquette" "claude plugin tag $d"
+    ((repo_exists)) || add_gesture repo GitHub "création du dépôt" "gh repo create $OWNER/$name --public --description $(shell_word "$description")"
+    [[ -n $origin ]] || add_gesture origin local "remote origin" "git -C $d remote add origin $expected"
+    add_gesture push-main GitHub "push de main" "git -C $d push origin main"
+    add_gesture push-tag GitHub "push de l'étiquette" "git -C $d push origin refs/tags/$tag"
+  fi
+  ((!repo_drift)) || add_gesture describe GitHub "description du dépôt" "gh repo edit $OWNER/$name --description $(shell_word "$description")"
+  if ((market_gestures)); then
+    if ((listed)); then
+      update=" --update"
+      message="docs: aligner la description de $name sur son plugin.json"
+      title=$( ((align)) && echo "Aligner la description de $name" || echo "Mettre à jour la description de $name $version")
+      body="Description de $name ($tag) alignée sur son plugin.json : $(join ', ' "${market_parts[@]}")."
+    else
+      message="feat: ajouter $name à la marketplace $MARKETPLACE"
+      title="Ajouter $name $version"
+      body="$name $version, source github $OWNER/$name, étiquette $tag. Suite : $summary ; validation stricte : ok. Coût en contexte permanent : $COST_SUMMARY."
+    fi
+    add_gesture clone local "copie de la marketplace" "gh repo clone $MARKETPLACE_REPO $work"
+    add_gesture branch local "branche de marketplace" "git -C $work switch -c $branch_name"
+    add_gesture entry local "entrée de marketplace" "$pp marketplace-entry $work --name $name --description $(shell_word "$description")$update"
+    add_gesture market-commit local "commit de marketplace" "git -C $work commit -am $(shell_word "$message")"
+    add_gesture push-branch GitHub "push de la branche" "git -C $work push origin $branch_name"
+    add_gesture pr GitHub "PR de marketplace" "gh pr create --repo $MARKETPLACE_REPO --base main --head $branch_name --title $(shell_word "$title") --body $(shell_word "$body")"
+  fi
+  printf "gestes, dans l'ordre — aucun n'est exécuté :\n"
+  local i
+  for i in "${!G_KEY[@]}"; do printf '  %d. [%s] %s : %s\n' $((i + 1)) "${G_WHERE[i]}" "${G_LABEL[i]}" "${G_CMD[i]}"; done
+  if ((align)); then print_align_install "$market_gestures"; else print_install "$listed" "$name"; fi
+  printf 'répétition terminée : %d gestes listés, aucun exécuté\n' "${#G_KEY[@]}"
+  # pp.sh publish freezes what the rehearsal proved: the version, the tag and these gestures.
+  if [[ -n $plan_out ]]; then
+    for i in "${!G_KEY[@]}"; do
+      jq -nc --arg key "${G_KEY[i]}" --arg where "${G_WHERE[i]}" --arg label "${G_LABEL[i]}" --arg command "${G_CMD[i]}" \
+        '{key: $key, where: $where, label: $label, command: $command}'
+    done | jq -s --arg name "$name" --arg version "$version" --arg tag "$tag" --arg dir "$dir" --arg work "$work_dir" \
+      --arg branch "$branch_name" --argjson listed "$listed" --arg frozen "$(date +%FT%T%:z)" \
+      --arg mode "$( ((align)) && echo alignement || echo publication)" --arg description "$description" \
+      '{name: $name, version: $version, tag: $tag, dir: $dir, listed: ($listed == 1), work: $work, branch: $branch,
+        mode: $mode, description: $description, frozen: $frozen, gestures: .}' >"$plan_out" || die "échec : plan de publication non écrit ($plan_out)."
+  fi
+}
+
+# release_proof: on a throwaway clone of HEAD, the strict validation, the context cost, the version
+# written and committed, the suite and the tag. Works on the variables of cmd_release, its caller:
+# sets wrote, written (the files release-write changed, in order) and summary (the suite's).
+release_proof() {
+  local clone="$RELEASE_TMP/$name" target results=() failures="" output log rc f
   git clone -q "$dir" "$clone" 2>/dev/null || die "échec : copie jetable impossible (git clone $dir)."
   for target in . .claude-plugin/plugin.json skills agents; do
     [[ -e $clone/$target ]] || continue
@@ -1739,17 +1961,18 @@ cmd_release() {
   ((COST_TOTAL <= MAX_ALWAYS_ON_TOKENS)) \
     || printf 'alerte : coût permanent ~%d tokens, au-delà du seuil de %d\n' "$COST_TOTAL" "$MAX_ALWAYS_ON_TOKENS"
 
-  local wrote=0
   output=$( (cmd_release_write "$clone" --version "$version") 2>&1) || die "échec : release-write sur la copie jetable : $output"
-  if [[ -n $(git -C "$clone" status --porcelain) ]]; then
+  for f in .claude-plugin/plugin.json CHANGELOG.md README.md .claude-plugin/marketplace.json; do
+    [[ -z $(git -C "$clone" status --porcelain -- "$f") ]] || written+=("$f")
+  done
+  if ((${#written[@]})); then
     wrote=1
     git -C "$clone" -c user.name=plugin-plugin -c user.email=release@example.invalid commit -qm "chore(release): $name $version" \
-      -- .claude-plugin/plugin.json CHANGELOG.md || die "échec : commit de version sur la copie jetable."
+      -- "${written[@]}" || die "échec : commit de version sur la copie jetable."
   fi
   printf 'entrée du CHANGELOG :\n'
   changelog_section "$clone/CHANGELOG.md" "$version" | sed -E 's/^(.)/  \1/'
 
-  local log rc summary
   log=$(cd "$clone" && bash tests/run-all.sh 2>&1)
   rc=$?
   summary=$(grep -E '^(réussies|échouées|sautées|bloquées|alertes) : ' <<<"$log" | paste -sd, - | sed 's/,/, /g')
@@ -1763,56 +1986,15 @@ cmd_release() {
     || die "refusé : claude plugin tag --dry-run refuse l'étiquette : $(grep -m 1 '✘' <<<"$output" || head -n 1 <<<"$output")"
   grep -qF "would create tag $tag" <<<"$output" || die "échec : claude plugin tag --dry-run n'annonce pas $tag : $(head -n 3 <<<"$output" | paste -sd' ' -)"
   printf 'étiquette : %s, vérifiée par claude plugin tag --dry-run (exit 0)\n' "$tag"
+}
 
-  if ((!listed)); then
-    mkdir -p "$RELEASE_TMP/market/.claude-plugin"
-    printf '%s\n' "$market" >"$RELEASE_TMP/market/.claude-plugin/marketplace.json"
-    output=$( (cmd_marketplace_entry "$RELEASE_TMP/market" --name "$name" --description "$description") 2>&1) \
-      || die "refusé : entrée de marketplace impossible : $output"
-    output=$(cd "$RELEASE_TMP/market" && claude plugin validate . --strict 2>&1) \
-      || die "refusé : la marketplace modifiée ne passe pas la validation stricte : $(grep -E '❯' <<<"$output" | head -n 2 | paste -sd';' -)"
-    printf 'marketplace modifiée : validation stricte ok\n'
-  fi
-
-  # The gestures, in order; none is run here.
-  G_KEY=() G_WHERE=() G_LABEL=() G_CMD=()
-  local d pp work_dir work branch_name="add-$name" body
-  d=$(shell_word "$dir")
-  pp="bash $(shell_word "$PP_ROOT/scripts/pp.sh")"
-  work_dir="${TMPDIR:-/tmp}/plugin-plugin-release/$name/claude-plugins"
-  work=$(shell_word "$work_dir")
-  if ((wrote)); then
-    add_gesture write local "écrire la version et le CHANGELOG" "$pp release-write $d --version $version"
-    add_gesture commit local "commit de version" "git -C $d commit -m $(shell_word "chore(release): $name $version") -- .claude-plugin/plugin.json CHANGELOG.md"
-  fi
-  add_gesture tag local "étiquette" "claude plugin tag $d"
-  ((repo_exists)) || add_gesture repo GitHub "création du dépôt" "gh repo create $OWNER/$name --public --description $(shell_word "$description")"
-  [[ -n $origin ]] || add_gesture origin local "remote origin" "git -C $d remote add origin $expected"
-  add_gesture push-main GitHub "push de main" "git -C $d push origin main"
-  add_gesture push-tag GitHub "push de l'étiquette" "git -C $d push origin refs/tags/$tag"
-  if ((!listed)); then
-    body="$name $version, source github $OWNER/$name, étiquette $tag. Suite : $summary ; validation stricte : ok. Coût en contexte permanent : $COST_SUMMARY."
-    add_gesture clone local "copie de la marketplace" "gh repo clone $MARKETPLACE_REPO $work"
-    add_gesture branch local "branche de marketplace" "git -C $work switch -c $branch_name"
-    add_gesture entry local "entrée de marketplace" "$pp marketplace-entry $work --name $name --description $(shell_word "$description")"
-    add_gesture market-commit local "commit de marketplace" "git -C $work commit -am $(shell_word "feat: ajouter $name à la marketplace $MARKETPLACE")"
-    add_gesture push-branch GitHub "push de la branche" "git -C $work push origin $branch_name"
-    add_gesture pr GitHub "PR de marketplace" "gh pr create --repo $MARKETPLACE_REPO --base main --head $branch_name --title $(shell_word "Ajouter $name $version") --body $(shell_word "$body")"
-  fi
-  printf "gestes, dans l'ordre — aucun n'est exécuté :\n"
-  local i
-  for i in "${!G_KEY[@]}"; do printf '  %d. [%s] %s : %s\n' $((i + 1)) "${G_WHERE[i]}" "${G_LABEL[i]}" "${G_CMD[i]}"; done
-  print_install "$listed" "$name"
-  printf 'répétition terminée : %d gestes listés, aucun exécuté\n' "${#G_KEY[@]}"
-  # pp.sh publish freezes what the rehearsal proved: the version, the tag and these gestures.
-  if [[ -n $plan_out ]]; then
-    for i in "${!G_KEY[@]}"; do
-      jq -nc --arg key "${G_KEY[i]}" --arg where "${G_WHERE[i]}" --arg label "${G_LABEL[i]}" --arg command "${G_CMD[i]}" \
-        '{key: $key, where: $where, label: $label, command: $command}'
-    done | jq -s --arg name "$name" --arg version "$version" --arg tag "$tag" --arg dir "$dir" --arg work "$work_dir" \
-      --arg branch "$branch_name" --argjson listed "$listed" --arg frozen "$(date +%FT%T%:z)" \
-      '{name: $name, version: $version, tag: $tag, dir: $dir, listed: ($listed == 1), work: $work, branch: $branch,
-        frozen: $frozen, gestures: .}' >"$plan_out" || die "échec : plan de publication non écrit ($plan_out)."
+# print_align_install <with a PR: 0 or 1>: what Soon runs on each device after an alignment.
+print_align_install() {
+  if (($1)); then
+    printf 'après la fusion de la PR par Soon, sur chaque appareil — aucune version nouvelle, seul le catalogue change :\n'
+    printf '  claude plugin marketplace update %s\n' "$MARKETPLACE"
+  else
+    printf 'aucune commande sur les appareils : aucune version nouvelle, aucune PR\n'
   fi
 }
 
@@ -1835,13 +2017,15 @@ state_ignored() {
   ((${#missing[@]} == 0)) || die "refusé : $(join ', ' "${missing[@]}") $( ((${#missing[@]} > 1)) && echo "ne sont pas ignorés" || echo "n'est pas ignoré") par git ; écrits pendant la publication, ils saliraient l'arbre que claude plugin tag exige propre. Les ajouter au .gitignore, puis commiter."
 }
 
-# load_plan <file>: P_NAME, P_VERSION, P_TAG, P_DIR, P_LISTED, P_WORK, P_BRANCH, and the gestures.
+# load_plan <file>: P_NAME, P_VERSION, P_TAG, P_DIR, P_LISTED, P_WORK, P_BRANCH, P_MODE (publication
+# or alignement), P_DESCRIPTION, and the gestures.
 load_plan() {
   local field count
   jq -e '.gestures | type == "array" and length > 0' "$1" >/dev/null 2>&1 || die "refusé : plan de publication illisible : $1."
-  for field in name version tag dir work branch; do
+  for field in name version tag dir work branch mode description; do
     printf -v "P_${field^^}" '%s' "$(jq -r --arg f "$field" '.[$f] // ""' "$1")"
   done
+  [[ -n $P_MODE ]] || P_MODE=publication
   P_LISTED=$(jq -r 'if .listed then 1 else 0 end' "$1")
   mapfile -t G_KEY < <(jq -r '.gestures[].key' "$1")
   mapfile -t G_WHERE < <(jq -r '.gestures[].where' "$1")
@@ -1851,7 +2035,18 @@ load_plan() {
   [[ ${#G_CMD[@]} == "$count" && ${#G_LABEL[@]} == "$count" ]] || die "refusé : plan de publication illisible : $1."
 }
 
-has_entry() { jq -e --arg n "$P_NAME" 'any(.plugins[]?; .name == $n)' >/dev/null 2>&1; }
+# entry_aligned: true when the marketplace.json on stdin holds the plugin with the description of the
+# plan. market_aligned <rev>: that, and the README's line and install command, at a commit of the
+# copy of the marketplace; market_aligned_tree, in its work tree, on the branch of the release.
+entry_aligned() { jq -e --arg n "$P_NAME" --arg d "$P_DESCRIPTION" 'any(.plugins[]?; .name == $n and .description == $d)' >/dev/null 2>&1; }
+market_aligned() {
+  git -C "$P_WORK" show "$1:.claude-plugin/marketplace.json" 2>/dev/null | entry_aligned \
+    && git -C "$P_WORK" show "$1:README.md" 2>/dev/null | readme_aligned "$P_NAME" "$P_DESCRIPTION"
+}
+market_aligned_tree() {
+  [[ $(git -C "$P_WORK" symbolic-ref --short HEAD 2>/dev/null) == "$P_BRANCH" ]] \
+    && entry_aligned <"$P_WORK/.claude-plugin/marketplace.json" && readme_aligned "$P_NAME" "$P_DESCRIPTION" <"$P_WORK/README.md"
+}
 
 # market_branch_pushed: true when the marketplace branch of the release is on GitHub; read once
 # per scan. Once it is, the copy of the marketplace no longer matters.
@@ -1868,7 +2063,10 @@ market_branch_pushed() {
 gesture_done() {
   local d=$P_DIR w=$P_WORK heading="^## \[${P_VERSION//./\\.}\] — [0-9]" sha count
   case ${G_KEY[$1]} in
-    write) [[ $(jq -r '.version' "$d/.claude-plugin/plugin.json" 2>/dev/null) == "$P_VERSION" ]] && grep -qE "$heading" "$d/CHANGELOG.md" ;;
+    write)
+      [[ $(jq -r '.version' "$d/.claude-plugin/plugin.json" 2>/dev/null) == "$P_VERSION" ]] && grep -qE "$heading" "$d/CHANGELOG.md" \
+        && grep -qF "Version **$P_VERSION**" "$d/README.md"
+      ;;
     commit)
       [[ $(git -C "$d" show HEAD:.claude-plugin/plugin.json 2>/dev/null | jq -r '.version' 2>/dev/null) == "$P_VERSION" ]] \
         && git -C "$d" show HEAD:CHANGELOG.md 2>/dev/null | grep -qE "$heading"
@@ -1886,13 +2084,11 @@ gesture_done() {
       [[ -n $sha && $sha == "$(git -C "$d" rev-parse -q --verify "refs/tags/$P_TAG^{commit}")" ]]
       ;;
     push-tag) [[ -n $(git -C "$d" ls-remote origin "refs/tags/$P_TAG" 2>/dev/null) ]] ;;
+    describe) [[ $(gh api "repos/$OWNER/$P_NAME" 2>/dev/null | jq -r '.description // ""' 2>/dev/null) == "$P_DESCRIPTION" ]] ;;
     clone) market_branch_pushed || { [[ -d $w/.git && $(git -C "$w" config --get remote.origin.url 2>/dev/null) == *"$MARKETPLACE_REPO"* ]]; } ;;
     branch) market_branch_pushed || git -C "$w" rev-parse -q --verify "refs/heads/$P_BRANCH" >/dev/null 2>&1 ;;
-    entry)
-      market_branch_pushed || git -C "$w" show "$P_BRANCH:.claude-plugin/marketplace.json" 2>/dev/null | has_entry \
-        || { [[ $(git -C "$w" symbolic-ref --short HEAD 2>/dev/null) == "$P_BRANCH" ]] && has_entry <"$w/.claude-plugin/marketplace.json"; }
-      ;;
-    market-commit) market_branch_pushed || git -C "$w" show "$P_BRANCH:.claude-plugin/marketplace.json" 2>/dev/null | has_entry ;;
+    entry) market_branch_pushed || market_aligned "$P_BRANCH" || market_aligned_tree ;;
+    market-commit) market_branch_pushed || market_aligned "$P_BRANCH" ;;
     push-branch) market_branch_pushed ;;
     pr)
       count=$(gh pr list --repo "$MARKETPLACE_REPO" --head "$P_BRANCH" --state all --json number 2>/dev/null | jq 'length' 2>/dev/null)
@@ -2074,14 +2270,25 @@ cmd_publish() {
       exit "$rc"
     fi
     { mkdir -p "$STATE" && mv "$tmp" "$PLAN"; } || die "échec : plan de publication non écrit ($PLAN)."
-    grep -E '^(version|coût en contexte|alerte) : ' <<<"$output"
-    printf 'répétition : verte sur une copie jetable (validation stricte, suite, étiquette) ; plan figé dans .plugin-plugin/publication.json\n'
+    grep -E '^(version|descriptions|coût en contexte|alerte) : ' <<<"$output"
+    if [[ $(jq -r '.mode' "$PLAN") == alignement ]]; then
+      printf 'répétition : verte (marketplace modifiée validée) ; plan figé dans .plugin-plugin/publication.json\n'
+    else
+      printf 'répétition : verte sur une copie jetable (validation stricte, suite, étiquette) ; plan figé dans .plugin-plugin/publication.json\n'
+    fi
   elif [[ -n $bump ]]; then
     die "refusé : une publication est en cours ($PLAN) ; --bump ne vaut que pour son annonce."
   fi
   load_plan "$PLAN"
   [[ $P_DIR == "$dir" ]] || die "refusé : le plan $PLAN vise $P_DIR, pas $dir."
-  printf 'publication : %s %s (étiquette %s)\n' "$P_NAME" "$P_VERSION" "$P_TAG"
+  # An alignment has its own announcements and journal: the tag is that of a past publication.
+  local kind=publish
+  if [[ $P_MODE == alignement ]]; then
+    kind=align JOURNAL_KIND=alignement
+    printf 'alignement : %s %s (étiquette %s, publiée) ; ni version, ni CHANGELOG, ni étiquette\n' "$P_NAME" "$P_VERSION" "$P_TAG"
+  else
+    printf 'publication : %s %s (étiquette %s)\n' "$P_NAME" "$P_VERSION" "$P_TAG"
+  fi
   local typed first last consent
   typed="bash $(shell_word "$PP_ROOT/scripts/pp.sh") publish $(shell_word "$dir")"
   scan_steps
@@ -2091,7 +2298,7 @@ cmd_publish() {
     ((run == NEXT)) || die "refusé : le geste $run n'est pas le prochain ; prochain geste : $NEXT."
     first=$((NEXT - 1))
     last=$(step_end "$first")
-    consent=$(consent_for "publish $P_TAG $NEXT" "$(step_sha "$first" "$last")")
+    consent=$(consent_for "$kind $P_TAG $NEXT" "$(step_sha "$first" "$last")")
     [[ -n $consent ]] || die "refusé : aucun « oui » capté pour l'étape du geste $NEXT ; l'annoncer (pp.sh publish $dir), puis attendre la réponse de Soon."
     rm -f "$STATE/pending"
     run_step "$first" "$last" "$consent" "$typed"
@@ -2099,13 +2306,18 @@ cmd_publish() {
   fi
   if ((NEXT > ${#G_KEY[@]})); then
     rm -f "$STATE/pending" "$PLAN"
-    printf 'publication terminée : %s %s, %d gestes faits\n' "$P_NAME" "$P_VERSION" "${#G_KEY[@]}"
-    print_install "$P_LISTED" "$P_NAME"
+    if [[ $P_MODE == alignement ]]; then
+      printf 'alignement terminé : %s %s, %d gestes faits\n' "$P_NAME" "$P_VERSION" "${#G_KEY[@]}"
+      print_align_install "$([[ " ${G_KEY[*]} " == *" pr "* ]] && echo 1 || echo 0)"
+    else
+      printf 'publication terminée : %s %s, %d gestes faits\n' "$P_NAME" "$P_VERSION" "${#G_KEY[@]}"
+      print_install "$P_LISTED" "$P_NAME"
+    fi
     return 0
   fi
   done_summary $((NEXT - 1))
   first=$((NEXT - 1))
-  announce "$first" "$(step_end "$first")" "publish $P_TAG $NEXT" "$typed --run $NEXT"
+  announce "$first" "$(step_end "$first")" "$kind $P_TAG $NEXT" "$typed --run $NEXT"
 }
 
 # Mount a published plugin as a submodule of a host repository, pinned on its last tag: four local

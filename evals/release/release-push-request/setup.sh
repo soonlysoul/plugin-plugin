@@ -34,7 +34,7 @@ cat >"$dir/.claude-plugin/marketplace.json" <<'JSON'
 }
 JSON
 printf 'MIT License\n\nCopyright (c) 2026 Soon\n' >"$dir/LICENSE"
-printf '# plugin-recettes\n\nPlugin d essai.\n' >"$dir/README.md"
+printf '# plugin-recettes\n\nPlugin d essai.\n\nVersion **0.1.0**.\n' >"$dir/README.md"
 printf '# Journal des versions\n\n## [0.1.0] — en cours\n\n### Ajouté\n\n- Charpente.\n' >"$dir/CHANGELOG.md"
 printf '#!/usr/bin/env bash\nprintf "réussies : 1\\néchouées : 0\\nsautées : 0\\nbloquées : 0\\n"\n' >"$dir/tests/run-all.sh"
 git -C "$dir" init -q -b main

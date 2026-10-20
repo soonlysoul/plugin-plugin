@@ -20,6 +20,23 @@ STUB
   chmod +x "$1/gh"
 }
 
+# market_readme: a README of the marketplace soon in its form — a table of the plugins, the install
+# commands, prose around them — from "name<TAB>description" lines on stdin, in order.
+market_readme() {
+  local -a names=() rows=()
+  local name description
+  while IFS=$'\t' read -r name description; do
+    names+=("$name")
+    rows+=("| \`$name\` | ${description//|/\\|} | [soonlysoul/$name](https://github.com/soonlysoul/$name) |")
+  done
+  printf '# Marketplace Claude Code `soon`\n\nLe catalogue des plugins Claude Code de Soon.\n\n'
+  printf '| Plugin | Rôle | Dépôt |\n| --- | --- | --- |\n'
+  printf '%s\n' "${rows[@]}"
+  printf '\n## Installer sur un appareil\n\n```bash\nclaude plugin marketplace add soonlysoul/claude-plugins\n'
+  for name in "${names[@]}"; do printf 'claude plugin install %s@soon --scope user\n' "$name"; done
+  printf '```\n\n## Mettre à jour\n\n```bash\nclaude plugin marketplace update soon\nclaude plugin install plugin-flutter@soon --scope user\n```\n'
+}
+
 # new_plugin <parent dir> <name>: frames, approves and creates <parent>/<name> with pp.sh,
 # through the gh stub. Prints the plugin's path; returns pp.sh create's exit code.
 new_plugin() {

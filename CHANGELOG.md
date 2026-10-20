@@ -4,7 +4,17 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; ve
 
 ## [à venir] — en cours
 
+### Ajouté
+
+- `release` tient les descriptions sur celle du `plugin.json` (US-35) : la répétition lit sur GitHub la description du dépôt, l'entrée et le README de la marketplace `soon`, et ajoute un geste par surface qui diverge — `gh repo edit … --description`, une PR de marketplace qui aligne l'entrée et la ligne du README, commande d'installation comprise.
+- `release-write` écrit la version dans la ligne `Version **X.Y.Z**` du README, et la description dans la marketplace locale (US-36, US-35).
+- La répétition refuse un README sans cette ligne, ou qui ne nomme pas un composant, et une description absente, sur plusieurs lignes ou au-delà de 350 caractères (US-36).
+- Un alignement : rien à publier depuis l'étiquette, des descriptions en retard, et seuls les gestes d'alignement sont annoncés, sans version, ni CHANGELOG, ni étiquette (US-37).
+- `marketplace-entry --update` aligne la description d'un plugin listé ; avec ou sans, la ligne du plugin et sa commande d'installation sont écrites dans le README de la marketplace.
+
 ### Corrigé
+
+- Une branche de marketplace déjà sur GitHub est refusée à la répétition, sa PR ouverte nommée ; la copie de la marketplace vit dans un dossier par branche, et une PR ne repart plus de la copie d'une précédente.
 
 - `pp.sh release` : un hook déclaré en forme shell, son chemin entre guillemets (`bash "${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"`), se lisait `x.sh"`. Passé en forme exec, il comptait pour retiré puis ajouté, et la répétition imposait une majeure. Révélé par la publication de plugin-nixos 0.2.0.
 

@@ -2,7 +2,7 @@
 
 2026-10-20 · Soon · PRD : [PRD.md](PRD.md) · Plan : [PLAN.md](PLAN.md)
 
-**Statut : APPROUVÉ** le 2026-10-20 (« Je valide »).
+**Statut : REVUE** — approuvé le 2026-10-20, modifié depuis : à réapprouver.
 
 Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0. Les décisions qui le fondent — principes, modèle de plugin, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan, approuvé le 2026-10-19 ; elles ne sont pas recopiées ici.
 
@@ -60,7 +60,7 @@ Coût en contexte permanent : **824 tokens** (seuil 1 000), mesuré par `claude 
 | `add` | sur demande ou par le modèle | `pp.sh check`, `check-name`, `out-of-scope`, `checkpoint` ; par composant (`reference/`) `check-skill`, `check-evals`, `eval-plan`, `eval-run`, `add-hook`, `add-agent`, `check-agent`, `add-mcp` | US-8 à US-17 |
 | `check` | sur demande ou par le modèle | `pp.sh check` | US-18 |
 | `resume` | sur demande ou par le modèle | `pp.sh resume` | US-34 |
-| `release` | **seulement sur demande** (`disable-model-invocation`) | `pp.sh release`, `publish`, `mount` ; `release-write` et `marketplace-entry` sont des gestes du plan annoncé | US-20 à US-29 |
+| `release` | **seulement sur demande** (`disable-model-invocation`) | `pp.sh release`, `publish`, `mount` ; `release-write` (version du `plugin.json`, du CHANGELOG et du README, description de la marketplace locale) et `marketplace-entry` (entrée et ligne du README de la marketplace, ajoutées ou alignées par `--update`) sont des gestes du plan annoncé ; sans rien à publier, un alignement des descriptions seul (décision h) | US-20 à US-29, US-35 à US-37 |
 | `reaudit` | **seulement sur demande** (`disable-model-invocation`) | `pp.sh reaudit`, `snapshot`, `diff-snapshots` | US-31 à US-33 |
 
 `pp.sh rebuild` (US-19) n'a pas de skill : la reconstruction se lance à la main, comme le dit le README.

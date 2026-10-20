@@ -46,13 +46,15 @@ mkdir -p "$seed/.claude-plugin"
 jq -n '{name: "soon", description: "Plugins Claude Code de Soon.", owner: {name: "Soon"},
   plugins: (["plugin-flutter", "plugin-nixos"] | map({name: ., source: {source: "github", repo: "soonlysoul/\(.)"}, description: "Plugin \(.)."}))}' \
   >"$seed/.claude-plugin/marketplace.json"
+printf 'plugin-flutter\tPlugin plugin-flutter.\nplugin-nixos\tPlugin plugin-nixos.\n' | market_readme >"$seed/README.md"
 git -C "$seed" add -A && git -C "$seed" commit -qm "init"
 git clone -q --bare "$seed" "$GITHUB/claude-plugins.git"
 market_main=$(git --git-dir="$GITHUB/claude-plugins.git" rev-parse main)
 
-# Stubs. gh: reads answered from $GITHUB; gestures (repo create, pr create) done on $GITHUB and logged
-# to $work/gh-gestures.log; STUB_GH_CUT=before|after fails the gesture matching STUB_GH_MATCH before
-# or after doing it, like a network cut. git: push is logged to $work/push.log; STUB_PUSH_CUT=before|after
+# Stubs. gh: reads answered from $GITHUB, a repository's description in $GITHUB/<repo>.description;
+# gestures (repo create, repo edit, pr create) done on $GITHUB and logged to $work/gh-gestures.log;
+# STUB_GH_CUT=before|after fails the gesture matching STUB_GH_MATCH before or after doing it, like a
+# network cut. git: push is logged to $work/push.log; STUB_PUSH_CUT=before|after
 # fails the push matching STUB_PUSH_MATCH before or after doing it. claude: the real one.
 real_git=$(command -v git)
 mkdir -p "$work/stub"
@@ -65,12 +67,25 @@ all="$*"
 cut() {
   if [[ ${STUB_GH_CUT:-} == "$1" && $all == *"${STUB_GH_MATCH:-}"* ]]; then echo "error connecting to api.github.com" >&2; exit 1; fi
 }
+# description_of <args...>: the value given to --description.
+description_of() { while [[ $# -gt 0 ]]; do [[ $1 == --description ]] && { printf '%s' "$2"; return; }; shift; done; }
 case "$1 $2" in
   "api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json")
     "$GIT" --git-dir="$GITHUB/claude-plugins.git" show main:.claude-plugin/marketplace.json ;;
+  "api repos/soonlysoul/claude-plugins/contents/README.md")
+    "$GIT" --git-dir="$GITHUB/claude-plugins.git" show main:README.md ;;
+  "api repos/soonlysoul/claude-plugins/branches/"*)
+    branch=${2#repos/soonlysoul/claude-plugins/branches/}
+    if "$GIT" --git-dir="$GITHUB/claude-plugins.git" rev-parse -q --verify "refs/heads/$branch" >/dev/null; then printf '{"name": "%s"}\n' "$branch"
+    else echo "gh: Branch not found (HTTP 404)" >&2; exit 1; fi ;;
+  "api repos/soonlysoul/claude-plugins/pulls?"*)
+    head=${2#*head=soonlysoul:} head=${head%%&*}
+    n=$(grep -n "^$head	" "$GITHUB/prs" 2>/dev/null | head -n 1) n=${n%%:*}
+    if [[ -n $n ]]; then printf '[{"number": %d, "html_url": "https://github.com/soonlysoul/claude-plugins/pull/%d"}]\n' "$n" "$n"; else echo '[]'; fi ;;
   "api repos/soonlysoul/"*)
     repo=${2#repos/soonlysoul/}
-    if [[ -d $GITHUB/$repo.git ]]; then printf '{"full_name": "soonlysoul/%s"}\n' "$repo"
+    if [[ -d $GITHUB/$repo.git ]]; then
+      jq -n --arg n "soonlysoul/$repo" --arg d "$(cat "$GITHUB/$repo.description" 2>/dev/null)" '{full_name: $n, description: $d}'
     else echo "gh: Not Found (HTTP 404)" >&2; exit 1; fi ;;
   "repo create")
     printf '%s\n' "$*" >>"$LOG"
@@ -78,7 +93,16 @@ case "$1 $2" in
     repo=${3#soonlysoul/}
     [[ -d $GITHUB/$repo.git ]] && { echo "GraphQL: Name already exists on this account" >&2; exit 1; }
     "$GIT" init -q --bare "$GITHUB/$repo.git"
+    description_of "$@" >"$GITHUB/$repo.description"
     echo "https://github.com/soonlysoul/$repo"
+    cut after ;;
+  "repo edit")
+    printf '%s\n' "$*" >>"$LOG"
+    cut before
+    repo=${3#soonlysoul/}
+    [[ -d $GITHUB/$repo.git ]] || { echo "GraphQL: Could not resolve to a Repository" >&2; exit 1; }
+    description_of "$@" >"$GITHUB/$repo.description"
+    echo "✓ Edited repository soonlysoul/$repo"
     cut after ;;
   "repo clone")
     "$GIT" clone -q "https://github.com/$3.git" "$4" ;;
@@ -195,6 +219,7 @@ when_to_use: "When a codename is asked."
 
 Answer with the codename of the project.
 EOF
+printf '\n- Skill `demo`.\n' >>"$base/README.md"
 commit "$base" "chore: charpente de $NAME"
 for file in publication.json pending consents.log gestures.log checkpoint.md; do
   git -C "$base" check-ignore -q ".plugin-plugin/$file" && pass "état ignoré par git : .plugin-plugin/$file" \
@@ -309,6 +334,13 @@ echo "# état des dépôts et des journaux"
 git --git-dir="$GITHUB/claude-plugins.git" show "add-$NAME:.claude-plugin/marketplace.json" 2>/dev/null |
   jq -e --arg n "$NAME" 'any(.plugins[]; . == {name: $n, source: {source: "github", repo: "soonlysoul/\($n)"}, description: "Plugin d'"'"'essai."})' >/dev/null \
   && pass "marketplace : l'entrée est sur la branche add-$NAME" || fail "marketplace : l'entrée est sur la branche add-$NAME"
+readme=$(git --git-dir="$GITHUB/claude-plugins.git" show "add-$NAME:README.md" 2>/dev/null)
+grep -qFx "| \`$NAME\` | Plugin d'essai. | [soonlysoul/$NAME](https://github.com/soonlysoul/$NAME) |" <<<"$readme" \
+  && grep -qFx "claude plugin install $NAME@soon --scope user" <<<"$readme" \
+  && pass "marketplace : la ligne du README et la commande d'installation sur la branche (US-35)" \
+  || fail "marketplace : la ligne du README et la commande d'installation sur la branche (US-35)"
+[[ $(cat "$GITHUB/$NAME.description" 2>/dev/null) == "Plugin d'essai." ]] && pass "dépôt créé avec la description de plugin.json" \
+  || fail "dépôt créé avec la description de plugin.json" "$(cat "$GITHUB/$NAME.description" 2>&1)"
 [[ $(git --git-dir="$GITHUB/claude-plugins.git" rev-list --count "main..add-$NAME") == 1 ]] && pass "marketplace : un seul commit sur la branche" \
   || fail "marketplace : un seul commit sur la branche"
 [[ $(cat "$GITHUB/prs" 2>/dev/null) == "add-$NAME	main	Ajouter $NAME 0.1.0" ]] && pass "une PR, de add-$NAME vers main" || fail "une PR, de add-$NAME vers main" "$(cat "$GITHUB/prs" 2>&1)"
@@ -362,7 +394,7 @@ expect_line "le geste parti est reconnu fait" '^déjà fait : 7\. \[GitHub\] pus
 step "$c" "étape 8, coupée au push de la branche" STUB_PUSH_CUT=before STUB_PUSH_MATCH="push origin add-"
 expect_exit "coupure au push de la branche : exit 1" 1
 # The copy of the marketplace goes back to main, its branch emptied: the entry is to be written again.
-work_clone="$TMPDIR/plugin-plugin-release/$NAME2/claude-plugins"
+work_clone="$TMPDIR/plugin-plugin-release/$NAME2/add-$NAME2"
 trial "$work_clone" && git -C "$work_clone" switch -q main && git -C "$work_clone" branch -qf "add-$NAME2" origin/main
 pp publish "$c"
 expect_line "reprise : l'entrée est à refaire" '^prochaine étape — gestes 10 à 12, dont 1 vers GitHub :$'
@@ -393,6 +425,7 @@ git clone -q "$GITHUB/claude-plugins.git" "$merged" && git -C "$merged" merge -q
   && git -C "$merged" push -q origin main 2>/dev/null
 mkdir -p "$p/skills/extra"
 sed 's/^name: demo$/name: extra/; s/^# demo$/# extra/' "$p/skills/demo/SKILL.md" >"$p/skills/extra/SKILL.md"
+printf -- '- Skill `extra`.\n' >>"$p/README.md"
 awk '/^## \[/ && !done { print "## [à venir] — en cours\n\n### Ajouté\n\n- Skill `extra`.\n"; done = 1 } { print }' "$p/CHANGELOG.md" >"$p/c.tmp" && mv "$p/c.tmp" "$p/CHANGELOG.md"
 commit "$p" "feat: ajouter le skill extra"
 rm -f "$work/gh-gestures.log"
@@ -408,6 +441,64 @@ expect_line "mise à jour sur chaque appareil" "^  claude plugin update $NAME@so
 [[ ! -s $work/gh-gestures.log ]] && pass "mise à jour : ni dépôt ni PR" || fail "mise à jour : ni dépôt ni PR" "$(cat "$work/gh-gestures.log")"
 [[ -n $(remote tag -l "$NAME--v0.2.0") && $(remote rev-parse main) == "$(git -C "$p" rev-parse "$NAME--v0.2.0^{commit}")" ]] \
   && pass "mise à jour : main et étiquette poussés" || fail "mise à jour : main et étiquette poussés"
+remote show "$NAME--v0.2.0:README.md" | grep -qF 'Version **0.2.0**' && pass "mise à jour : le README publié porte 0.2.0 (US-36)" \
+  || fail "mise à jour : le README publié porte 0.2.0 (US-36)"
+
+echo "# alignement des descriptions, rien à publier (US-37)"
+# The descriptions drift on GitHub: the repository's, edited by hand; the entry and the README line
+# of the marketplace, on main.
+printf 'Ancienne description.' >"$GITHUB/$NAME.description"
+git -C "$merged" pull -q --ff-only
+jq --arg n "$NAME" '(.plugins[] | select(.name == $n) | .description) = "Ancienne description."' \
+  "$merged/.claude-plugin/marketplace.json" >"$merged/m.tmp" && mv "$merged/m.tmp" "$merged/.claude-plugin/marketplace.json"
+sed -i "s/^| \`$NAME\` | Plugin d'essai\. |/| \`$NAME\` | Ancienne description. |/" "$merged/README.md"
+git -C "$merged" commit -qam "Soon : descriptions retouchées" && git -C "$merged" push -q origin main 2>/dev/null
+market_main=$(git --git-dir="$GITHUB/claude-plugins.git" rev-parse main)
+head_before=$(git -C "$p" rev-parse HEAD) tags_before=$(remote tag -l | paste -sd' ' -)
+rm -f "$work/gh-gestures.log" "$work/push.log"
+pp publish "$p"
+expect_exit "alignement : annonce" 0
+expect_line "alignement annoncé, à la version publiée" "^alignement : $NAME 0\.2\.0 \(étiquette $NAME--v0\.2\.0, publiée\) ; ni version, ni CHANGELOG, ni étiquette$"
+expect_line "alignement : la description du dépôt d'abord" '^prochaine étape — gestes 1 à 1, dont 1 vers GitHub :$'
+expect_line "geste 1 : gh repo edit" "^  1\. \[GitHub\] description du dépôt : gh repo edit soonlysoul/$NAME --description \"Plugin d'essai\.\"$"
+step "$p" "alignement, étape 1, réponse perdue" STUB_GH_CUT=after STUB_GH_MATCH="repo edit"
+expect_exit "description posée, réponse perdue : exit 1" 1
+expect_line "le geste coupé est nommé" "^échoué : 1\. \[GitHub\] description du dépôt"
+pp publish "$p"
+expect_exit "alignement : reprise" 0
+expect_line "la description posée est reconnue faite" '^déjà fait : 1\. \[GitHub\] description du dépôt'
+expect_line "alignement : la marketplace ensuite" '^prochaine étape — gestes 2 à 6, dont 1 vers GitHub :$'
+step "$p" "alignement, étape 2"
+expect_exit "alignement, étape 2 : exit 0" 0
+step "$p" "alignement, étape 7"
+expect_exit "alignement, étape 7 (PR) : exit 0" 0
+expect_line "alignement terminé" "^alignement terminé : $NAME 0\.2\.0, 7 gestes faits$"
+expect_line "après la fusion, sur chaque appareil" '^  claude plugin marketplace update soon$'
+[[ $(cat "$GITHUB/$NAME.description") == "Plugin d'essai." ]] && pass "alignement : la description du dépôt est celle de plugin.json" \
+  || fail "alignement : la description du dépôt est celle de plugin.json" "$(cat "$GITHUB/$NAME.description")"
+[[ $(count "$work/gh-gestures.log" '^repo edit') == 1 ]] && pass "alignement : gh repo edit une seule fois" || fail "alignement : gh repo edit une seule fois" "$(cat "$work/gh-gestures.log")"
+branch="align-$NAME-0.2.0"
+git --git-dir="$GITHUB/claude-plugins.git" show "$branch:.claude-plugin/marketplace.json" 2>/dev/null |
+  jq -e --arg n "$NAME" '[.plugins[] | select(.name == $n)] == [{name: $n, source: {source: "github", repo: "soonlysoul/\($n)"}, description: "Plugin d'"'"'essai."}]' >/dev/null \
+  && pass "alignement : l'entrée réécrite sur $branch, une seule" || fail "alignement : l'entrée réécrite sur $branch, une seule"
+readme=$(git --git-dir="$GITHUB/claude-plugins.git" show "$branch:README.md" 2>/dev/null)
+grep -qFx "| \`$NAME\` | Plugin d'essai. | [soonlysoul/$NAME](https://github.com/soonlysoul/$NAME) |" <<<"$readme" \
+  && ! grep -qF 'Ancienne description.' <<<"$readme" && pass "alignement : la ligne du README réécrite" || fail "alignement : la ligne du README réécrite"
+[[ $(grep -cFx "claude plugin install $NAME@soon --scope user" <<<"$readme") == 1 ]] && pass "alignement : la commande d'installation n'est pas doublée" \
+  || fail "alignement : la commande d'installation n'est pas doublée"
+[[ $(git --git-dir="$GITHUB/claude-plugins.git" rev-parse main) == "$market_main" ]] && pass "alignement : main de la marketplace inchangé" \
+  || fail "alignement : main de la marketplace inchangé"
+[[ $(tail -n 1 "$GITHUB/prs") == "$branch	main	Aligner la description de $NAME" ]] && pass "alignement : une PR, de $branch vers main" \
+  || fail "alignement : une PR, de $branch vers main" "$(tail -n 1 "$GITHUB/prs")"
+[[ $(git -C "$p" rev-parse HEAD) == "$head_before" && $(remote tag -l | paste -sd' ' -) == "$tags_before" && -z $(git -C "$p" status --porcelain) ]] \
+  && pass "alignement : ni commit, ni étiquette, arbre propre" || fail "alignement : ni commit, ni étiquette, arbre propre"
+[[ $(cat "$work/push.log") == "-C $work/tmp/plugin-plugin-release/$NAME/$branch push origin $branch" ]] \
+  && pass "alignement : seul le push de la branche" || fail "alignement : seul le push de la branche" "$(cat "$work/push.log")"
+[[ $(gestures_log "$p" | grep -c $'\talignement [0-9]*\t.*\tfait\texit 0\t') == 6 ]] && pass "journal : l'alignement à part, 6 faits et un déjà fait" \
+  || fail "journal : l'alignement à part, 6 faits et un déjà fait" "$(gestures_log "$p" | grep alignement)"
+pp release "$p"
+expect_exit "PR d'alignement ouverte : nouvelle répétition refusée" 1
+expect_line "la PR ouverte est nommée" "refusé : la branche $branch est déjà sur GitHub \(soonlysoul/claude-plugins\) ; PR ouverte : https://github\.com/soonlysoul/claude-plugins/pull/[0-9]+"
 
 echo "# montage en sous-module (US-26)"
 host="$work/hote"

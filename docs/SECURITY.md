@@ -13,7 +13,7 @@ Même annoncé, même accordé :
 
 ## Les gestes GitHub : annoncés, accordés, une fois
 
-Création de dépôt, push, push d'étiquette, PR : chaque étape de publication est annoncée par `pp.sh publish` avec ses commandes exactes, puis :
+Création de dépôt, push, push d'étiquette, description du dépôt, PR : chaque étape de publication ou d'alignement est annoncée par `pp.sh publish` avec ses commandes exactes, puis :
 
 1. `consent-capture` (UserPromptSubmit, fail-open) lit le message tapé juste après. Un « oui » littéral est consigné dans `.plugin-plugin/consents.log` ; toute autre réponse, ou trente minutes sans réponse, retire l'annonce.
 2. `gesture-guard` (PreToolUse, fail-closed) ne laisse passer un geste que s'il est la commande annoncée et que son accord est consigné ; l'annonce est alors consommée, le geste passe une fois. Le journal des accords ne s'écrit par aucun outil de Claude.

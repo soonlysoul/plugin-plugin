@@ -967,3 +967,53 @@ Demande de Soon, le 2026-10-20 : remplacer l'ancien plugin-nixos de la marketpla
 | --- | --- | --- | --- |
 | ROUGE | `bash tests/integration/test_release.sh` | 1 | 103 réussis, 2 échoués : « forme shell entre guillemets, puis exec : correctif », « aucun hook retiré au CHANGELOG » (`- Hook \`garde\`.` présent) |
 | VERT | même test | 0 | 105 réussis, 0 échoué |
+
+## Phase 18 — Descriptions et documents tenus à chaque publication — en cours
+
+Demande de Soon, le 2026-10-20 : « plugin-plugin doit mettre à jour les documents, les descriptions GitHub et la marketplace GitHub claude-plugins ». `release` ne posait une description qu'à la première publication (`gh repo create --description`, l'entrée ajoutée à la marketplace) ; une mise à jour ne touchait ni GitHub ni la marketplace.
+
+État relevé le même jour, par `gh` :
+
+| Surface | plugin-plugin | plugin-nixos | plugin-flutter |
+| --- | --- | --- | --- |
+| Description du dépôt GitHub | vide (dépôt créé hors des gestes annoncés) | courte, ≠ `plugin.json` | en français, sans l'adoption ni les mises à jour de la 0.3.0 |
+| Entrée de `soonlysoul/claude-plugins` | = `plugin.json` | ≠ `plugin.json` | celle d'avant la 0.3.0 |
+| README de la marketplace | absent du tableau et des commandes d'installation | ligne à part | ligne d'avant la 0.3.0 |
+| README du plugin | « Version **0.1.0**, en construction » | à jour | à jour |
+
+- [x] Cadrage : quatre choix de Soon, chacun la recommandation — `plugin.json` pour seule source, recopiée telle quelle ; version écrite et composants exigés dans le README ; alignement sans version ; description seule sur GitHub, ni topics ni page d'accueil.
+- [x] PRD amendé (US-35 à US-37, critère 10, deux décisions, hors périmètre) et PLAN (décision h, phase 18), approuvés par Soon (« je valide ») : `pp.sh approve`, exit 0 pour chacun, empreintes dans `.plugin-plugin/approvals.log`.
+- [x] Tests écrits avant le code, vus rouges, puis verts (ci-dessous).
+- [x] Skill `release`, README, `docs/` (USER_GUIDE, SECURITY, TROUBLESHOOTING, ARCHITECTURE), CHANGELOG `[à venir]`, deux faits nouveaux et un corrigé dans la base.
+- [ ] `docs/ARCHITECTURE.md` réapprouvé : sa ligne `release` a changé, il est repassé en REVUE.
+- [ ] plugin-plugin publié par ce chemin ; plugin-nixos aligné ; plugin-flutter aligné après l'ajout des entrées `.plugin-plugin/` à son `.gitignore` ; PR fusionnées par Soon (critère 10).
+
+### Ce que fait `release` désormais
+
+- Répétition : la description de `plugin.json` est refusée absente, sur plusieurs lignes ou au-delà de 350 caractères (comptés par `jq`, en caractères) ; un README sans `Version **X.Y.Z**`, ou qui ne nomme pas un composant, est refusé, les composants nommés.
+- Lus sur GitHub : la description du dépôt, l'entrée et le README de la marketplace. Une ligne `descriptions :` dit « alignées sur plugin.json », ou nomme chaque surface qui diverge.
+- Gestes ajoutés : `gh repo edit … --description` après le push de l'étiquette ; pour un plugin listé qui diverge, une copie, une branche `align-<nom>-<version>`, `marketplace-entry --update`, un commit, un push, une PR. Un plugin nouveau reçoit sa ligne et sa commande d'installation dans la PR d'ajout.
+- `release-write` écrit la version dans le README et la description dans la marketplace locale ; le commit de version ne nomme que les fichiers qu'il a changés.
+- Rien depuis l'étiquette mais des descriptions en retard : un alignement, sans version, ni CHANGELOG, ni étiquette ; annonces `align …` et journal `alignement N`, à part de la publication de la même étiquette.
+- Une branche de marketplace déjà sur GitHub est refusée à la répétition, sa PR ouverte nommée.
+
+### Défaut de conception relevé par les tests, corrigé
+
+La copie de la marketplace vivait dans `…/plugin-plugin-release/<nom>/claude-plugins` : une deuxième PR du même plugin serait repartie de la copie de la première, encore sur sa branche. Elle vit désormais dans un dossier par branche (`…/<nom>/<branche>`).
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/integration/test_release.sh` | 1 | 129 réussis, 54 échoués : chaque refus, l'écriture du README et de la marketplace locale, `--update`, les gestes d'alignement, l'alignement seul |
+| ROUGE | `bash tests/integration/test_publish.sh` | 1 | 125 réussis, 36 échoués : la ligne du README de la marketplace, la copie par branche, l'alignement de bout en bout, sa coupure, la PR ouverte nommée |
+| VERT | `bash tests/integration/test_release.sh` | 0 | 183 réussis, 0 échoué |
+| VERT | `bash tests/integration/test_publish.sh` | 0 | 155 réussis, 0 échoué |
+
+Deux pièges des doublures, pris pendant le passage au vert, sans effet sur `pp.sh` : `"${VAR-Plugin d'essai.}"` entre guillemets doubles, où bash lit l'apostrophe comme un guillemet ; et la fonction `cut` de la doublure de `gh` (la coupure réseau simulée), qui masquait `/usr/bin/cut`.
+
+Faux positif de `gesture-guard`, de nouveau : un heredoc qui ajoutait cette section à PROGRESS.md, et qui contenait `gh repo create`, a été bloqué ; rien n'a été exécuté. Ajoutée par l'outil Edit.
+
+Suite complète, premier passage : `bash tests/run-all.sh`, exit 1 — réussies 30, échouées 2 (`tests/static/test_paths.sh` : shellcheck SC2046 sur `$( ((listed)) && echo --update)` non cité, dans `cmd_release` ; `tests/static/test_run_all.sh`, par ricochet). Corrigé par un tableau d'options. Second passage : exit 0 — réussies 32, échouées 0, sautées 1 (`agents` absent), bloquées 0, alertes 0 ; coût permanent 880 tokens, inchangé (critère 9).
+
+Répétitions sur les vrais dépôts, rien d'envoyé : `bash scripts/pp.sh release ../plugin-nixos`, exit 0 — un alignement, sept gestes (description du dépôt, puis copie, branche `align-plugin-nixos-0.2.0`, entrée, commit, push, PR). Sur une copie jetable du vrai README de la marketplace, `marketplace-entry --update` pour plugin-nixos puis plugin-plugin ne change que la ligne de plugin-nixos, ajoute celle de plugin-plugin et sa commande d'installation ; le reste est intact. Les deux PR touchent des lignes voisines du tableau : la seconde se répète après la fusion de la première.
