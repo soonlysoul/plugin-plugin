@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "name": "add-new-plugin",
+  "description": "Un nouveau plugin se cadre, puis se crée : ce n'est pas un composant ajouté à un plugin existant.",
+  "tags": [
+    "add",
+    "negative"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill add n'est pas invoqué ; la réponse traite la demande comme un nouveau plugin à cadrer.",
+  "context": {
+    "scaffold_script": "setup.sh"
+  },
+  "execution": {
+    "prompt": "crée-moi un nouveau plugin plugin-notes pour prendre des notes",
+    "max_turns": 6,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Glob",
+      "Grep"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-not-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?add\"",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "not-a-component",
+      "type": "llm",
+      "criteria": "PASS if the final reply treats the request as a new plugin to frame or create (asking a framing question, or pointing to the framing), and does not treat it as adding a component to an existing plugin.\nFAIL if it starts adding a skill, hook, agent or MCP server to plugin-changelog or another existing plugin.\n"
+    }
+  ]
+}

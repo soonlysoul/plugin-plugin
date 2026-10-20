@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "name": "add-changelog-line",
+  "description": "« ajoute » et le nom d'un hook, mais une ligne de journal à écrire, pas un composant à créer.",
+  "tags": [
+    "add",
+    "negative"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill add n'est pas invoqué ; la réponse traite la demande comme une ligne de CHANGELOG, sans ajouter de hook.",
+  "context": {
+    "scaffold_script": "setup.sh"
+  },
+  "execution": {
+    "prompt": "ajoute une ligne au CHANGELOG de plugin-changelog pour le hook changelog-guard",
+    "max_turns": 6,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Glob",
+      "Grep"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-not-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?add\"",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "not-a-component",
+      "type": "llm",
+      "criteria": "PASS if the final reply treats the request as a line to add to CHANGELOG.md (drafting or proposing that line), and does not start adding a hook (no test, no hook file, no hook procedure).\nFAIL if it treats the request as creating or adding the hook changelog-guard.\n"
+    }
+  ]
+}

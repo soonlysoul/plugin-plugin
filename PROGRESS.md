@@ -5,17 +5,22 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7 à 14 terminées**. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Coût permanent 824 tokens.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phases 6 à 15 terminées.** Le passage réel de la phase 6, payant, est celui du skill du témoin de la phase 15 (choix de Soon) ; les phases 7 à 12 n'en dépendaient pas. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Phase 15 : le témoin `plugin-changelog` — un skill, un hook, un agent — construit par plugin-plugin du cadrage à la répétition de publication, 26 interventions de Soon, toutes demandées ; il a révélé deux écarts de plugin-plugin, corrigés. Prochaine étape : la phase 16, clôture de 0.1.0 puis publication de 0.1.1. Coût permanent 824 tokens.
 
-**Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes : à recueillir auprès de Soon avant d'écrire `evals/add/`.
+**Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes. **Décision de Soon, le 2026-10-20** : ils viennent de la phase 15 — les demandes tapées pour ajouter le skill, l'agent et le hook du témoin font les cas positifs ; un ou deux négatifs proposés, validés par Soon. **Fermé en phase 15** : `evals/add/`, cinq cas, conforme à `check-evals`, non lancé (choix de Soon).
 
 **Incident de la phase 11, réparé** — le 2026-10-20, une exécution du nouveau test `test_release` a commité dans le dépôt de plugin-plugin lui-même (`ed9b9df`, local, jamais poussé : aucune branche distante ne le contient). Un `git commit` sans rien à valider avait écrit sur la sortie standard, capturée avec le chemin du plugin d'essai ; le test a créé un dossier relatif dans plugin-plugin, et `git add -A` y a pris tout l'arbre. Défait par `git reset --soft HEAD~1` puis `git reset` (arbre de travail intact, commit gardé au reflog), dossier parasite retiré. Le test travaille désormais depuis son dossier jetable, sous `GIT_CEILING_DIRECTORIES`, et refuse tout commit hors d'un dépôt d'essai. L'échec de `release-write` qui l'a déclenché n'a pas été reproduit (18 appels simultanés de `plugin details` sans échec) : s'il revient, le test en montre la sortie.
 
-**Hors de cette phase** — l'arbre de travail portait déjà, à la reprise, la perte du bit d'exécution des quatre scripts de `.claude/hooks/` (100755 → 100644). Non touché, non commité : à trancher par Soon.
+**Bits d'exécution de `.claude/hooks/`, réparés le 2026-10-20** — les quatre scripts avaient perdu leur bit d'exécution dans l'arbre de travail (100755 → 100644). `settings.json` les appelant directement, `block-dangerous-commands` et `check-secrets` échouaient sans bloquer : inactifs dans ce projet. Restaurés par `chmod +x` (choix de Soon) : l'arbre est identique au commit, rien à commiter.
 
-**À trancher par Soon** — le plan approuvé affirme, dans « Tests et validation », que `claude plugin validate .` ne valide que la marketplace. Mesuré en phase 2 : c'est faux sur 2.1.296 (voir ci-dessous). Rien ne casse — la suite valide toujours chaque cible —, mais la phrase du plan est à corriger, ce qui le repasse en revue. Le plan n'a pas été modifié.
+**Errata du plan, à corriger en une fois à la clôture (phase 16, choix de Soon le 2026-10-20)** — une seule revue, une seule approbation :
 
-**À confirmer par Soon (phase 14)** — le plan veut l'original intact « dans le clone comme dans le sous-module de `~/Documents/Nixos` ». Ce dossier n'existe pas ; `~/Nixos` est le dépôt nixos-config, sans sous-module, et aucun `.gitmodules` sous `~` ne cite plugin-nixos. Seul le clone a pu être prouvé intact.
+- « Tests et validation » affirme que `claude plugin validate .` ne valide que la marketplace. Mesuré en phase 2 : c'est faux sur 2.1.296 (voir ci-dessous). Rien ne casse : la suite valide toujours chaque cible.
+- La phase 14 veut l'original intact « dans le clone comme dans le sous-module de `~/Documents/Nixos` ». Ce dossier n'existe pas ; `~/Nixos` est le dépôt nixos-config, sans sous-module, et aucun `.gitmodules` sous `~` ne cite plugin-nixos. Seul le clone a pu être prouvé intact ; le volet sous-module est **sans objet sur ce poste** (Soon, le 2026-10-20).
+
+**Restes de l'incident de la phase 13** — `/tmp/tmp.TkiXQogIFk`, environ 14 Go de nix, sur le disque racine. Le garde interdit à Claude de l'effacer hors de `build/` : Soon l'efface lui-même (choix du 2026-10-20).
+
+**plugin-nixos et Claude Code 2.1.223 — à trancher plus tard** (Soon, le 2026-10-20) : sans effet en v0.1, la réécriture n'étant jamais publiée ; rouvert le jour où plugin-nixos passe réellement au modèle (voir phase 14).
 
 Mesures de référence : Claude Code 2.1.296.
 
@@ -223,7 +228,7 @@ Copies faussées dans `build/mutants/p5/`, une ligne changée chacune :
 | le rappel ignore `stop_hook_active` | test_checkpoint_reminder | « stop_hook_active : silencieux, un seul rappel » |
 | le rappel ne met plus `.plugin-plugin/` à part | test_checkpoint_reminder | « seul .plugin-plugin/ a changé : silencieux » |
 
-## Phase 6 — Ajouter un skill avec son évaluation — faite, sauf le passage réel
+## Phase 6 — Ajouter un skill avec son évaluation — terminée
 
 - [x] `pp.sh check-evals <plugin> <skill>` vérifie une suite sans la lancer : `case.yaml` écrit en JSON (sous-ensemble du YAML, lu par `jq` sans autre dépendance), `schema_version` `"1.0"`, nom préfixé par le skill, `runs` ≥ 3 déclaré, `execution.prompt`, au moins un correcteur de résultat par cas (pas une regex sur la trace), au moins un cas positif et un cas négatif par suite, un négatif en `min: 0`, `max: 0`, `arm: both`. Chaque règle manquante produit un refus qui la nomme (US-10). Les suites des phases 2 à 5, converties en JSON, la passent.
 - [x] `pp.sh check-skill` : analyseur strict d'en-tête repris de plugin-flutter (sept formes cassées refusées), forme du modèle (`Use when …`, `not for …`, phrase française citée), `allowed-tools` refusé, 1 536 caractères au plus, moins de 500 lignes, aucun `$0`–`$9`. Il a trouvé un vrai écart : la description de `resume` disait « Use to », corrigée.
@@ -232,17 +237,17 @@ Copies faussées dans `build/mutants/p5/`, une ligne changée chacune :
 - [x] `pp.sh eval-verdict` : un cas positif que le témoin réussit est refusé (US-9) ; un cas qui exige Bash sans bwrap ni socat est « bloqué : bwrap absent », jamais réussi (US-12) ; une erreur de bac à sable, « bloqué » ; un passage partiel, « partiel ».
 - [x] Skill `add` (volet skill, détails dans `skills/add/reference/skill.md`).
 - [x] Sonde : confiance hors terminal interactif (ci-dessous).
-- [ ] Sonde : compte annoncé par `claude auth status`, comparé au titulaire réel — **en attente**.
-- [ ] Sonde : autres plugins installés chargés dans le bras témoin — **en attente du passage réel** (`--keep-temp`).
-- [ ] Premier passage réel, sur accord : rouge avant le skill, vert avec Δ > 0 (critères 4, 5) — **en attente de l'accord de Soon**.
+- [x] Sonde : compte annoncé par `claude auth status` — consignée (ci-dessous) ; le titulaire réel n'est pas prouvé, geste laissé à Soon.
+- [x] Sonde : autres plugins installés dans le bras témoin — aucun n'est chargé (traces `--keep-temp` du passage réel, ci-dessous).
+- [x] Premier passage réel, sur accord : rouge avant le skill, vert avec Δ +1.00 (critères 4, 5) — l'évaluation de `draft-entry`, skill du témoin de la phase 15 (voir « Phase 15 »).
 
 ### Sondes
 
 | Sonde | Commande | Résultat |
 | --- | --- | --- |
 | Confiance hors terminal | `claude plugin eval build/temoin-p6/plugin-codenames --case 'aucun-*' --no-publish --max-cost-usd 0.01 --ablation none --runs 1 </dev/null` | exit 1, avant tout chargement : « is not a trusted plugin directory, and this run cannot stop to ask you about it (no interactive terminal …) ». Aucune session, aucun coût. `eval-run` le dit désormais « bloqué », avec la commande gratuite qui approuve le dossier. |
-| Compte qui paie | `claude auth status --json` | Pour `~/.claude`, il annonce le compte pro (abonnement `pro`), alors que le CLAUDE.md du poste attribue `~/.claude` au compte ordinaire. Ce bloc peut ne pas dire le titulaire du jeton ; seul `/api/oauth/profile` tranche, avec le jeton du profil : non fait, geste sensible laissé à Soon. L'adresse n'est pas recopiée ici : ce dépôt sera public. |
-| Isolement du bras témoin | doc plugin-evals, « How runs are isolated » | La doc dit qu'aucun autre plugin installé n'est chargé dans une exécution : l'hypothèse du PRD (flutter-forge chargé dans le témoin) serait fausse. À confirmer par les traces du passage réel (`--keep-temp`). |
+| Compte qui paie | `claude auth status --json` | Pour `~/.claude`, il annonce le compte pro (abonnement `pro`), alors que le CLAUDE.md du poste attribue `~/.claude` au compte ordinaire. Ce bloc peut ne pas dire le titulaire du jeton ; seul `/api/oauth/profile` tranche, avec le jeton du profil : non fait, geste sensible laissé à Soon. L'adresse n'est pas recopiée ici : ce dépôt sera public. Le 2026-10-20, même profil, `claude auth status` et l'annonce du passage réel disent `max` : l'annonce suit la configuration du profil, Soon a accordé chaque passage en le sachant. |
+| Isolement du bras témoin | doc plugin-evals, « How runs are isolated » | La doc dit qu'aucun autre plugin installé n'est chargé dans une exécution : l'hypothèse du PRD (flutter-forge chargé dans le témoin) serait fausse. **Confirmé** par les traces du passage réel (`--keep-temp`, phase 15) : le `system/init` du bras témoin ne liste que `cc-plugin-sec-default`, `cc-plugin-agents-md` et `cc-plugin-plugin-authoring`, intégrés ; celui du bras avec plugin y ajoute `plugin-changelog`. |
 
 ### Témoin du premier passage réel
 
@@ -268,14 +273,18 @@ Copies faussées dans `build/mutants/p5/`, une ligne changée chacune :
 | Bash n'est plus détecté | test_evals | « Bash sans bwrap ni socat : exit 2 » |
 | `allowed-tools` accepté | test_frontmatter | « allowed-tools : refusé, règle nommée » |
 
-### Phase 6 — En attente
+### Phase 6 — Le passage réel
 
-Le passage réel exige trois gestes de Soon, dans cet ordre :
+Prévu ici en trois gestes de Soon, sur `plugin-codenames` :
 
 1. **Approuver le dossier du témoin, sans coût**, une fois, dans un terminal :
    `cd build/temoin-p6/plugin-codenames && claude plugin eval . --case 'aucun-*' --no-publish --max-cost-usd 0.01 --ablation none --runs 1`, puis répondre `y`.
 2. **Rouge** — un « oui » à cette annonce : 9 sessions (3 cas × 3 exécutions × 1 bras), 1,17 à 2,07 USD, plafond 3 USD, compte annoncé : le compte pro de `~/.claude` (voir la sonde).
 3. **Vert**, après l'écriture du skill — un « oui » à cette annonce : 18 sessions (3 cas × 3 exécutions × 2 bras), 2,34 à 4,14 USD, plafond proposé 4,5 USD.
+
+**Décisions de Soon, le 2026-10-20** : un seul passage réel couvre les phases 6 et 15 — l'évaluation du skill du témoin de la phase 15, rouge puis vert, vaut premier passage réel ; les deux sondes l'accompagnent ; `plugin-codenames` reste prêt, inutilisé. Le **compte qui paie est le compte pro**, seul profil du poste (`~/.claude`) et celui qu'annonce `claude auth status` : le CLAUDE.md qui attribuait `~/.claude` au compte ordinaire est introuvable.
+
+**Fait le 2026-10-20**, sur `draft-entry` du témoin `plugin-changelog` : rouge à un bras, 9 sessions, 0,62 USD, « verdict : rouge » ; vert à deux bras, 18 sessions, 1,16 USD, Δ +1.00 sur les deux positifs, « verdict : vert ». L'annonce disait `max`, non `pro` : signalé à Soon avant chaque « oui ». Détail dans « Phase 15 ».
 
 ## Phase 7 — Ajouter un hook testé sans session — terminée
 
@@ -771,3 +780,59 @@ Copies faussées dans `build/mutants/p14/`, une ligne changée chacune, `PLUGIN_
 | la recette écrit dans l'original | test_rewrite_nixos | « réécriture : exit 0 » — la recette le dit elle-même : « ÉCHEC : l'original a changé pendant la réécriture » |
 
 Deux défauts des tests eux-mêmes, trouvés par les copies faussées et corrigés : le `test_paths` d'un plugin créé, lancé directement par `test_create`, et les suites de la réécriture, lancées une à une par la recette, héritaient de `PLUGIN_UNDER_TEST` et vérifiaient la copie faussée au lieu de leur propre dossier ; ils l'effacent désormais (`env -u`, `unset`). Les échecs d'abord vus pour la copie qui hérite des descriptions ne prouvaient donc rien : rejouée après la correction, elle n'échoue plus que sur son cas.
+
+## Phase 15 — Plugin témoin de bout en bout — terminée
+
+Témoin : `plugin-changelog`, dans `build/temoin-p15`, son propre dépôt git (ignoré par plugin-plugin, jamais publié). Il rédige (skill `draft-entry`), garde (hook `changelog-guard`) et relit (agent `changelog-reviewer`) l'entrée « en cours » d'un CHANGELOG au format de la maison. Construit le 2026-10-20 dans une session VSCode, plugin-plugin chargé par une installation locale — `claude plugin marketplace add ./ --scope local`, `claude plugin install plugin-plugin@plugin-plugin --scope local`, dans `.claude/settings.local.json`, ignoré par git —, puis `/reload-plugins`. Quatre commits du témoin : `f3e445b` charpente, `619cb7d` hook, `d380a34` agent, `dd289c1` skill ; arbre propre.
+
+- [x] Cadrage approuvé avant tout fichier : six questions, une par message, recommandation en tête (besoin, hors périmètre, nom, langue des identifiants, composants, critères) ; PRD puis architecture approuvés chacun par un « oui » de Soon, passé tel quel à `pp.sh approve`. Création verte : « suite du plugin créé : exit 0 », réussies 7, échouées 0, sautées 2 (skills, agents absents).
+- [x] Un hook, un agent, un skill, chacun ajouté par `/plugin-plugin:add`, avec sa sortie rouge puis verte (tableau ci-dessous).
+- [x] Le skill s'évalue sans Bash (`Skill`, `Read`, `Glob`, `Grep`) : deux positifs, un négatif, choisis par Soon, trois exécutions chacun ; écart +1.00 sur les deux positifs contre le témoin sans plugin ; chaque passage annoncé — sessions, fourchette, plafond, compte — puis lancé sur un « oui ».
+- [x] Répétition de publication complète, rien d'envoyé (ci-dessous).
+- [x] Aucune retouche à la main d'un fichier du témoin ; 26 interventions de Soon, chacune demandée, comptées ci-dessous.
+- [x] Preuve de chargement : le `system/init` d'une exécution du bras avec plugin, gardée par `--keep-temp`, liste `plugin-changelog` (`plugin-changelog@inline`, 0.1.0) et le skill `plugin-changelog:draft-entry`, avec `plugin_errors: null`.
+
+### Rouge puis vert, dans le témoin
+
+| Composant | Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- | --- |
+| hook `changelog-guard` | ROUGE | `bash tests/hooks/test_changelog_guard.sh` (squelette) | 1 | 12 réussis, 11 échoués : chaque cas de la règle passe en exit 0 |
+| | ROUGE | même test, règle écrite | 1 | 22 réussis, 1 échoué : défaut du test (motif sans effet dans une substitution entre guillemets), corrigé ; rejoué sur le squelette seul : 13 réussis, 11 échoués |
+| | VERT | même test | 0 | 24 réussis, 0 échoué ; `run-all` : réussies 8, sautées 2, coût permanent 0 |
+| agent `changelog-reviewer` | ROUGE | `bash tests/static/test_agent_changelog_reviewer.sh` (agent absent) | 1 | 0 réussi, 1 échoué : `agents/changelog-reviewer.md` absent |
+| | VERT | même test ; `test_agent_scope_guard.sh` | 0 | 5 réussis ; garde de portée 13 réussis ; `pp.sh check-agent` conforme ; `run-all` : réussies 11, coût permanent 141 |
+| skill `draft-entry` | ROUGE | `pp.sh eval-run . draft-entry --one-arm --quote « oui »` (skill absent, 9 sessions) | 1 | positifs 0.00 (skill jamais appelé, format absent), négatif 1.00 ; « verdict : rouge » ; 0,62 USD |
+| | VERT | `pp.sh eval-run . draft-entry --keep-temp --max-cost 4.5 --quote « oui »` (18 sessions, deux bras) | 0 | `ajout-correction` et `modifie-retire` : avec 1.00, sans 0.00, Δ +1.00 ; `commit` 1.00 / 1.00 ; « verdict : vert » ; 1,16 USD |
+| | VERT | `bash tests/run-all.sh` | 0 | réussies 12, échouées 0, sautées 0, bloquées 0, alertes 0 ; coût permanent 350 tokens |
+
+Coût réel du passage : 1,78 USD pour 27 sessions, environ 0,07 USD par session, sous la fourchette de `eval-plan` (0,13 à 0,23) ; compte annoncé : `max`, signalé à Soon avant chaque « oui ».
+
+### Répétition de publication
+
+`/plugin-plugin:release build/temoin-p15`, tapé par Soon (le skill ne se lance que sur demande explicite) → `pp.sh release`, exit 0 : version 0.1.0 (première publication, version de `plugin.json`) ; validation stricte ok sur `.`, le manifeste, `skills` et `agents` ; suite du plugin exit 0 (réussies 12) ; coût permanent ~350 tokens, `draft-entry` ~200 (~850 à l'appel), `changelog-reviewer` ~150 (~630) ; entrée `## [0.1.0] — 2026-10-20` rédigée ; étiquette `plugin-changelog--v0.1.0` vérifiée par `claude plugin tag --dry-run` ; 13 gestes listés, dont 5 vers GitHub (création du dépôt, push de `main` et de l'étiquette, push de la branche de marketplace, PR), « aucun exécuté ». Après coup : arbre propre, aucune étiquette, aucun remote, `/tmp/plugin-plugin-release` absent.
+
+### Interventions de Soon
+
+26, chacune demandée : 3 pour la mise en place (installation locale, un passage payant pour les phases 6 et 15, `/reload-plugins`) ; 6 réponses d'interview ; 2 approbations ; le commit de la charpente ; pour le hook, la demande, le squelette, le commit ; pour l'agent, la demande, le modèle (`sonnet`), le commit ; pour le skill, la demande, deux positifs, un négatif, le passage rouge, le passage vert, le commit ; la répétition. Les trois demandes d'ajout ont été choisies par Soon parmi des formulations proposées, chacune sous un angle — par le besoin (hook), directe (agent), indirecte (skill) — ; elles font les positifs de `evals/add/`.
+
+### Écarts de plugin-plugin révélés par le témoin, corrigés
+
+| Écart | Dans le témoin | Correctif | Rouge | Vert |
+| --- | --- | --- | --- | --- |
+| n°1 — `init-state` refuse un dossier cible absent (« dossier existant ») : `frame` ne pouvait cadrer un plugin neuf sans un `mkdir` préalable | dossier vide créé par `mkdir` avant `init-state`, aucun fichier touché | `init-state` crée le dossier absent, un niveau seulement, et refuse un parent absent en le nommant ; `frame` l'accepte « empty or missing » | `test_frame` : 42 réussis, 3 échoués (« dossier absent : exit 0 », « … créé avec son état », « parent absent : le parent nommé ») | 45 réussis, 0 échoué |
+| n°2 — `add-agent` écrit « writes only under nothing » pour un agent sans dossier d'écriture, « Bash only nothing » pour un agent sans Bash | laissé tel quel dans `agents/changelog-reviewer.md` (aucune retouche à la main) | « writes nothing », « no Bash » | `test_add_agent` : 44 réussis, 2 échoués (les deux phrases fautives citées) | 46 réussis, 0 échoué |
+
+Suite de plugin-plugin après les correctifs, la base de faits et `evals/add/` : `bash tests/run-all.sh`, exit 0 — réussies 32, échouées 0, sautées 1, bloquées 0, alertes 0 ; coût permanent 824 tokens, inchangé.
+
+### Ce que la phase a appris, porté dans la base de faits
+
+- Une installation depuis une marketplace locale copie tout le dossier dans le cache, fichiers ignorés par git compris : 136 Mo pour plugin-plugin (`directory-marketplace-install-copies-ignored`).
+- Une session d'évaluation d'un skill court sans Bash coûte environ 0,07 USD (`eval-session-cost-short-skill`) ; la fourchette de `eval-plan` reste une majoration, gardée telle quelle.
+- `claude plugin eval` ne charge aucun plugin installé, dans aucun bras (`eval-arms-load-no-installed-plugins`).
+- `claude auth status` a annoncé `pro` le 2026-10-19, `max` le 2026-10-20, pour le même profil (note sur `auth-status-announced-account`, toujours à vérifier).
+
+### Écart de la phase 9, fermé
+
+`evals/add/` : cinq cas, écrits et vérifiés par `pp.sh check-evals . add` (« conforme : 5 cas (3 positifs, 2 négatifs), 3 exécutions par cas au moins »), sans être lancés (choix de Soon). Positifs : les trois demandes du témoin, telles que choisies — hook, agent, skill désigné par l'architecture —, sur un `plugin-changelog` posé par `setup.sh`. Négatifs, validés par Soon : « ajoute une ligne au CHANGELOG de plugin-changelog pour le hook changelog-guard » (« ajoute » et un nom de hook, mais une ligne de journal) et « crée-moi un nouveau plugin plugin-notes pour prendre des notes » (le terrain de `frame`).
+
+Non fait, par choix de Soon : l'exécution réelle de l'agent `changelog-reviewer` sur un dépôt d'essai — ses tests et son garde de portée suffisent à la phase.

@@ -34,6 +34,15 @@ printf 'trace\n' >>"$target/.plugin-plugin/decisions.md"
 run_pp init-state "$target"
 expect_pp "init-state relancé : exit 0" 0
 grep -q '^trace$' "$target/.plugin-plugin/decisions.md" && pass "init-state relancé : n'écrase rien" || fail "init-state relancé : n'écrase rien"
+# A plugin framed for the first time has no folder yet: init-state creates it, one level only.
+run_pp init-state "$work/plugin-neuf"
+expect_pp "init-state, dossier absent : exit 0" 0
+[[ -f $work/plugin-neuf/.plugin-plugin/approvals.log ]] && pass "init-state, dossier absent : créé avec son état" \
+  || fail "init-state, dossier absent : créé avec son état" "$PP_OUTPUT"
+run_pp init-state "$work/absent/plugin-neuf"
+expect_pp "init-state, parent absent : refusé" 1
+expect_output "init-state, parent absent : le parent nommé" "$work/absent"
+[[ ! -e $work/absent ]] && pass "init-state, parent absent : rien de créé" || fail "init-state, parent absent : rien de créé"
 
 echo "# check-name"
 run_pp check-name plugin-notes

@@ -962,7 +962,8 @@
     "date": "2026-10-19",
     "source": "plugin-plugin, sonde de phase 6 ; CLAUDE.md du poste (oauthAccount trompeur, mesuré le 2026-08-31)",
     "recheck": "comparer claude auth status --json et /api/oauth/profile appelé avec le jeton du profil",
-    "status": "à vérifier"
+    "status": "à vérifier",
+    "note": "Même profil (~/.claude), deux lectures : abonnement « pro » le 2026-10-19 (sonde de phase 6), « max » le 2026-10-20 (annonce du passage réel de la phase 15). L'annonce suit la configuration du profil ; le titulaire n'est toujours pas prouvé."
   },
   {
     "id": "mcp-validated-with-manifest",
@@ -1158,6 +1159,33 @@
     "date": "2026-10-20",
     "source": "plugin-plugin, phase 14 (réécriture de plugin-nixos)",
     "recheck": "claude --plugin-dir <clone de plugin-nixos> plugin details plugin-nixos",
+    "status": "confirmé"
+  },
+  {
+    "id": "directory-marketplace-install-copies-ignored",
+    "statement": "Une installation depuis une marketplace locale (source directory, claude plugin install … --scope local) copie tout le dossier du plugin dans ~/.claude/plugins/cache/, fichiers ignorés par git compris : 136 Mo pour plugin-plugin (build/, .superpowers/, .claude/).",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, phase 15 (installation locale pour la session du témoin)",
+    "recheck": "claude plugin marketplace add ./ --scope local ; claude plugin install <nom>@<marketplace> --scope local ; du -sh ~/.claude/plugins/cache/<marketplace>",
+    "status": "confirmé"
+  },
+  {
+    "id": "eval-session-cost-short-skill",
+    "statement": "Une session de claude plugin eval pour un skill court sans Bash (max_turns 4 à 6, outils Skill, Read, Glob, Grep) coûte environ 0,07 USD : 0,62 USD pour 9 sessions à un bras, 1,16 USD pour 18 à deux bras. La fourchette annoncée par pp.sh eval-plan (0,13 à 0,23 USD par session) la majore.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, passage réel de la phase 15 (evals/draft-entry du témoin plugin-changelog)",
+    "recheck": "pp.sh eval-run <plugin> <skill> --quote « oui » ; coût total du rapport divisé par le nombre de sessions",
+    "status": "confirmé"
+  },
+  {
+    "id": "eval-arms-load-no-installed-plugins",
+    "statement": "claude plugin eval ne charge aucun plugin installé : le system/init du bras témoin ne liste que les plugins intégrés cc-plugin-sec-default, cc-plugin-agents-md et cc-plugin-plugin-authoring ; le bras avec plugin y ajoute le plugin évalué, en <nom>@inline, et plugin_errors vaut null.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 6 menée au passage réel de la phase 15 (traces gardées par --keep-temp)",
+    "recheck": "claude plugin eval … --keep-temp ; lire l'événement system/init de la trace d'une exécution de chaque bras",
     "status": "confirmé"
   }
 ]

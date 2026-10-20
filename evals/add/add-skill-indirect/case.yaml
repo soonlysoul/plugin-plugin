@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "name": "add-skill-indirect",
+  "description": "Demande de Soon, telle qu'il l'a tapée en phase 15 : le composant désigné par l'architecture, sans son type ni son nom.",
+  "tags": [
+    "add",
+    "positive"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill add est invoqué pour le skill draft-entry, lu dans docs/ARCHITECTURE.md ; aucun skill n'est écrit avant sa suite d'évaluation.",
+  "context": {
+    "scaffold_script": "setup.sh"
+  },
+  "execution": {
+    "prompt": "passons au dernier composant de l'archi de plugin-changelog, celui qui rédige l'entrée en cours",
+    "max_turns": 8,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Glob",
+      "Grep"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?add\""
+    },
+    {
+      "name": "component-recognised",
+      "type": "llm",
+      "criteria": "PASS if the final reply identifies the component as the skill draft-entry of plugin-changelog and treats the request as adding it (checking the plugin, or asking for the requests that must trigger it), without claiming the skill is written.\nFAIL if it names another component, claims to have written the skill, or drafts a CHANGELOG entry instead.\n"
+    },
+    {
+      "name": "nothing-written-before-its-test",
+      "type": "file_exists",
+      "path": "plugin-changelog/skills/**",
+      "exists": false
+    }
+  ]
+}

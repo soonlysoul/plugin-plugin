@@ -206,7 +206,12 @@ cmd_reaudit() {
 
 # State of a managed project: .plugin-plugin/ beside docs/, never in the installed plugin.
 cmd_init_state() {
-  [[ $# == 1 && -d $1 ]] || die "usage : pp.sh init-state DOSSIER (dossier existant)"
+  [[ $# == 1 && -n $1 ]] || die "usage : pp.sh init-state DOSSIER"
+  # A plugin framed for the first time has no folder yet: created, one level only.
+  if [[ ! -d $1 ]]; then
+    [[ -d $(dirname -- "$1") ]] || die "refusé : le dossier parent $(dirname -- "$1") n'existe pas."
+    mkdir -- "$1" || die "échec : impossible de créer $1"
+  fi
   local state="$1/.plugin-plugin"
   mkdir -p "$state" || die "échec : impossible de créer $state"
   [[ -e $state/approvals.log ]] || : >"$state/approvals.log"
@@ -1245,9 +1250,9 @@ cmd_add_agent() {
     printf '## Responsibilities\n\nTODO: the one bounded task this agent does for the main session.\n\n'
     printf '## Approach\n\nTODO: the steps, in order.'
     if ((scoped)); then
-      printf ' Scope, enforced by the agent-scope-guard hook: writes only under %s; Bash only %s.' \
-        "$(jq -r 'if length == 0 then "nothing" else map("`\(.)`") | join(", ") end' <<<"$writes_json")" \
-        "$(jq -r 'if length == 0 then "nothing" else map("`\(.)`") | join(", ") end' <<<"$bash_json")"
+      printf ' Scope, enforced by the agent-scope-guard hook: %s; %s.' \
+        "$(jq -r 'if length == 0 then "writes nothing" else "writes only under " + (map("`\(.)`") | join(", ")) end' <<<"$writes_json")" \
+        "$(jq -r 'if length == 0 then "no Bash" else "Bash only " + (map("`\(.)`") | join(", ")) end' <<<"$bash_json")"
     fi
     printf '\n\n## Output format\n\nEnd with this report, and nothing after it:\n\n'
     printf 'STATUS: done | blocked | failed\nFILES_CHANGED: <paths, or none>\nCOMMANDS_RUN: <command → exit code, one per line, or none>\nOPEN_QUESTIONS: <questions for the main session, or none>\n'

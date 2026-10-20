@@ -15,7 +15,7 @@ Nothing of the plugin is written before its PRD and architecture are approved. T
 
 ## Step 1 — Target folder and state
 
-Take the target folder from the arguments, or ask for it. It must be empty, or hold only a previous framing (`docs/`, `.plugin-plugin/`). Otherwise stop and say why.
+Take the target folder from the arguments, or ask for it. It must be empty or missing, or hold only a previous framing (`docs/`, `.plugin-plugin/`). Otherwise stop and say why.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" init-state <folder>`. When `docs/PRD.md` already exists, read its status with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" status <folder>/docs/PRD.md` and resume from the first open question.
 

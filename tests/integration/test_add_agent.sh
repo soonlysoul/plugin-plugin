@@ -92,6 +92,15 @@ expect_pp "second agent qui écrit : exit 0" 0
   && pass "un seul garde pour tous les agents" || fail "un seul garde pour tous les agents"
 run_pp add-agent "$plugin" --name code-reviewer --tools "Read, Grep, Bash" --model sonnet --bash "git diff"
 expect_pp "relecteur à Bash restreint : exit 0" 0
+# The scope sentence of the agent's approach, in words a reader takes as written.
+scope_sentence() { grep -o 'Scope, enforced by the agent-scope-guard hook: [^.]*\.' "$plugin/agents/$1.md"; }
+for expected in 'doc-writer|writes only under `docs/`; Bash only `git diff`, `git log`.' \
+  'test-writer|writes only under `tests/`; no Bash.' \
+  'code-reviewer|writes nothing; Bash only `git diff`.'; do
+  agent=${expected%%|*} sentence="Scope, enforced by the agent-scope-guard hook: ${expected#*|}"
+  [[ $(scope_sentence "$agent") == "$sentence" ]] && pass "portée de $agent : « ${expected#*|} »" \
+    || fail "portée de $agent : « ${expected#*|} »" "$(scope_sentence "$agent")"
+done
 
 echo "# le garde de portée"
 GUARD="$plugin/hooks/scripts/agent-scope-guard.sh"

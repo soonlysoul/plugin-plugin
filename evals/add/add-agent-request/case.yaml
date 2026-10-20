@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "name": "add-agent-request",
+  "description": "Demande de Soon, telle qu'il l'a tapée en phase 15 : un agent nommé, à ajouter à un plugin existant.",
+  "tags": [
+    "add",
+    "positive"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill add est invoqué pour l'agent changelog-reviewer de plugin-changelog ; l'agent n'est pas écrit avant son test.",
+  "context": {
+    "scaffold_script": "setup.sh"
+  },
+  "execution": {
+    "prompt": "ajoute l'agent changelog-reviewer à plugin-changelog",
+    "max_turns": 8,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Glob",
+      "Grep"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?add\""
+    },
+    {
+      "name": "component-recognised",
+      "type": "llm",
+      "criteria": "PASS if the final reply treats the request as adding the agent changelog-reviewer to plugin-changelog (checking the plugin, or asking for the agent's tools or model), and does not claim the agent is written.\nFAIL if it claims to have written the agent, or treats the request as anything other than adding a component.\n"
+    },
+    {
+      "name": "nothing-written-before-its-test",
+      "type": "file_exists",
+      "path": "plugin-changelog/agents/**",
+      "exists": false
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "name": "add-hook-request",
+  "description": "Demande de Soon, telle qu'il l'a tapée en phase 15 : un hook décrit par son besoin, sans son nom.",
+  "tags": [
+    "add",
+    "positive"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill add est invoqué pour un hook de plugin-changelog ; aucun fichier du hook n'est écrit avant son test.",
+  "context": {
+    "scaffold_script": "setup.sh"
+  },
+  "execution": {
+    "prompt": "dans plugin-changelog, je veux un hook qui bloque toute modif du CHANGELOG qui casse le format ou touche une version déjà datée",
+    "max_turns": 8,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Glob",
+      "Grep"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?add\""
+    },
+    {
+      "name": "component-recognised",
+      "type": "llm",
+      "criteria": "PASS if the final reply treats the request as adding a hook to plugin-changelog (checking the plugin, or asking for the next detail of the hook), and does not claim the hook is written.\nFAIL if it claims to have written the hook, or treats the request as anything other than adding a component.\n"
+    },
+    {
+      "name": "nothing-written-before-its-test",
+      "type": "file_exists",
+      "path": "plugin-changelog/hooks/**",
+      "exists": false
+    }
+  ]
+}
