@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7, 8, 9, 11 et 12 terminées**. Coût permanent 692 tokens. La phase 10 n'attend plus le passage réel de la phase 6 : elle ne s'en sert pas, et Soon a choisi le 2026-10-20 de la mener avant la phase 13, qu'elle débloque.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7 à 12 terminées**. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Elle débloque la phase 13. Coût permanent 824 tokens.
 
 **Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes : à recueillir auprès de Soon avant d'écrire `evals/add/`.
 
@@ -392,6 +392,78 @@ Trois sondes rejouées par `pp.sh reaudit` (`scripts/facts/probes/mcp-*`) : « f
 | `create` ne recopie pas `tests/mcp.sh` | « suite du plugin : verte » (le `test_paths` du plugin créé : « tests/mcp.sh présent ») ; `test_create` : « créé : tests/mcp.sh » |
 
 Non pris : faire passer, dans `test_paths`, une annexe qui contient `${CLAUDE_PLUGIN_ROOT}`. Règle antérieure à la phase 9, hors de `test_add_mcp` ; aucun test ne la met à l'épreuve sur une copie faussée, mais elle a échoué pour la bonne raison sur `mcp.md` (rouge ci-dessus).
+
+## Phase 10 — Plugins existants : écarts au modèle, ajout sans toucher au métier — terminée
+
+Menée avant la clôture de la phase 6, dont le passage réel payant attend toujours : `check` et l'ajout à un plugin existant ne s'en servent pas (choix de Soon, le 2026-10-20).
+
+- [x] `pp.sh check <plugin>` liste les écarts au modèle, un par ligne avec sa catégorie, et ne modifie rien (empreintes et `git status` identiques, prouvés par `test_check` et `test_check_real`) : manifestes (nom, SemVer, auteur sans e-mail, MIT, dépôt dédié, champs connus, marketplace locale), fichiers à la racine (LICENSE, README, CHANGELOG avec la version, PROGRESS, ARCHITECTURE à la racine ou dans `docs/`, les quatre documents de `docs/`, `.gitignore`, pas de CLAUDE.md), arborescence (rien hors des dossiers du modèle, hooks sous `hooks/scripts/`), forme exec des hooks, `timeout`, `onFailure`, mode déclaré, câblage, `#!/usr/bin/env bash` et `bash -n`, en-têtes de skills et d'agents (structure seule), garde de portée d'un agent qui écrit, chemins cités et annexes, interpréteur à chemin fixe, chemins personnels, serveurs MCP (règles de `tests/mcp.sh`), harnais (`run-all.sh`, `lib.sh`, `tests/static/`, un test par script de hook, aucun test à la racine de `tests/`). Règles dans `scripts/lib/check.sh`, qui reprend `name_error`, `tests/headers.sh` et `tests/mcp.sh`.
+- [x] Seuls comptent les fichiers qu'un clone porterait (`git ls-files -co --exclude-standard`) ; une copie rangée dans un dossier que son dépôt parent ignore — `build/ref/` — est lue en entier. Défaut trouvé sur flutter-forge, extrait sous `build/` : ses fichiers étaient invisibles ; test ajouté, vu rouge, puis corrigé.
+- [x] plugin-flutter (copie de lecture et original) : aucun écart. plugin-nixos : 15 écarts, dont la forme des hooks, l'arborescence des hooks et le harnais. Ancien flutter-forge (plugin-flutter à `04ba88f`, extrait par `git archive`) : nom hors format, seul écart. Originaux et copies : HEAD, `git status` et empreintes identiques avant et après (US-18).
+- [x] Contrôles repris de plugin-validator : fichiers parasites (`node_modules`, `.DS_Store`, `Thumbs.db`, `*.swp`) ; identifiants en clair (clé privée, jetons GitHub, Anthropic, OpenAI, AWS, Slack), dont seule la ligne est donnée, jamais l'identifiant ; exemple publié (`…EXAMPLE`) et jeton de remplissage (`AAAA…`) exemptés ; README et LICENSE présents.
+- [x] `add-hook`, `add-agent` et `add-mcp` refusent un plugin qui a des écarts, en désignant `pp.sh check` ; rien n'est écrit. Le skill `add` lance `check` d'abord, pour toutes les sortes, skill compris.
+- [x] Ajout d'un hook à un clone de plugin-flutter : le diff ne touche que le script, son test, `hooks/hooks.json` et la section ajoutée de `docs/INSTALLATION.md`, sans supprimer une ligne ; les hooks d'origine sont intacts. La suite d'origine reste à 100 % : seul le test du hook échoue, sur sa règle non écrite ; la règle écrite, la suite sort en 0 et `check` ne relève aucun écart (US-17).
+- [x] Suite d'évaluation de `check` écrite et vérifiée (`check-evals` : 2 cas, 1 positif, 1 négatif), non lancée (décision c).
+
+Trois défauts de l'ajout à un plugin que plugin-plugin n'a pas créé, trouvés sur une copie de plugin-flutter, puis corrigés test d'abord :
+
+- le test d'un hook appelait `path_without`, que le harnais de plugin-flutter n'a pas : il prive désormais le hook de `jq` par un PATH vide, et n'appelle que les aides communes aux deux harnais ;
+- `wire_hook` réécrivait tout `hooks.json` par `jq`, et étalait sur trois lignes les `args` des hooks d'origine : les tableaux de chaînes restent sur une ligne, comme le modèle les écrit, sauf dans un fichier qui les étale déjà ; même règle pour `.mcp.json` et `hooks/agent-scope.json` ;
+- le test d'un agent lit `tests/headers.sh`, absent de plugin-flutter : posé s'il manque. Un agent qui écrit ou lance Bash est refusé quand le plugin a son propre garde de portée : celui de plugin-flutter connaît ses trois agents par leur nom, bloque les autres, et ne lit pas `hooks/agent-scope.json`.
+
+Limite constatée : la suite de plugin-flutter fige son inventaire (« exactly the three v0.1 agents », « exactly the four v0.1 skills »). Y ajouter un skill ou un agent la fait échouer sans toucher à son métier, ce qui est impossible. Sur un plugin sans `.plugin-plugin/`, le skill `add` n'écrit donc aucun point de reprise — `init-state` y ajouterait des fichiers hors du composant —, lance la suite d'origine avant l'ajout, et s'arrête, en nommant la suite et le contrôle, si elle rougit ailleurs que dans le test du composant.
+
+Hors de cette phase : la copie de lecture `build/ref/plugin-nixos` porte, depuis sa création le 2026-10-19, la perte du bit d'exécution de trois scripts (100755 → 100644), comme `.claude/hooks/` ; l'original `../plugin-nixos` est propre. Non touché. `check` sur plugin-plugin lui-même relève 5 écarts : ARCHITECTURE.md et les quatre documents de `docs/`, à poser avant la clôture (phase 16), comme prévu en phase 1.
+
+### Sorties de `check` sur les plugins réels
+
+| Plugin | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| plugin-flutter (copie de lecture, puis original) | `bash scripts/pp.sh check build/ref/plugin-flutter` ; `… check ../plugin-flutter` | 0 | « écarts : 0 — au modèle de plugin-flutter » |
+| plugin-nixos (copie de lecture, puis original) | `bash scripts/pp.sh check build/ref/plugin-nixos` ; `… check ../plugin-nixos` | 1 | « écarts : 15 » : CHANGELOG sans entrée `[0.1.2]` ; PROGRESS.md et les quatre documents de `docs/` absents ; `modeles/` hors modèle ; `hooks/garde-nixos.sh` et `hooks/lib-commande.sh` hors de `hooks/scripts/` ; garde en forme shell (`bash "${CLAUDE_PLUGIN_ROOT}/hooks/garde-nixos.sh"`) et sans `onFailure` ; `tests/static/` sans test ; `tests/test_garde.sh`, `test_nixconf.sh`, `test_statique.sh` à la racine de `tests/` |
+| ancien flutter-forge (`git archive 04ba88f`) | `bash scripts/pp.sh check build/ref/flutter-forge` | 1 | « écarts : 1 » : « nom hors format : « flutter-forge » n'a pas le préfixe plugin- » |
+
+Intégrité : `../plugin-flutter` 55df72c et `../plugin-nixos` dc6ea53, `git status` vide, empreintes identiques avant et après.
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/static/test_check.sh` | 1 | 2 réussis, 44 échoués : « usage : pp.sh reaudit \| … » — commande inconnue |
+| VERT | `bash tests/static/test_check.sh` | 0 | 46 réussis (deux messages remis dans l'ordre attendu, un `git mv -q` de la copie faussée corrigé) |
+| ROUGE | `bash tests/static/test_check.sh` (copie dans un dossier ignoré) | 1 | « copie dans un dossier ignoré par un dépôt parent : tous ses fichiers vus » : « [harnais] tests/static/ sans test » |
+| ROUGE | `bash tests/static/test_check.sh` (exemples publiés) | 1 | « exemple publié et jeton de remplissage (AAAA…) : pas un écart » |
+| ROUGE | `bash tests/static/test_check.sh` (sortie d'erreur, `/bin/bash` cité) | 1 | « rien sur la sortie d'erreur » : `sed` cassé par un `#` du message, la règle ne disait jamais rien ; « /bin/bash cité par un skill » |
+| ROUGE | `bash tests/static/test_check.sh` (add-* hors modèle) | 1 | « add-hook \| add-agent \| add-mcp sur un plugin hors modèle : refusé », « refusés : rien n'est écrit » |
+| VERT | `bash tests/static/test_check.sh` | 0 | 55 réussis |
+| ROUGE | `bash tests/integration/test_add_existing.sh` | 1 | 10 réussis, 7 échoués : `hooks.json` réécrit, `path_without : commande introuvable`, agent qui écrit accepté, `headers.sh` absent ; plus un tri du test dépendant de la locale, corrigé (`LC_ALL=C`) |
+| VERT | `bash tests/integration/test_add_existing.sh` | 0 | 17 réussis |
+| VERT | `test_add_hook`, `test_add_agent`, `test_add_mcp` | 0 | 35, 43 et 41 réussis |
+| ROUGE | `bash tests/static/test_components.sh` ; `… test_evals.sh` | 1 | « skill check présent » ; « evals/check conforme : aucun cas dans evals/check/ » |
+| VERT | `test_components` ; `test_evals` ; `test_check_real` ; `test_create` | 0 | 13, 66, 10 et 61 réussis |
+| VERT | `bash tests/run-all.sh` | 0 | `test_check : 55`, `test_add_existing : 17`, `test_check_real : 10`, `test_create : 61`, `test_evals : 66`, `test_components : 13` réussis ; « coût permanent : 824 tokens (seuil 1000) » ; « réussies : 29, échouées : 0, sautées : 1, bloquées : 0 » |
+
+### Les tests discriminent
+
+Copies faussées dans `build/mutants/p10/`, une ligne changée chacune, `PLUGIN_UNDER_TEST=<copie> PP_REF_DIR=build/ref bash <test>` :
+
+| Copie faussée | Test | Premier échec |
+| --- | --- | --- |
+| forme exec ignorée | test_check, test_check_real | « forme shell : écart nommé » ; « écart listé : [forme des hooks] … garde-nixos.sh » |
+| arborescence des hooks ignorée | test_check, test_check_real | « script hors de hooks/scripts/ » ; « [arborescence des hooks] hooks/garde-nixos.sh » |
+| nom ignoré | test_check, test_check_real | « nom sans préfixe plugin- » ; « nom hors format » |
+| tests à la racine de `tests/` ignorés | test_check, test_check_real | « test hors de tests/static/ et tests/hooks/ » ; « [harnais] tests/test_garde.sh » |
+| l'identifiant recopié dans le message | test_check | « l'identifiant n'est jamais recopié » |
+| dossier ignoré par le dépôt parent lu par git | test_check | « copie dans un dossier ignoré … : tous ses fichiers vus » |
+| `.gitignore` ignoré | test_check | « node_modules ignoré par git : pas un écart » |
+| exemple publié pris pour un secret | test_check | « exemple publié et jeton de remplissage (AAAA…) : pas un écart » |
+| `check` sort en 0 malgré des écarts | test_check | 41 échecs, dont « nom sans préfixe plugin- : écart nommé » |
+| `check` écrit un fichier | test_check | « aucun fichier modifié (empreintes, git status) » |
+| `add-*` sans garde de modèle | test_check | « add-hook sur un plugin hors modèle : refusé, check désigné » (et agent, MCP) |
+| `hooks.json` réécrit par `jq` | test_add_existing | d'abord **mal formée** : `true \|\| [[ … ]] && awk` se lit `(true \|\| …) && awk`, la mise en forme restait. Réécrite (`if true; then`) ; rejouée : « hooks/hooks.json : aucune ligne existante modifiée » |
+| garde propre au plugin ignoré | test_add_existing | « agent qui écrit, garde propre au plugin : refusé, raison nommée » |
+| `headers.sh` non posé | test_add_existing | « l'aide de test tests/headers.sh, absente, est posée » |
+| le test du hook rappelle `path_without` | test_add_existing | « le test généré n'appelle que les aides du harnais du plugin » |
 
 ## Phase 11 — Répétition de publication — terminée
 

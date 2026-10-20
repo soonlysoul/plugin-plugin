@@ -136,6 +136,9 @@ for target_name in . .claude-plugin/plugin.json; do
   grep -qE "^  ok +${target_name//./\\.}$" <<<"$suite_output" && pass "sa validation stricte passe : $target_name" \
     || fail "sa validation stricte passe : $target_name"
 done
+check_output=$("$BASH" "$PP" check "$target" 2>&1)
+[[ $? == 0 ]] && grep -q '^écarts : 0' <<<"$check_output" && pass "pp.sh check : aucun écart au modèle" \
+  || fail "pp.sh check : aucun écart au modèle" "$(tr '\n' '|' <<<"$check_output" | head -c 400)"
 refused "plugin déjà créé" "$target" plugin-essai 1 'hors cadrage' PATH="$STUBPATH"
 
 finish

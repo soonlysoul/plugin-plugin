@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "name": "check-out-of-model",
+  "description": "Demande de Soon, telle qu'il la tape (US-18) : un plugin construit hors du modèle ; ses écarts sont listés, rien n'est modifié.",
+  "tags": [
+    "check",
+    "positive"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill check lance pp.sh check ./plugin-meteo, rapporte ses écarts — forme des hooks, arborescence des hooks, harnais — et dit que plugin-plugin n'y ajoute rien tel quel ; aucun fichier n'est écrit.",
+  "context": {
+    "scaffold_script": "setup.sh"
+  },
+  "execution": {
+    "prompt": "est-ce que plugin-meteo suit le modèle ?",
+    "max_turns": 10,
+    "allowed_tools": [
+      "Skill",
+      "Read",
+      "Bash(bash:*)"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?check\""
+    },
+    {
+      "name": "ran-the-tool",
+      "type": "tool_used",
+      "tool": "Bash",
+      "input_match": "pp\\.sh(\\\\\")? check "
+    },
+    {
+      "name": "nothing-edited",
+      "type": "tool_used",
+      "tool": "Edit",
+      "min": 0,
+      "max": 0
+    },
+    {
+      "name": "nothing-written",
+      "type": "tool_used",
+      "tool": "Write",
+      "min": 0,
+      "max": 0
+    },
+    {
+      "name": "names-the-hook-gaps",
+      "type": "regex",
+      "target": "last_message",
+      "pattern": "forme (des hooks|exec)[\\s\\S]*hooks/garde\\.sh|hooks/garde\\.sh[\\s\\S]*forme (des hooks|exec)",
+      "flags": "i"
+    }
+  ]
+}

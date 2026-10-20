@@ -17,7 +17,9 @@ A component answers a user story of the plugin's PRD; nothing is added « au cas
 
 Take the plugin folder, the kind and the name from the arguments, or ask for them one at a time. Any other kind — the code of an MCP server, a channel, a language server, an output style, a classic command, a plugin option, a dependency between plugins —: run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" out-of-scope <mcp-code|channel|lsp|output-style|command|plugin-option|plugin-dependency>`, relay its refusal — the reason and what would reopen it — and stop. Check the name with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check-name plugin-<name>` when it names a plugin, and that the component name is kebab-case and free in the plugin.
 
-Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skill add --steps "<the steps of the kind>"`. After each step: `… checkpoint <folder> done <n> --command "<command>" --exit <code>`. The same command failing twice the same way: stop and expose the blocker.
+Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check <folder>`. With any gap, relay them and stop: plugin-plugin adds only to a plugin at the model.
+
+A folder without `.plugin-plugin/` holds a plugin plugin-plugin did not create (plugin-flutter): write no checkpoint there and skip every `checkpoint` command below — `init-state` would add files outside the component. Instead, run its suite first, `bash tests/run-all.sh`, and keep the suites that pass: the baseline. Otherwise run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skill add --steps "<the steps of the kind>"`; after each step, `… checkpoint <folder> done <n> --command "<command>" --exit <code>`. The same command failing twice the same way: stop and expose the blocker.
 
 ## Step 2 — Follow the procedure of the kind
 
@@ -28,4 +30,4 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skil
 
 ## Step 3 — Close
 
-Run the plugin's suite, `bash tests/run-all.sh` in its folder, and its context cost, `claude --plugin-dir <folder> plugin details <name>`. Report both, with the component's always-on cost; above 1 000 tokens for the plugin, say so. Add the component under « Ajouté » in the « en cours » section at the top of its `CHANGELOG.md`; when the top section is already dated, a release, first open `## [à venir] — en cours` above it — `/plugin-plugin:release` dates it. Then propose a commit with its exact commands, run only on a literal "oui".
+Run the plugin's suite, `bash tests/run-all.sh` in its folder, and its context cost, `claude --plugin-dir <folder> plugin details <name>`. Report both, with the component's always-on cost; above 1 000 tokens for the plugin, say so. With a baseline, compare: a suite that passed and fails now, other than the component's own test, holds what the component changed — plugin-flutter counts its skills and agents. Stop, name the suite and its failing check, and ask Soon before touching that test: it belongs to the plugin, not to the component. Add the component under « Ajouté » in the « en cours » section at the top of its `CHANGELOG.md`; when the top section is already dated, a release, first open `## [à venir] — en cours` above it — `/plugin-plugin:release` dates it. Then propose a commit with its exact commands, run only on a literal "oui".

@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "name": "check-nixos-config",
+  "description": "Demande voisine que Soon tape pour son poste : vérifier une configuration NixOS n'est pas vérifier un plugin.",
+  "tags": [
+    "check",
+    "negative"
+  ],
+  "runs": 3,
+  "expected_outcome": "Le skill check n'est pas invoqué ; aucune liste d'écarts au modèle de plugin n'est rendue.",
+  "execution": {
+    "prompt": "vérifie que ma configuration NixOS construit toujours",
+    "max_turns": 4,
+    "allowed_tools": [
+      "Skill",
+      "Read"
+    ]
+  },
+  "graders": [
+    {
+      "name": "skill-not-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?check\"",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "no-plugin-gaps",
+      "type": "llm",
+      "criteria": "PASS if the reply deals with checking a NixOS configuration (or asks where it is) and does not list gaps of a Claude Code plugin to a plugin model.\nFAIL if it reports the gaps of a plugin to a model, or runs a plugin conformity check.\n"
+    }
+  ]
+}

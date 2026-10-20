@@ -111,7 +111,7 @@ run_pp check-evals "$work/nothing" demo
 expect_pp "suite absente : refusé" 1
 
 echo "# check-evals : les suites de plugin-plugin"
-for skill in reaudit frame create resume release; do
+for skill in reaudit frame create resume check release; do
   run_pp check-evals "$PLUGIN_ROOT" "$skill"
   expect_pp "evals/$skill conforme" 0
 done

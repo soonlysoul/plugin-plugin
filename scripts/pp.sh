@@ -8,6 +8,7 @@
 #   diff-snapshots OLD.json NEW.json
 #   init-state DIR
 #   check-name NAME
+#   check PLUGIN
 #   delegate DIR --question Q --choice C --reason R
 #   approve DOC --quote MESSAGE
 #   status DOC
@@ -40,6 +41,8 @@ source "$PP_ROOT/scripts/lib/doc-status.sh"
 source "$PP_ROOT/tests/headers.sh"
 # shellcheck source=../tests/mcp.sh
 source "$PP_ROOT/tests/mcp.sh"
+# shellcheck source=lib/check.sh
+source "$PP_ROOT/scripts/lib/check.sh"
 # Account, marketplace and its catalogue repository: written in hard, as the PRD says.
 OWNER=soonlysoul
 MARKETPLACE=soon
@@ -228,6 +231,33 @@ cmd_check_name() {
   error=$(name_error "$1")
   [[ -z $error ]] || die "$error"
   printf 'accepté : « %s » suit plugin-<domaine>.\n' "$1"
+}
+
+# check <plugin>: its gaps to the model, one per line, without changing a file.
+cmd_check() {
+  [[ $# == 1 ]] || die "usage : pp.sh check PLUGIN"
+  need jq
+  [[ -f $1/.claude-plugin/plugin.json ]] || die "refusé : $1 n'est pas un plugin (.claude-plugin/plugin.json absent) ; rien à vérifier."
+  local gaps count
+  gaps=$(check_gaps "$1")
+  count=$(grep -c . <<<"$gaps")
+  printf 'check : %s (%s)\n' "$(jq -r '.name // "?" | tostring' "$1/.claude-plugin/plugin.json" 2>/dev/null)" "$1"
+  if ((count == 0)); then
+    printf 'écarts : 0 — au modèle de plugin-flutter\n'
+  else
+    printf 'écarts : %d\n' "$count"
+    sed 's/^/- /' <<<"$gaps"
+  fi
+  printf 'aucun fichier modifié.\n'
+  ((count == 0)) || exit 1
+}
+
+# require_model <plugin>: the add-* commands write only into a plugin at the model; out of it, its
+# own suite would not cover what they add.
+require_model() {
+  local gaps
+  gaps=$(check_gaps "$1")
+  [[ -z $gaps ]] || die "refusé : $1 n'est pas au modèle (écarts : $(grep -c . <<<"$gaps"), dont « $(head -n 1 <<<"$gaps") ») ; pp.sh check $1 les liste. plugin-plugin n'y ajoute rien tant qu'il n'est pas au modèle."
 }
 
 cmd_delegate() {
@@ -849,7 +879,9 @@ hook_script() {
 }
 
 # hook_test <name> <mode>: the simulated-input test, its contract cases green on the skeleton,
-# and a placeholder that fails until the rule's own cases replace it.
+# and a placeholder that fails until the rule's own cases replace it. It calls only what every
+# harness of the model has (pass, fail, run_hook, expect_status, expect_blocked, finish): jq is
+# taken away by an empty PATH, the skeleton calling nothing before it.
 hook_test() {
   local name=$1 mode=$2
   printf '#!/usr/bin/env bash\n'
@@ -859,10 +891,10 @@ hook_test() {
   printf 'echo "# contrat du squelette"\n'
   if [[ $mode == fail-closed ]]; then
     printf "run_hook \"\$HOOK\" 'pas du json'\nexpect_blocked \"squelette : entrée illisible bloquée\"\n"
-    printf "no_jq=\$(path_without jq)\nrun_hook \"\$HOOK\" '{}' PATH=\"\$no_jq\"\nrm -rf \"\$no_jq\"\nexpect_blocked \"squelette : jq absent bloqué\"\n\n"
+    printf "no_jq=\$(mktemp -d)\nrun_hook \"\$HOOK\" '{}' PATH=\"\$no_jq\"\nrm -rf \"\$no_jq\"\nexpect_blocked \"squelette : jq absent bloqué\"\n\n"
   else
     printf "run_hook \"\$HOOK\" 'pas du json'\nexpect_status \"squelette : entrée illisible, exit 0\" 0\n"
-    printf "no_jq=\$(path_without jq)\nrun_hook \"\$HOOK\" '{}' PATH=\"\$no_jq\"\nrm -rf \"\$no_jq\"\nexpect_status \"squelette : jq absent, exit 0\" 0\n\n"
+    printf "no_jq=\$(mktemp -d)\nrun_hook \"\$HOOK\" '{}' PATH=\"\$no_jq\"\nrm -rf \"\$no_jq\"\nexpect_status \"squelette : jq absent, exit 0\" 0\n\n"
   fi
   printf 'echo "# règle"\n'
   printf '# Replace the rule_placeholder call by the rule'"'"'s simulated inputs: what it blocks or reports,\n'
@@ -889,6 +921,7 @@ cmd_add_hook() {
     || die "usage : pp.sh add-hook PLUGIN --name NOM --event ÉVÉNEMENT [--matcher FILTRE] --mode fail-open|fail-closed [--timeout S] [--dry-run]"
   need jq
   [[ -f $plugin/.claude-plugin/plugin.json ]] || die "refusé : $plugin n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  require_model "$plugin"
   [[ $name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || die "refusé : « $name » n'est pas en kebab-case."
   [[ $HOOK_EVENTS == *" $event "* ]] || die "refusé : événement inconnu « $event » ; connus :$HOOK_EVENTS."
   [[ $mode == fail-open || $mode == fail-closed ]] || die "refusé : mode « $mode » inconnu ; fail-open ou fail-closed."
@@ -935,7 +968,30 @@ wire_hook() {
     ({type: "command", command: "bash", args: [$path], timeout: $timeout}
       + (if $event == "Stop" or $event == "SubagentStop" then {} else {onFailure: $failure} end)) as $hook
     | .hooks[$event] = ((.hooks[$event] // []) + [(if $matcher == "" then {} else {matcher: $matcher} end) + {hooks: [$hook]}])' \
-    <<<"$current" >"$hooks_json.tmp" && mv "$hooks_json.tmp" "$hooks_json"
+    <<<"$current" | json_layout "$hooks_json" >"$hooks_json.tmp" && mv "$hooks_json.tmp" "$hooks_json"
+}
+
+# json_layout [file]: jq's output with each array of strings on one line, as the model writes
+# them ("args": ["${CLAUDE_PLUGIN_ROOT}/…"]), unless the file being rewritten spreads them over
+# several lines: an addition leaves the existing lines as they were.
+json_layout() {
+  if [[ -f ${1:-} ]] && awk 'prev ~ /\[$/ && /^[[:space:]]*"/ { found = 1 } { prev = $0 } END { exit !found }' "$1"; then
+    cat
+    return
+  fi
+  awk '
+    function flush(  i) { if (open != "") print open; for (i = 1; i <= n; i++) print item[i]; open = ""; n = 0 }
+    open != "" && /^[[:space:]]*"([^"\\]|\\.)*",?$/ { item[++n] = $0; next }
+    open != "" && n > 0 && /^[[:space:]]*\],?$/ {
+      line = open
+      for (i = 1; i <= n; i++) { v = item[i]; sub(/^[[:space:]]+/, "", v); line = line (i > 1 ? " " : "") v }
+      closing = $0; sub(/^[[:space:]]+/, "", closing)
+      print line closing; open = ""; n = 0; next
+    }
+    open != "" { flush() }
+    /\[$/ { open = $0; next }
+    { print }
+    END { flush() }'
 }
 
 # note_hook <plugin> <name> <event> <matcher> <mode>: the hook's line in docs/INSTALLATION.md.
@@ -994,6 +1050,7 @@ cmd_add_agent() {
     || die "usage : pp.sh add-agent PLUGIN --name NOM --tools \"Read, Grep\" --model MODÈLE [--writes \"docs/,test/\"] [--bash \"git diff,git log\"] [--test-only]"
   need jq
   [[ -f $plugin/.claude-plugin/plugin.json ]] || die "refusé : $plugin n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  require_model "$plugin"
   [[ $name =~ ^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$ && $name != *--* ]] \
     || die "refusé : nom « $name » : 3 à 50 caractères en kebab-case, commençant et finissant par une lettre ou un chiffre."
   local -a list
@@ -1023,12 +1080,27 @@ cmd_add_agent() {
   writes_json=$(tr ',' '\n' <<<"$writes" | sed 's/^ *//; s/ *$//' | grep . | jq -Rsc 'split("\n") | map(select(length > 0))')
   bash_json=$(tr ',' '\n' <<<"$allow" | sed 's/^ *//; s/ *$//' | grep . | jq -Rsc 'split("\n") | map(select(length > 0))')
   ((writer == 0 && shell == 0)) || scoped=1
+  # A scope guard of the plugin's own (plugin-flutter's) knows its agents by name and would block
+  # this one: declaring its scope there means editing the plugin's content.
+  local own_guard
+  if ((scoped)); then
+    own_guard=$(grep -l 'agent_type' "$plugin"/hooks/scripts/*.sh 2>/dev/null | while IFS= read -r f; do
+      grep -q 'agent-scope\.json' "$f" || printf '%s\n' "${f#"$plugin"/}"
+    done | head -n 1)
+    [[ -z $own_guard ]] || die "refusé : le garde de portée de ce plugin ($own_guard) ne lit pas hooks/agent-scope.json ; donner une portée à $name toucherait à son contenu. Un agent en lecture seule (Read, Grep, Glob) s'ajoute sans garde."
+  fi
+  local helper=""
   if [[ ! -e $plugin/$test ]]; then
     mkdir -p "$plugin/tests/static"
     agent_test "$plugin_name" "$name" "$tool_list" "$model" "$writes_json" "$bash_json" "$scoped" >"$plugin/$test"
+    # The test reads headers with plugin-plugin's strict parser, absent from a harness it did not write.
+    if [[ ! -f $plugin/tests/headers.sh ]]; then
+      cp "$PP_ROOT/tests/headers.sh" "$plugin/tests/headers.sh"
+      helper=", tests/headers.sh (aide de test absente)"
+    fi
   fi
   if ((test_only)); then
-    printf 'écrit : %s (le test de l'"'"'agent, rouge tant que %s manque)\n' "$test" "$file"
+    printf 'écrit : %s%s (le test de l'"'"'agent, rouge tant que %s manque)\n' "$test" "$helper" "$file"
     return 0
   fi
 
@@ -1044,7 +1116,7 @@ cmd_add_agent() {
   if ((scoped)); then
     local scope_file="$plugin/hooks/agent-scope.json"
     jq --arg agent "$plugin_name:$name" --argjson write "$writes_json" --argjson bash "$bash_json" \
-      '.[$agent] = {write: $write, bash: $bash}' <<<"$(cat "$scope_file" 2>/dev/null || echo '{}')" >"$scope_file.tmp" \
+      '.[$agent] = {write: $write, bash: $bash}' <<<"$(cat "$scope_file" 2>/dev/null || echo '{}')" | json_layout "$scope_file" >"$scope_file.tmp" \
       && mv "$scope_file.tmp" "$scope_file"
   fi
   mkdir -p "$plugin/agents"
@@ -1060,7 +1132,7 @@ cmd_add_agent() {
     printf '\n\n## Output format\n\nEnd with this report, and nothing after it:\n\n'
     printf 'STATUS: done | blocked | failed\nFILES_CHANGED: <paths, or none>\nCOMMANDS_RUN: <command → exit code, one per line, or none>\nOPEN_QUESTIONS: <questions for the main session, or none>\n'
   } >"$plugin/$file"
-  printf 'écrit : %s%s\n' "$file" "$( ((scoped)) && echo ", hooks/agent-scope.json")"
+  printf 'écrit : %s%s%s\n' "$file" "$( ((scoped)) && echo ", hooks/agent-scope.json")" "$helper"
 }
 
 # MCP: an existing server declared in .mcp.json, never its code — local through a bash launcher of
@@ -1143,6 +1215,7 @@ cmd_add_mcp() {
     || die "usage : pp.sh add-mcp PLUGIN --name NOM (--launcher scripts/NOM.sh [--args A,…] [--env VAR,…] | --url https://…|wss://… [--header 'Nom=valeur']…) [--test-only]"
   need jq
   [[ -f $plugin/.claude-plugin/plugin.json ]] || die "refusé : $plugin n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  require_model "$plugin"
   [[ $name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || die "refusé : « $name » n'est pas en kebab-case."
   if [[ -e $plugin/.mcp.json ]]; then
     jq -e '.mcpServers | type == "object"' "$plugin/.mcp.json" >/dev/null 2>&1 || die "refusé : $plugin/.mcp.json illisible, sans enveloppe « mcpServers »."
@@ -1193,7 +1266,7 @@ cmd_add_mcp() {
     return 0
   fi
   jq --arg s "$name" --argjson entry "$entry" '.mcpServers[$s] = $entry' \
-    <<<"$(cat "$plugin/.mcp.json" 2>/dev/null || echo '{"mcpServers": {}}')" >"$plugin/.mcp.json.tmp" \
+    <<<"$(cat "$plugin/.mcp.json" 2>/dev/null || echo '{"mcpServers": {}}')" | json_layout "$plugin/.mcp.json" >"$plugin/.mcp.json.tmp" \
     && mv "$plugin/.mcp.json.tmp" "$plugin/.mcp.json"
   readme_mcp "$plugin"
   variables=$(mcp_variables "$entry" | paste -sd, - | sed 's/,/, /g')
@@ -1973,6 +2046,7 @@ case ${1:-} in
   diff-snapshots) shift; cmd_diff_snapshots "$@" ;;
   init-state) shift; cmd_init_state "$@" ;;
   check-name) shift; cmd_check_name "$@" ;;
+  check) shift; cmd_check "$@" ;;
   delegate) shift; cmd_delegate "$@" ;;
   approve) shift; cmd_approve "$@" ;;
   status) shift; cmd_status "$@" ;;
@@ -1994,5 +2068,5 @@ case ${1:-} in
   marketplace-entry) shift; cmd_marketplace_entry "$@" ;;
   publish) shift; cmd_publish "$@" ;;
   mount) shift; cmd_mount "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope | release | release-write | marketplace-entry | publish | mount" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | check | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope | release | release-write | marketplace-entry | publish | mount" ;;
 esac

@@ -7,7 +7,7 @@ SUITE=test_components
 HOOKS_JSON="$PLUGIN_ROOT/hooks/hooks.json"
 
 echo "# skills"
-for skill in reaudit frame create resume add release; do
+for skill in reaudit frame create resume add check release; do
   [[ -f $PLUGIN_ROOT/skills/$skill/SKILL.md ]] && pass "skill $skill présent" || fail "skill $skill présent"
 done
 grep -qx 'disable-model-invocation: true' "$PLUGIN_ROOT/skills/reaudit/SKILL.md" 2>/dev/null \
