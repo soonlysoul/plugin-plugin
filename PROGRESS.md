@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phases 6 à 15 terminées.** Le passage réel de la phase 6, payant, est celui du skill du témoin de la phase 15 (choix de Soon) ; les phases 7 à 12 n'en dépendaient pas. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Phase 15 : le témoin `plugin-changelog` — un skill, un hook, un agent — construit par plugin-plugin du cadrage à la répétition de publication, 26 interventions de Soon, toutes demandées ; il a révélé deux écarts de plugin-plugin, corrigés. Phase 16 en cours : relecture des skills faite, ses 22 constats critiques et majeurs corrigés, trois défauts de `pp.sh` corrigés (rouge puis vert), documents d'usage et architecture posés, `check` à zéro écart sur plugin-plugin, plan et architecture approuvés (« Je valide »), étiquette locale `plugin-plugin--v0.1.0` sur `fec6a94`. Prochaine étape : la publication de 0.1.1 par `/plugin-plugin:release`, chaque geste sur un « oui ». Coût permanent 880 tokens.
+Branche `main`, publiée ; `feat/v0.1.0` reste en local sur `c103f67`, l'avant-publication. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phases 6 à 15 terminées.** Le passage réel de la phase 6, payant, est celui du skill du témoin de la phase 15 (choix de Soon) ; les phases 7 à 12 n'en dépendaient pas. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Phase 15 : le témoin `plugin-changelog` — un skill, un hook, un agent — construit par plugin-plugin du cadrage à la répétition de publication, 26 interventions de Soon, toutes demandées ; il a révélé deux écarts de plugin-plugin, corrigés. Phase 16 terminée : relecture des skills faite, ses 22 constats critiques et majeurs corrigés, trois défauts de `pp.sh` corrigés (rouge puis vert), documents d'usage et architecture posés, `check` à zéro écart sur plugin-plugin, plan et architecture approuvés (« Je valide »), étiquette locale `plugin-plugin--v0.1.0` sur `fec6a94`. **plugin-plugin 0.1.1 publié par lui-même** le 2026-10-20 : onze gestes, chacun sur un « oui », étiquette `plugin-plugin--v0.1.1` sur GitHub, PR #1 de la marketplace fusionnée par Soon, `claude plugin list` montre `plugin-plugin@soon` 0.1.1. **v0.1 livrée : les seize phases du plan sont terminées.** Coût permanent 880 tokens.
 
 **Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes. **Décision de Soon, le 2026-10-20** : ils viennent de la phase 15 — les demandes tapées pour ajouter le skill, l'agent et le hook du témoin font les cas positifs ; un ou deux négatifs proposés, validés par Soon. **Fermé en phase 15** : `evals/add/`, cinq cas, conforme à `check-evals`, non lancé (choix de Soon).
 
@@ -837,7 +837,13 @@ Suite de plugin-plugin après les correctifs, la base de faits et `evals/add/` :
 
 Non fait, par choix de Soon : l'exécution réelle de l'agent `changelog-reviewer` sur un dépôt d'essai — ses tests et son garde de portée suffisent à la phase.
 
-## Phase 16 — Clôture de 0.1.0, puis publication de 0.1.1 — en cours
+## Phase 16 — Clôture de 0.1.0, puis publication de 0.1.1 — terminée
+
+- [x] Relecture : le constat critique et les 21 majeurs corrigés, trois défauts de `pp.sh` corrigés rouge puis vert, suite relancée (exit 0) ; plugin-dev reste une aide de développement, pas une dépendance.
+- [x] Coût permanent 880 tokens, sous 1 000 (critère 9).
+- [x] 0.1.1 : `plugin.json` et CHANGELOG à jour (`a72ecda`) ; étiquette `plugin-plugin--v0.1.1` sur GitHub, même objet `c6727ed` en local et sur `origin` (critère 7).
+- [x] Push de `main`, de l'étiquette, de la branche de marketplace et PR, chacun sur un « oui » consigné (critère 6) ; la création du dépôt est antérieure aux gestes annoncés, écart consigné ci-dessous. PR fusionnée par Soon.
+- [x] Commande d'installation donnée ; sur ce poste, `claude plugin list` montre `plugin-plugin@soon`, Version 0.1.1 (critère 7).
 
 ### Relecture des skills par `plugin-dev:skill-reviewer`
 
@@ -900,3 +906,29 @@ Suite complète après les corrections et `init-state` : `bash tests/run-all.sh`
 ### Faux positif de `gesture-guard`
 
 Depuis `init-state`, plugin-plugin est un dépôt géré, et son propre garde y est actif. Le 2026-10-20, il a bloqué une commande qui ajoutait à PROGRESS.md, par un heredoc cité (`<<'EOF'`), un texte contenant `gh repo edit` : « geste GitHub sans accord (gh repo edit) : aucun geste annoncé ». Rien n'a été exécuté. Le garde préfère le faux positif, comme celui de plugin-flutter ; contourné par l'outil Edit, non corrigé.
+
+### Publication de 0.1.1
+
+`/plugin-plugin:release`, tapé par Soon, sur `.` : répétition exit 0 — 0.1.0 → 0.1.1, « correctif : aucun composant ajouté ni retiré », le seul commit depuis l'étiquette étant `c103f67` ; aucun `--bump` proposé, les deux refus devenus plus stricts ne cassant aucun appelant. Puis, sur « publie », `pp.sh publish .` : répétition repassée, plan figé, quatre étapes annoncées, chacune lancée sur un « oui » tapé, capté par `consent-capture` (`.plugin-plugin/consents.log`, ignoré par git) :
+
+| Étape | Gestes | « oui » | Fait | Sortie |
+| --- | --- | --- | --- | --- |
+| 1 | 1 à 4 : version et CHANGELOG, commit `a72ecda`, étiquette, push de `main` | 18:50:08 | 18:50:22 | exit 0 ; `bd531f4..a72ecda  main -> main` |
+| 5 | 5 : push de l'étiquette | 18:54:17 | 18:54:29 | exit 0 ; `* [new tag] plugin-plugin--v0.1.1` |
+| 6 | 6 à 10 : copie de la marketplace, branche `add-plugin-plugin`, entrée, commit `21e1fd4`, push de la branche | 18:54:54 | 18:55:01 | exit 0 ; `* [new branch] add-plugin-plugin` ; une entrée de 8 lignes, sans `ref` |
+| 11 | 11 : PR | 18:55:31 | 18:55:42 | exit 0 ; https://github.com/soonlysoul/claude-plugins/pull/1 |
+
+Onze gestes « fait, exit 0 » dans `.plugin-plugin/gestures.log` (ignoré par git), heures de Paris, le 2026-10-20. La branche par défaut du dépôt est passée à `main` par Soon entre le geste 4 et la fusion ; `gh repo view` la lit `main`.
+
+Après la publication, par `gh` :
+
+- PR #1 : `MERGED`, le 2026-10-20 à 17:04:58 UTC, commit de fusion `d752652` ; l'entrée `plugin-plugin` est sur `main` de `soonlysoul/claude-plugins`.
+- `gh api repos/soonlysoul/plugin-plugin/git/refs/tags/plugin-plugin--v0.1.1` : `c6727ed`, comme `git rev-parse` en local. L'étiquette `plugin-plugin--v0.1.0` reste locale.
+
+Sur ce poste, par Soon : `claude plugin marketplace update soon` (« Successfully updated marketplace: soon »), `claude plugin install plugin-plugin@soon` (« Successfully installed plugin: plugin-plugin@soon (scope: user) », clone HTTPS de `soonlysoul/plugin-plugin`), `claude plugin list` : `plugin-plugin@soon`, Version 0.1.1, Scope user, ✔ enabled. Installée depuis la branche par défaut `main` : cohérent avec une entrée sans `ref` qui suit la branche par défaut, sans le prouver (fait `marketplace-soon-entry-format`).
+
+Constats de la publication :
+
+- La première commande lancée après le premier « oui » portait `; echo "exit=$?"` en plus : `gesture-guard` l'a refusée (« seule celle-là passe, telle quelle »), rien n'a été exécuté. La commande exacte est passée ensuite sur le même accord. Le garde a fait ce qu'il doit ; l'écart venait de Claude.
+- « fusionne pour moi » : refusé par Claude, la fusion étant réservée à Soon (plan, skill `release`, `gesture-guard`) ; commande donnée, Soon a fusionné. Rouvrir ce point serait un changement du plan.
+- Deux plugin-plugin actifs sur ce poste : `plugin-plugin@plugin-plugin` (scope local, ce dossier, depuis la phase 15) et `plugin-plugin@soon` (scope user). Dans ce projet, les deux sont chargés : hooks et skills en double, à vérifier ; Soon décide lequel désactiver ici.
