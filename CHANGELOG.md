@@ -15,7 +15,6 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; ve
 ### Corrigé
 
 - Une branche de marketplace déjà sur GitHub est refusée à la répétition, sa PR ouverte nommée ; la copie de la marketplace vit dans un dossier par branche, et une PR ne repart plus de la copie d'une précédente.
-
 - `pp.sh release` : un hook déclaré en forme shell, son chemin entre guillemets (`bash "${CLAUDE_PLUGIN_ROOT}/hooks/x.sh"`), se lisait `x.sh"`. Passé en forme exec, il comptait pour retiré puis ajouté, et la répétition imposait une majeure. Révélé par la publication de plugin-nixos 0.2.0.
 
 ## [0.1.1] — 2026-10-20
