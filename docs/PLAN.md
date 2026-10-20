@@ -4,10 +4,12 @@
 > (`soonlysoul/plugin-flutter`, v0.1.2) · Design : sans objet, aucune interface.
 > Mesures de référence : Claude Code 2.1.296, 2026-10-19.
 
-**Statut : APPROUVÉ** le 2026-10-20 (« Je valide »).
+**Statut : APPROUVÉ** le 2026-10-20 (« je valide »).
 
 Approuvé le 2026-10-19, par Soon (« oui juste change le nom par plugin-plugin »), renommage
 compris. Toute modification d'un document approuvé le repasse en revue.
+
+Amendé le 2026-10-20, avec le PRD (US-35 à US-37, critère 10) : décision h et phase 18.
 
 Errata de la clôture (phase 16, 2026-10-20), corrigés en une fois dans le texte :
 
@@ -162,6 +164,13 @@ Valables pour toutes les phases. Une phase s'y réfère ; aucune ne les rouvre.
   `v0.1.x` existantes ne sont pas touchées.
 - **Décision b** : 0.1.0 n'est jamais publiée, elle reçoit une étiquette locale à la clôture ;
   0.1.1 est la première publication.
+- **Décision h** (2026-10-20) : la description du `plugin.json` est la seule source de la
+  description du dépôt GitHub (`gh repo edit --description`), de l'entrée de la marketplace
+  `soon`, de la ligne du plugin dans le README de la marketplace, avec sa commande
+  d'installation, et de la marketplace locale. La répétition lit les trois premières sur GitHub
+  et ajoute un geste par surface qui diverge ; la marketplace change par la même branche et la
+  même PR qu'un ajout. Sans rien à publier depuis l'étiquette, seuls ces gestes : un alignement,
+  sans version ni étiquette.
 
 ### Ré-audit
 
@@ -750,3 +759,53 @@ sortie de `claude plugin list` sur l'appareil.
 ### Bloquée par
 
 Phases 13, 14 et 15.
+
+---
+
+## Phase 18 : Descriptions et documents tenus à chaque publication
+
+**User stories** : US-35, US-36, US-37. **Critères de succès** : 10, 6, 9.
+
+La phase 17, demande de Soon hors plan (plugin-nixos réécrit et publié), est consignée dans
+PROGRESS.md.
+
+### Ce qu'on livre
+
+`release` lit, sans rien envoyer, la description du dépôt GitHub, l'entrée et le README de la
+marketplace `soon`, et les compare à la description du `plugin.json` (décision h). `release-write`
+écrit aussi la version dans le README et la description dans la marketplace locale. `publish`
+exécute les gestes d'alignement comme les autres, sous accord, reprenables. Le skill `release`
+et les documents de plugin-plugin le disent.
+
+### Critères d'acceptation
+
+- [ ] Refus à la répétition : description absente ou au-delà de 350 caractères ; README sans
+      ligne `Version **X.Y.Z**`, ou qui ne nomme pas un composant, nommé (US-36).
+- [ ] `release-write` écrit la version dans le README et la description dans la marketplace
+      locale, dans le commit de version ; déjà écrites, rien ne change (US-36, US-35).
+- [ ] Description GitHub divergente : un geste `gh repo edit … --description`, après le push de
+      l'étiquette ; un dépôt créé la reçoit par `gh repo create` (US-35).
+- [ ] Plugin listé dont l'entrée ou la ligne du README diverge : branche, entrée et ligne
+      réécrites, commande d'installation ajoutée si elle manque, commit, push, PR ; un plugin
+      nouveau reçoit la ligne et la commande dans la PR d'ajout. Le reste du README est intact
+      (US-35, critère 6).
+- [ ] Rien à publier depuis l'étiquette, des descriptions divergentes : un alignement — ni
+      version, ni CHANGELOG, ni étiquette —, annoncé et lancé étape par étape ; tout aligné :
+      refus, « rien à publier » (US-37).
+- [ ] Une branche de marketplace déjà sur GitHub est refusée à la répétition, la PR ouverte
+      nommée.
+- [ ] Coupure simulée pendant un alignement : la reprise ne refait aucun geste fait (US-27).
+- [ ] Coût permanent de plugin-plugin sous 1 000 tokens (critère 9).
+- [ ] plugin-plugin publie sa version suivante par ce chemin ; plugin-nixos et plugin-flutter
+      sont alignés, chaque geste sur un « oui » ; PR fusionnées par Soon (critère 10).
+
+### Preuve
+
+`bash tests/run-all.sh` — répétition, publication et alignement contre des dépôts nus locaux et
+la doublure de `gh` : la marketplace et le README produits, le journal des gestes. Puis `gh api`
+sur les trois dépôts et sur `soonlysoul/claude-plugins` après les fusions.
+
+### Bloquée par
+
+Phase 16 ; pour plugin-flutter, des entrées `.plugin-plugin/` dans son `.gitignore`, que
+`publish` exige.

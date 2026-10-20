@@ -2,12 +2,19 @@
 
 2026-10-19 · Soon
 
-**Statut : APPROUVÉ** le 2026-10-19, par Soon (« je valide »), après le
-renommage du plugin, d'abord nommé plugin-agent, en plugin-plugin. Approbations
-antérieures du même jour : « oui », après la modification qui fait de
-plugin-flutter le seul modèle et de la réécriture de plugin-nixos un test de
-plugin-plugin ; « je valide », à l'issue du cadrage. Toute modification d'un
-document approuvé le repasse en revue.
+**Statut : APPROUVÉ** le 2026-10-20 (« je valide »).
+
+Approuvé le 2026-10-19, après le renommage du plugin, d'abord nommé
+plugin-agent, en plugin-plugin. Approbations antérieures du même jour : « oui »,
+après la modification qui fait de plugin-flutter le seul modèle et de la
+réécriture de plugin-nixos un test de plugin-plugin ; « je valide », à l'issue
+du cadrage. Toute modification d'un document approuvé le repasse en revue.
+
+Amendé le 2026-10-20, à la demande de Soon : une publication tient à jour les
+descriptions — dépôt GitHub, marketplace `soon`, marketplace locale — et les
+documents du plugin (US-35 à US-37, critère 10). Choix de Soon, le même jour :
+`plugin.json` pour seule source, version écrite et composants exigés dans le
+README, alignement sans nouvelle version, description seule sur GitHub.
 
 ## Problème
 
@@ -48,8 +55,10 @@ plugin-plugin permet à Soon de :
   sans toucher à leur contenu métier ;
 - **publier** : créer le dépôt GitHub, ouvrir la PR qui ajoute le plugin à la
   marketplace `soon`, augmenter la version, tenir le journal des changements,
-  poser l'étiquette de version — chaque geste après un accord explicite — et,
-  au besoin, monter le plugin en sous-module dans un dépôt hôte ;
+  poser l'étiquette de version, aligner sur `plugin.json` la description du
+  dépôt GitHub et celles de la marketplace, tenir le README du plugin à la
+  version publiée — chaque geste après un accord explicite — et, au besoin,
+  monter le plugin en sous-module dans un dépôt hôte ;
 - **connaître le coût en contexte** de chaque composant avant de publier ;
 - **ré-auditer** : savoir quels faits revérifier, et quels formats ont changé,
   depuis la dernière mise à jour de la plateforme ;
@@ -167,6 +176,17 @@ condition qu'elle soit motivée et révisable.
 - **US-30** — En tant que Soon, je veux que plugin-plugin publie lui-même sa
   version 0.1.1, chaque geste après mon accord, afin de prouver la chaîne de
   publication sur la vraie marketplace.
+- **US-35** — En tant que Soon, je veux que la description du `plugin.json` soit
+  la seule source de la description du dépôt GitHub, de l'entrée du plugin dans
+  la marketplace `soon`, de sa ligne dans le README de la marketplace et de sa
+  marketplace locale, et qu'une publication aligne chacune qui diverge, afin
+  qu'aucune ne reste en retard d'une version.
+- **US-36** — En tant que Soon, je veux qu'une publication écrive la nouvelle
+  version dans le README du plugin et refuse un README qui ne nomme pas chacun
+  de ses composants, afin que ses documents décrivent la version publiée.
+- **US-37** — En tant que Soon, je veux aligner les descriptions d'un plugin déjà
+  publié qui n'a rien de neuf, sans nouvelle version ni étiquette, afin de
+  corriger un écart sans attendre une publication.
 
 ### Ré-audit
 
@@ -213,6 +233,11 @@ condition qu'elle soit motivée et révisable.
    inchangée, les deux listes sont vides.
 9. Le coût en contexte permanent de plugin-plugin lui-même reste sous le seuil
    d'alerte.
+10. Après la publication ou l'alignement de plugin-plugin, plugin-nixos et
+    plugin-flutter, la description de chaque dépôt GitHub, son entrée et sa
+    ligne dans le README de la marketplace `soon` sont la description de son
+    `plugin.json` ; après une publication, sa marketplace locale aussi, et son
+    README porte la version publiée et nomme chacun de ses composants.
 
 ## Hors périmètre
 
@@ -234,6 +259,8 @@ condition qu'elle soit motivée et révisable.
 - La dépendance à l'outil générique officiel ou à tout autre plugin tiers.
 - Installer ou mettre à jour un plugin sur un appareil.
 - Fusionner la PR de la marketplace.
+- Les topics et la page d'accueil d'un dépôt GitHub ; la prose du README de la
+  marketplace hors de la ligne de chaque plugin et de sa commande d'installation.
 - Les gestes destructifs sur GitHub : supprimer un dépôt, forcer un push,
   réécrire un historique publié, retirer un plugin de la marketplace.
 - L'intégration continue sur GitHub.
@@ -269,6 +296,14 @@ condition qu'elle soit motivée et révisable.
   toute action.
 - **Échec d'un geste GitHub** : il nomme le geste échoué, ce qui est déjà fait,
   et la commande qui reprend.
+- **Descriptions** : celle du `plugin.json` fait foi, recopiée telle quelle, dans
+  sa langue ; au-delà de 350 caractères, la limite de GitHub, la répétition la
+  refuse. Un changement dans la marketplace passe par une PR que Soon fusionne,
+  comme un ajout.
+- **Documents du plugin** : la publication écrit la version dans la ligne
+  `Version **X.Y.Z**` du README ; un README sans cette ligne, ou qui ne nomme pas
+  un composant, est refusé, et la prose se corrige dans le plugin avant une
+  nouvelle répétition.
 
 ## Notes complémentaires
 
