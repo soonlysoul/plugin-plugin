@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7 à 13 terminées**. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Coût permanent 824 tokens.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7 à 14 terminées**. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Coût permanent 824 tokens.
 
 **Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes : à recueillir auprès de Soon avant d'écrire `evals/add/`.
 
@@ -14,6 +14,8 @@ Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0
 **Hors de cette phase** — l'arbre de travail portait déjà, à la reprise, la perte du bit d'exécution des quatre scripts de `.claude/hooks/` (100755 → 100644). Non touché, non commité : à trancher par Soon.
 
 **À trancher par Soon** — le plan approuvé affirme, dans « Tests et validation », que `claude plugin validate .` ne valide que la marketplace. Mesuré en phase 2 : c'est faux sur 2.1.296 (voir ci-dessous). Rien ne casse — la suite valide toujours chaque cible —, mais la phrase du plan est à corriger, ce qui le repasse en revue. Le plan n'a pas été modifié.
+
+**À confirmer par Soon (phase 14)** — le plan veut l'original intact « dans le clone comme dans le sous-module de `~/Documents/Nixos` ». Ce dossier n'existe pas ; `~/Nixos` est le dépôt nixos-config, sans sous-module, et aucun `.gitmodules` sous `~` ne cite plugin-nixos. Seul le clone a pu être prouvé intact.
 
 Mesures de référence : Claude Code 2.1.296.
 
@@ -679,3 +681,93 @@ Copies faussées dans `build/mutants/p13b/` (les premières, `p13/`, avaient le 
 | `create` hérite de VERSION et KEYWORDS | test_create | « create : exit 0 », « plugin.json au modèle, sans e-mail » |
 | `rebuild` écrit dans l'original | test_rebuild | « original intact : HEAD, git status et empreintes identiques » ; `rebuild` le dit lui-même, exit 1 |
 | (test) `test_run_all.sh` sans garde | test_run_all_guard | « PLUGIN_ROOT hors d'un plugin : exit 2 » — vu rouge sur un petit dossier |
+
+## Phase 14 — Réécriture de plugin-nixos au modèle — terminée
+
+- [x] Les 15 écarts que `check` relève sur l'original (phase 10) forment la liste de travail ; sur la réécriture, `check` n'en relève aucun (critère 2).
+- [x] `tests/rewrite/plugin-nixos.sh ORIGINAL DOSSIER` — un test de plugin-plugin, pas une fonction (PRD) : `pp.sh rebuild` pose la charpente et importe le contenu tel quel, puis la recette ne fait que ce que le modèle impose, chaque geste fermant un écart nommé (tableau ci-dessous). Chaque retouche porte sur un texte exact, présent une seule fois : si l'original change, la recette s'arrête au lieu de deviner. La réécriture prouvée vit dans `build/rewrite/plugin-nixos`.
+- [x] Suite portée au harnais du modèle — `tests/lib.sh` et `run-all.sh` de plugin-plugin, `tests/hooks/` et `tests/static/` — : les cas d'origine mot pour mot, sur `pass`, `fail`, `skip`, `finish`, `run_hook`, `bash_input`, `expect_status`, `expect_blocked`, `restricted_path`, `PLUGIN_ROOT` et `PLUGIN_UNDER_TEST`. Chaque cas d'origine a son équivalent : les libellés des deux suites sont comparés un à un, après le seul renommage des chemins déplacés, une durée mesurée, et le cas que le modèle retourne (« forme « command » seule » devient « forme exec »). Comptes avant et après ci-dessous ; la suite portée sort en 0 (critère 2).
+- [x] Validation stricte sur chaque cible : `.`, `.claude-plugin/plugin.json`, `skills` ; `agents` sauté, absent.
+- [x] Le script appelé par les skills, `nixconf`, reste à `scripts/nixconf`, cité par `${CLAUDE_PLUGIN_ROOT}/scripts/nixconf` (décision a), et passe désormais les tests de chemins du modèle — il y échappait faute d'extension. Son gabarit `modeles/flake.nix` va à `scripts/modeles/`, comme ceux de `pp.sh` sous `scripts/scaffold/` : `templates/` est ce qu'un skill cite. Le serveur MCP est redéclaré par `pp.sh add-mcp` (phase 9) : déclaration identique à l'original, son test `test_mcp_nixos`, la section « Serveurs MCP » du README et le rappel de la doublure `evals/mocks/nixos/`.
+- [x] Original intact : `../plugin-nixos` à dc6ea53, `git status` vide, empreintes identiques avant et après ; la copie de lecture `build/ref/plugin-nixos` aussi (ses trois bits d'exécution perdus datent du 2026-10-19, voir phase 10). **Sous-module : introuvable.** `~/Documents/Nixos` n'existe pas ; `~/Nixos` est le dépôt nixos-config, sans sous-module ; aucun `.gitmodules` sous `~` (profondeur 5) ne cite plugin-nixos. Le volet sous-module du critère est sans objet sur ce poste : à confirmer par Soon.
+
+**Décision de Soon, le 2026-10-20 : au-delà du budget, une alerte, sauf pour plugin-plugin.** plugin-nixos coûte ~1 126 tokens permanents, ses quatre descriptions de skill ; le `run-all.sh` du modèle échouait au-delà de 1 000, et la suite portée ne pouvait sortir en 0 sans toucher au métier. Question posée avec trois choix ; réponse : « Alert, fail only for p-p (Recommended) ». Le PRD dit « alerte au-delà de 1 000 tokens permanents par plugin », le critère 9 ne vise que plugin-plugin. `tests/run-all.sh` porte `OVER_BUDGET=fail` ; la charpente l'écrit `alert` dans ce qu'elle produit ; le bilan gagne une ligne « alertes ». La répétition de publication, qui refusait un plugin au-delà du seuil parce que sa suite rougissait, alerte et continue, comme le plan de la phase 11 le décrit.
+
+**Ce que le modèle retire à plugin-nixos — consigné, non tranché.** La forme exec demande Claude Code 2.1.295. L'original gardait exprès la forme `command` seule pour qu'un poste en 26.05, dont le claude-code est la 2.1.223, puisse déclarer celui de son canal (son ARCHITECTURE, mesure du 2026-10-19). La réécriture le dit dans son ARCHITECTURE. Sans conséquence ici, puisqu'elle n'est jamais publiée ; c'est le premier cas où le modèle contredit une contrainte métier mesurée.
+
+Limites constatées : le `restricted_path` du modèle lie un outil absent à un chemin vide, avec un message de `ln`, là où l'original le sautait ; tous les outils que les suites de plugin-nixos restreignent sont présents sur ce poste. La réécriture prend de 3 à 5 minutes, surtout dans le `test_run_all` du modèle, qui relance une dizaine de fois la suite portée ; `test_rewrite_nixos` l'ajoute à la suite de plugin-plugin.
+
+### De la liste de travail à zéro écart
+
+| Écart de l'original (`check`) | Geste de la recette |
+| --- | --- |
+| `[arborescence des hooks]` `hooks/garde-nixos.sh`, `hooks/lib-commande.sh` hors de `hooks/scripts/` | `hooks/scripts/garde-nixos.sh` ; `hooks/scripts/lib/lib-commande.sh`, identique, comme `lib/shell-lexer.sh` de plugin-flutter ; dans le garde, le chemin de sa bibliothèque et celui de `nixconf` (3 lignes) |
+| `[forme des hooks]` forme shell ; `[hooks]` `onFailure` non déclaré | `command` « bash », le garde seul dans `args`, `timeout` d'origine (15), `"onFailure": "block"` ; le garde déclare `# Fail-closed` dans son en-tête |
+| `[arborescence]` `modeles` hors modèle | `scripts/modeles/flake.nix` ; une ligne de `nixconf` (`modeles="$ici/modeles"`) |
+| `[harnais]` trois tests à la racine de `tests/`, `tests/static/` sans test | `tests/hooks/test_garde_nixos.sh`, `tests/static/test_nixconf.sh`, `tests/static/test_statique.sh`, portés au harnais du modèle |
+| `[racine]` CHANGELOG sans entrée `[0.1.2]` | titres au format du modèle : `## [0.1.2] — 2026-10-19` |
+| `[racine]` PROGRESS.md et les quatre documents de `docs/` absents | écrits pour la réécriture : ils renvoient aux sections du README, et INSTALLATION porte l'avertissement de portée du garde |
+
+Plus : les chemins déplacés mis à jour dans ARCHITECTURE et dans un commentaire de `nixconf`, et le paragraphe de la forme des hooks réécrit. Rien d'autre ne change : skills, lanceur MCP, `.mcp.json`, LICENSE et `lib-commande.sh` identiques à l'original ; README identique, plus la section « Serveurs MCP » de `add-mcp`.
+
+`pp.sh rebuild` seul, avant le portage : « charpente : 12 écarts » — les aides de l'ancien harnais (`attendre`, `reussi`, `RACINE`…) absentes de `tests/lib.sh`, que le portage remplace par celles du modèle — et suite rouge : `test_manifest` (CHANGELOG), `test_paths` (forme des hooks), `test_run_all` ; les tests d'origine, à la racine de `tests/`, ne sont même pas lancés.
+
+### La suite d'origine et la suite portée
+
+`bash tests/run-all.sh` dans un clone de l'original, exit 0 ; puis `bash tests/rewrite/plugin-nixos.sh ../plugin-nixos build/rewrite/plugin-nixos`, exit 0. Chaque suite d'origine est relancée par la recette à côté de son équivalent :
+
+| Suite d'origine | Original | Suite portée | Réécriture | Cas d'origine sans équivalent |
+| --- | --- | --- | --- | --- |
+| `tests/test_garde.sh` | 217 réussis | `tests/hooks/test_garde_nixos.sh` | 217 réussis | 0 |
+| `tests/test_nixconf.sh` | 63 réussis | `tests/static/test_nixconf.sh` | 63 réussis | 0 |
+| `tests/test_statique.sh` | 71 réussis | `tests/static/test_statique.sh` | 78 réussis | 0 |
+| validation stricte | `.`, `plugin.json`, `skills` : ok | — | `.`, `plugin.json`, `skills` : ok ; `agents` sauté | — |
+
+`test_statique` porté a sept cas de plus : la syntaxe des fichiers du harnais du modèle (`tests/headers.sh`, `tests/mcp.sh`, et `test_headers`, `test_manifest`, `test_mcp_nixos`, `test_paths`, `test_run_all` sous `tests/static/`). Un cas change de sens, et c'est le modèle : « hooks.json : forme « command » seule, sans args ni onFailure » devient « hooks.json : forme exec, le garde dans args, onFailure block ». La réécriture lance en plus les tests de la charpente — `test_headers` (12), `test_manifest` (26), `test_paths` (32), `test_run_all` (31) — et `test_mcp_nixos` (2) ; bilan « réussies : 11, échouées : 0, sautées : 1 (agents), bloquées : 0, alertes : 1 (coût en contexte, 1126 tokens > 1000) ».
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash scripts/pp.sh rebuild ../plugin-nixos build/p14/rebuild-probe` | 1 | « charpente : 14 écarts » (les descriptions de la marketplace, les aides de l'ancien harnais), suite à 4 échecs, dont « coût permanent illisible » : `plugin details` écrit « ~1,126 tok » ; `check` : 9 écarts |
+| ROUGE | `bash tests/static/test_run_all.sh` | 1 | 24 réussis, 7 échoués : `OVER_BUDGET` absent, aucune alerte, « ~1,126 tok » illisible |
+| ROUGE | `bash tests/integration/test_create.sh` | 1 | 57 réussis, 5 échoués : le plugin créé n'a pas `OVER_BUDGET=alert`, et sa propre copie du nouveau `test_run_all` le voit |
+| ROUGE | `bash tests/integration/test_release.sh` (lecture du coût défaite dans `pp.sh`, écrite avant son test) | 1 | 102 réussis, 1 échoué : « échec : coût en contexte illisible » sur « ~1,126 tok » ; au-delà du seuil, la répétition continue désormais, avec son alerte |
+| VERT | `test_run_all` ; `test_create` ; `test_release` | 0 | 31, 62 et 103 réussis |
+| ROUGE | `bash tests/integration/test_rebuild.sh` | 1 | 29 réussis, 1 échoué : `tests/run-all.sh` comparé octet pour octet à celui de plugin-plugin, que la charpente change désormais d'une ligne : comparaison corrigée |
+| ROUGE | `bash tests/integration/test_rebuild.sh` (marketplace décrite par l'original d'essai) | 1 | 29 réussis, 2 échoués : « marketplace.json : ses descriptions, celles de l'original », « charpente : 4 écarts » au lieu de 2 |
+| VERT | `bash tests/integration/test_rebuild.sh` | 0 | 31 réussis |
+| ROUGE | `bash tests/integration/test_create.sh` (remise à zéro défaite, écrite avant son test) | 1 | 62 réussis, 1 échoué : « marketplace.json décrite par la charpente » |
+| VERT | `bash tests/integration/test_create.sh` | 0 | 63 réussis |
+| ROUGE | `bash tests/static/test_check.sh` ; `… test_create.sh` (outil sans extension) | 1 | 56 réussis, 2 échoués ; 64 réussis, 4 échoués : l'outil invisible pour `check` et pour `test_paths` |
+| VERT | `test_check` ; `test_create` | 0 | 58 et 68 réussis |
+| VERT | `bash tests/run-all.sh` (étapes 1 à 3) | 0 | « réussies : 31, échouées : 0, sautées : 1, bloquées : 0, alertes : 0 » ; coût permanent 824 tokens |
+| ROUGE | `bash tests/static/test_facts.sh` | 1 | 77 réussis, 1 échoué : « fait plugin-details-thousands-separator : absent de la base » |
+| VERT | `bash tests/static/test_facts.sh` ; `… test_reaudit.sh` | 0 | 78 et 34 réussis |
+| VERT | `bash tests/rewrite/plugin-nixos.sh ../plugin-nixos build/p14/try1` | 0 | premier essai de la recette, avant son test : suite portée verte, 0 écart, 0 cas sans équivalent |
+| ROUGE | `bash tests/integration/test_rewrite_nixos.sh` | 1 | 18 réussis, 5 échoués : « 192 Kio jugés en moins de 10 s (mesuré : 2 s) » sans équivalent — l'original avait mesuré 1 s, et la normalisation des durées ne s'appliquait jamais (en BRE, `\(` est un groupe, pas une parenthèse) ; le test doublait le préfixe `test_` des suites |
+| VERT | `bash tests/integration/test_rewrite_nixos.sh` | 0 | 23 réussis ; puis 27 avec la déclaration du serveur MCP par `add-mcp` |
+| VERT | `bash tests/rewrite/plugin-nixos.sh ../plugin-nixos build/rewrite/plugin-nixos` | 0 | la preuve, sur l'original réel, avec la recette finale |
+| VERT | `bash tests/run-all.sh` | 0 | `test_rewrite_nixos : 27`, `test_create : 68`, `test_rebuild : 31`, `test_release : 103`, `test_run_all : 31`, `test_check : 58`, `test_facts : 78` réussis ; « coût permanent : 824 tokens (seuil 1000) » ; « réussies : 32, échouées : 0, sautées : 1, bloquées : 0, alertes : 0 » ; 19 min 24 s |
+
+### Les tests discriminent
+
+Copies faussées dans `build/mutants/p14/`, une ligne changée chacune, `PLUGIN_UNDER_TEST=<copie> PP_REF_DIR=<clone> bash <test>`. Les clones de lecture sont à part (`build/mutants/p14-ref*`) : la copie qui écrit dans l'original a le sien.
+
+| Copie faussée | Test | Premier échec |
+| --- | --- | --- |
+| `OVER_BUDGET=alert` ignoré | test_run_all | « OVER_BUDGET=alert, 1.2k tokens permanents : exit 0 », « l'alerte est dite » |
+| virgule de milliers non lue (`run-all.sh`) | test_run_all | « ~1,126 tok : 1126 tokens, séparateur de milliers lu » |
+| virgule de milliers non lue (`pp.sh release`) | test_release | « ~1,126 tok : 1126 tokens, séparateur de milliers lu » |
+| la charpente recopie `run-all.sh` sans le mettre en alerte | test_create, test_rebuild | « create : exit 0 » (le `test_run_all` du plugin créé le voit) ; « rebuild : exit 0 », « tests/run-all.sh : … en alerte au-delà du budget » |
+| descriptions de la marketplace non portées | test_rebuild | « marketplace.json : ses descriptions, celles de l'original », « charpente : 2 écarts » |
+| `create` hérite des descriptions de l'environnement | test_create | « marketplace.json décrite par la charpente » |
+| `test_paths` sans les outils sans extension | test_create | « outil sans extension : contrôlé comme un script, et vert », « … bash -n échoue », « … #!/bin/sh : refusé » |
+| `check` sans les outils sans extension | test_check | « outil sans extension sous scripts/ qui ne se lit pas », « … en #!/bin/sh » |
+| la recette perd un cas (`refuse "nixos-rebuild boot"`) | test_rewrite_nixos | « réécriture : exit 0 », « test_garde : chacun de ses cas a son équivalent », « cas d'origine sans équivalent : 0 » |
+| la recette laisse le garde en forme shell | test_rewrite_nixos | « réécriture : exit 0 » : `add-mcp` refuse un plugin hors modèle et nomme l'écart, « [forme des hooks] … garde-nixos.sh » |
+| la recette laisse `modeles/` à la racine | test_rewrite_nixos | « réécriture : exit 0 » : `add-mcp` refuse, « [arborescence] hors modèle : modeles » |
+| la recette ne redéclare pas le serveur MCP | test_rewrite_nixos | « test du serveur, écrit par add-mcp, vert », « rappel de la doublure d'évaluation », « README : l'original, plus la section « Serveurs MCP » » |
+| la recette écrit dans l'original | test_rewrite_nixos | « réécriture : exit 0 » — la recette le dit elle-même : « ÉCHEC : l'original a changé pendant la réécriture » |
+
+Deux défauts des tests eux-mêmes, trouvés par les copies faussées et corrigés : le `test_paths` d'un plugin créé, lancé directement par `test_create`, et les suites de la réécriture, lancées une à une par la recette, héritaient de `PLUGIN_UNDER_TEST` et vérifiaient la copie faussée au lieu de leur propre dossier ; ils l'effacent désormais (`env -u`, `unset`). Les échecs d'abord vus pour la copie qui hérite des descriptions ne prouvaient donc rien : rejouée après la correction, elle n'échoue plus que sur son cas.

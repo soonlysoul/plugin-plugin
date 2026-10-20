@@ -388,9 +388,14 @@ expect_line "consigne corrigée : correctif" "^version : 0\.1\.0 → 0\.1\.1 \(c
 expect_line "commits repris au CHANGELOG" '^  - fix: consigne de demo précisée$'
 
 echo "# alerte de coût (US-25)"
+# Beyond the budget, a produced plugin's suite alerts and stays green: the rehearsal goes on.
 p=$(copy heavy)
-refused "coût au-delà du seuil" "$p" 1 "refusé : la suite du plugin n'est pas verte" -- STUB_ALWAYS_ON=1.2k
+run_release "$p" -- STUB_ALWAYS_ON=1.2k
+expect_exit "coût au-delà du seuil : la répétition continue, exit 0" 0
 expect_line "alerte au-delà de 1 000 tokens" '^alerte : coût permanent ~1200 tokens, au-delà du seuil de 1000$'
 expect_line "coût par composant, même en alerte" "^  - demo : ~1\.2k permanent, ~2k à l'appel$"
+expect_line "l'alerte de la suite du plugin est comptée" '^suite du plugin : exit 0 \(.*alertes : 1'
+run_release "$p" -- STUB_ALWAYS_ON=1,126
+expect_line "~1,126 tok : 1126 tokens, séparateur de milliers lu" '^alerte : coût permanent ~1126 tokens, au-delà du seuil de 1000$'
 
 finish

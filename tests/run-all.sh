@@ -9,10 +9,13 @@ unset PLUGIN_UNDER_TEST
 
 command -v jq >/dev/null 2>&1 || { echo "bloqué : jq est requis par la suite et introuvable dans le PATH." >&2; exit 2; }
 
-# Always-on context budget of a plugin of the model (PRD, « Coût en contexte »).
+# Always-on context budget of a plugin of the model (PRD, « Coût en contexte »). Beyond it,
+# plugin-plugin's own suite fails (criterion 9); the scaffolding sets alert in the plugins it
+# produces, whose suite says so and still passes.
 MAX_ALWAYS_ON_TOKENS=1000
+OVER_BUDGET=fail
 
-passed=() failed=() skipped=() blocked=()
+passed=() failed=() skipped=() blocked=() alerts=()
 
 shopt -s nullglob
 for suite in tests/static/test_*.sh tests/hooks/test_*.sh tests/integration/test_*.sh tests/project/test_*.sh; do
@@ -46,7 +49,7 @@ else
   blocked+=("claude plugin validate (claude introuvable dans le PATH)")
 fi
 
-# Projected always-on cost, as `claude plugin details` reports it: ~841 tok, ~1.2k tok.
+# Projected always-on cost, as `claude plugin details` reports it: ~841 tok, ~1,126 tok, ~1.2k tok.
 printf '\n== coût en contexte permanent\n'
 name=$(jq -r '.name // empty' .claude-plugin/plugin.json 2>/dev/null)
 if ! command -v claude >/dev/null 2>&1; then
@@ -59,11 +62,14 @@ elif ! output=$(claude --plugin-dir . plugin details "$name" 2>&1); then
   printf '  ÉCHEC  claude --plugin-dir . plugin details %s\n%s\n' "$name" "$output"
   failed+=("coût en contexte (plugin details a échoué)")
 else
-  tokens=$(sed -n 's/.*Always-on:[[:space:]]*~\([0-9.]*k\{0,1\}\) tok.*/\1/p' <<<"$output" | head -n 1)
+  tokens=$(sed -n 's/.*Always-on:[[:space:]]*~\([0-9.,]*k\{0,1\}\) tok.*/\1/p' <<<"$output" | head -n 1 | tr -d ,)
   tokens=$(awk -v t="$tokens" 'BEGIN { if (t == "") exit; n = t + 0; if (t ~ /k$/) n *= 1000; printf "%d", n }')
   if [[ -z $tokens ]]; then
     printf '  ÉCHEC  coût permanent illisible dans la sortie de plugin details\n%s\n' "$output"
     failed+=("coût en contexte (illisible)")
+  elif ((tokens > MAX_ALWAYS_ON_TOKENS)) && [[ $OVER_BUDGET == alert ]]; then
+    printf '  alerte coût permanent : %d tokens, au-delà du seuil de %d\n' "$tokens" "$MAX_ALWAYS_ON_TOKENS"
+    alerts+=("coût en contexte ($tokens tokens > $MAX_ALWAYS_ON_TOKENS)")
   elif ((tokens > MAX_ALWAYS_ON_TOKENS)); then
     printf '  ÉCHEC  coût permanent : %d tokens, au-delà du seuil de %d\n' "$tokens" "$MAX_ALWAYS_ON_TOKENS"
     failed+=("coût en contexte ($tokens tokens > $MAX_ALWAYS_ON_TOKENS)")
@@ -81,6 +87,8 @@ printf 'sautées : %d\n' "${#skipped[@]}"
 for item in ${skipped[@]+"${skipped[@]}"}; do printf '  - %s\n' "$item"; done
 printf 'bloquées : %d\n' "${#blocked[@]}"
 for item in ${blocked[@]+"${blocked[@]}"}; do printf '  - %s\n' "$item"; done
+printf 'alertes : %d\n' "${#alerts[@]}"
+for item in ${alerts[@]+"${alerts[@]}"}; do printf '  - %s\n' "$item"; done
 ((${#failed[@]} == 0)) || exit 1
 ((${#blocked[@]} == 0)) || exit 2
 exit 0

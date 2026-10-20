@@ -148,10 +148,13 @@ gaps_hooks() {
   done <<<"$files"
 }
 
+# A script: a .sh under scripts/, hooks/scripts/ or their lib/, or a tool directly under scripts/
+# named without extension whose first line is a shebang (decision a).
 gaps_scripts() {
   local d=$1 files=$2 file
   while IFS= read -r file; do
-    [[ $file =~ ^(hooks/)?scripts/([^/]+|lib/[^/]+)\.sh$ ]] || continue
+    [[ $file =~ ^(hooks/)?scripts/([^/]+|lib/[^/]+)\.sh$ ]] \
+      || { [[ $file =~ ^scripts/[^/.]+$ ]] && [[ $(head -c 2 "$d/$file") == '#!' ]]; } || continue
     bash -n "$d/$file" 2>/dev/null || echo "[scripts] $file : bash -n échoue"
     [[ $file == */lib/* || $(head -n 1 "$d/$file") == '#!/usr/bin/env bash' ]] \
       || echo "[scripts] $file : première ligne « $(head -n 1 "$d/$file") », #!/usr/bin/env bash attendu"

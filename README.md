@@ -38,7 +38,7 @@ La 0.1.0 n'est pas publiée : la première version installable depuis la marketp
 bash tests/run-all.sh
 ```
 
-Suite déterministe : bash et jq, sans réseau, sans session, sans quota. Elle lance les tests statiques, `claude plugin validate --strict` sur chaque cible (la marketplace, `plugin.json`, puis `skills/` et `agents/` s'ils existent) et mesure le coût en contexte permanent du plugin, qui doit rester sous 1 000 tokens.
+Suite déterministe : bash et jq, sans réseau, sans session, sans quota. Elle lance les tests statiques, `claude plugin validate --strict` sur chaque cible (la marketplace, `plugin.json`, puis `skills/` et `agents/` s'ils existent) et mesure le coût en contexte permanent du plugin. Au-delà de 1 000 tokens, la suite de plugin-plugin échoue ; celle d'un plugin qu'il produit l'alerte et reste verte (`OVER_BUDGET` dans `tests/run-all.sh`).
 
 | Code de sortie | Sens |
 | --- | --- |
@@ -46,7 +46,7 @@ Suite déterministe : bash et jq, sans réseau, sans session, sans quota. Elle l
 | 1 | au moins une étape échoue |
 | 2 | un prérequis manque (`jq`, ou `claude` pour la validation et le coût) : l'étape est bloquée, jamais comptée réussie |
 
-Les tests sur les plugins réels — `check`, l'ajout à plugin-flutter, sa reconstruction — lisent les copies de lecture de `build/ref/` (ou `PP_REF_DIR`) et sont sautés sans elles.
+Les tests sur les plugins réels — `check`, l'ajout à plugin-flutter, sa reconstruction, la réécriture de plugin-nixos — lisent les copies de lecture de `build/ref/` (ou `PP_REF_DIR`) et sont sautés sans elles.
 
 ## Reconstruire un plugin existant
 
@@ -55,6 +55,14 @@ bash scripts/pp.sh rebuild <dépôt d'origine> build/rebuild/<nom>
 ```
 
 La charpente que plugin-plugin produit — manifestes, licence, `.gitignore`, `tests/lib.sh`, `tests/run-all.sh` —, puis tout le reste du dernier commit de l'original, tel quel. L'outil rapporte chaque écart entre sa charpente et celle de l'original, lance la suite de la reconstruction, et prouve l'original intact (HEAD, `git status`, empreintes). Il n'écrit que dans un dossier absent ou vide.
+
+## La réécriture de plugin-nixos, un test
+
+```bash
+bash tests/rewrite/plugin-nixos.sh <dépôt de plugin-nixos> build/rewrite/plugin-nixos
+```
+
+Un test de plugin-plugin, jamais publié : `rebuild`, puis seulement ce que le modèle impose — hooks en forme exec sous `hooks/scripts/`, harnais du modèle —, chaque changement fermant un écart que `check` relève sur l'original. Elle prouve la suite portée verte, `check` à zéro écart, chaque cas de la suite d'origine présent dans la suite portée, et l'original intact. Lancée par `tests/integration/test_rewrite_nixos.sh`.
 
 ## Licence
 

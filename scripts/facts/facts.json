@@ -1150,5 +1150,14 @@
     "source": "plugin-plugin, sonde vivante de phase 12 (extension VSCode)",
     "recheck": "ajouter un hook UserPromptSubmit qui écrit un fichier dans .claude/settings.local.json, puis envoyer un message sans redémarrer",
     "status": "confirmé"
+  },
+  {
+    "id": "plugin-details-thousands-separator",
+    "statement": "plugin details écrit un coût permanent de 1 000 tokens ou plus avec une virgule de milliers (« Always-on:   ~1,126 tok », plugin-nixos 0.1.2), et les coûts par composant en k (« ~2.5k »).",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, phase 14 (réécriture de plugin-nixos)",
+    "recheck": "claude --plugin-dir <clone de plugin-nixos> plugin details plugin-nixos",
+    "status": "confirmé"
   }
 ]

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Paths: every ${CLAUDE_PLUGIN_ROOT}/… cited by a skill, an agent or .mcp.json exists; scripts
-# under scripts/ and hooks/scripts/ are bash scripts that parse; MCP servers follow tests/mcp.sh;
-# no /bin/bash, no personal or store path anywhere in the components.
+# under scripts/ and hooks/scripts/, tools without extension included, are bash scripts that
+# parse; MCP servers follow tests/mcp.sh; no /bin/bash, no personal or store path anywhere in the
+# components.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_paths
@@ -104,7 +105,13 @@ for file in ${annexes[@]+"${annexes[@]}"}; do
 done
 
 echo "# scripts"
-scripts=("$PLUGIN_ROOT"/scripts/*.sh "$PLUGIN_ROOT"/scripts/lib/*.sh "$PLUGIN_ROOT"/hooks/scripts/*.sh "$PLUGIN_ROOT"/hooks/scripts/lib/*.sh)
+# A tool under scripts/ may be named without .sh (decision a): a file without extension whose first
+# line is a shebang. A data file there is not a script.
+tools=()
+for file in "$PLUGIN_ROOT"/scripts/*; do
+  [[ -f $file && ${file##*/} != *.* && $(head -c 2 "$file") == '#!' ]] && tools+=("$file")
+done
+scripts=("$PLUGIN_ROOT"/scripts/*.sh ${tools[@]+"${tools[@]}"} "$PLUGIN_ROOT"/scripts/lib/*.sh "$PLUGIN_ROOT"/hooks/scripts/*.sh "$PLUGIN_ROOT"/hooks/scripts/lib/*.sh)
 for script in ${scripts[@]+"${scripts[@]}"}; do
   rel=${script#"$PLUGIN_ROOT"/}
   bash -n "$script" 2>/dev/null && pass "$rel : bash -n" || fail "$rel : bash -n"
@@ -120,7 +127,7 @@ for script in ${scripts[@]+"${scripts[@]}"}; do
       || fail "$rel : #!/usr/bin/env bash" "$(head -n 1 "$script")" ;;
   esac
 done
-for script in "$PLUGIN_ROOT"/scripts/*.sh "$PLUGIN_ROOT"/hooks/scripts/*.sh; do
+for script in "$PLUGIN_ROOT"/scripts/*.sh ${tools[@]+"${tools[@]}"} "$PLUGIN_ROOT"/hooks/scripts/*.sh; do
   name=${script##*/}
   grep -qF "\${CLAUDE_PLUGIN_ROOT}/${script#"$PLUGIN_ROOT"/}" "${substituted[@]}" "$PLUGIN_ROOT"/hooks/hooks.json ${mcp[@]+"${mcp[@]}"} /dev/null \
     && pass "$name est cité par \${CLAUDE_PLUGIN_ROOT}" || fail "$name est cité par \${CLAUDE_PLUGIN_ROOT}"

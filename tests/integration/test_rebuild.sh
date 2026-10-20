@@ -80,10 +80,12 @@ for helper in restricted_path bash_input SCRIPTS; do
     || fail "tests/lib.sh définit $helper, dont se servent les tests de l'original"
 done
 
-for file in tests/lib.sh tests/run-all.sh; do
-  cmp -s "$PLUGIN_ROOT/$file" "$dest/$file" && pass "$file : celui de plugin-plugin, jamais celui de l'original" \
-    || fail "$file : celui de plugin-plugin, jamais celui de l'original"
-done
+cmp -s "$PLUGIN_ROOT/tests/lib.sh" "$dest/tests/lib.sh" && pass "tests/lib.sh : celui de plugin-plugin, jamais celui de l'original" \
+  || fail "tests/lib.sh : celui de plugin-plugin, jamais celui de l'original"
+# The one line it changes: beyond the context budget, a produced plugin's suite alerts.
+cmp -s <(sed 's/^OVER_BUDGET=fail$/OVER_BUDGET=alert/' "$PLUGIN_ROOT/tests/run-all.sh") "$dest/tests/run-all.sh" \
+  && pass "tests/run-all.sh : celui de plugin-plugin, en alerte au-delà du budget, jamais celui de l'original" \
+  || fail "tests/run-all.sh : celui de plugin-plugin, en alerte au-delà du budget, jamais celui de l'original"
 
 echo "# sa propre suite et la validation stricte"
 suite_output=$(cd "$work" && bash "$dest/tests/run-all.sh" 2>&1)
@@ -109,8 +111,9 @@ mkdir -p "$fixture/.claude-plugin" "$fixture/tests/static"
 jq -n '{name: "plugin-fixe", version: "0.3.0", description: "Fixe.", author: {name: "Soon"},
   homepage: "https://github.com/soonlysoul/plugin-fixe", repository: "https://github.com/soonlysoul/plugin-fixe",
   license: "MIT"}' >"$fixture/.claude-plugin/plugin.json"
-jq -n '{name: "plugin-fixe", description: "Local marketplace for the plugin-fixe Claude Code plugin.", owner: {name: "Soon"},
-  plugins: [{name: "plugin-fixe", source: "./", description: "Fixe."}]}' >"$fixture/.claude-plugin/marketplace.json"
+# Its marketplace describes itself in its own words, which the rebuild keeps.
+jq -n '{name: "plugin-fixe", description: "Marketplace locale de plugin-fixe.", owner: {name: "Soon"},
+  plugins: [{name: "plugin-fixe", source: "./", description: "Fixe, en bref."}]}' >"$fixture/.claude-plugin/marketplace.json"
 cp "$dest/LICENSE" "$fixture/LICENSE"
 printf 'cache-local/\n' >"$fixture/.gitignore"
 printf 'PASS=0 FAIL=0\npass() { PASS=$((PASS + 1)); }\nfail() { FAIL=$((FAIL + 1)); }\nhelper_maison() { :; }\nfinish() { [[ $FAIL == 0 ]]; }\n' >"$fixture/tests/lib.sh"
@@ -123,6 +126,9 @@ grep -q "changements non enregistrés de l'original ignorés" <<<"$PP_OUTPUT" &&
   && pass "changement non enregistré de l'original : signalé, pas reconstruit" \
   || fail "changement non enregistré de l'original : signalé, pas reconstruit" "$(head -n 3 <<<"$PP_OUTPUT" | tr '\n' '|')"
 [[ $PP_STATUS == 1 ]] && pass "écart de charpente : exit 1" || fail "écart de charpente : exit 1" "exit $PP_STATUS"
+[[ $(jq -S . "$work/rebuild/plugin-fixe/.claude-plugin/marketplace.json" 2>/dev/null) == "$(jq -S . "$fixture/.claude-plugin/marketplace.json")" ]] \
+  && pass "marketplace.json : ses descriptions, celles de l'original" \
+  || fail "marketplace.json : ses descriptions, celles de l'original" "$(jq -c . "$work/rebuild/plugin-fixe/.claude-plugin/marketplace.json" 2>&1)"
 for pattern in "^charpente : 2 écarts" "aide absente : helper_maison, dont se sert tests/static/test_maison.sh" \
   "ligne de l'original absente : cache-local/" "^  - tests/static/test_maison.sh$"; do
   grep -qE "$pattern" <<<"$PP_OUTPUT" && pass "rapporté : $pattern" || fail "rapporté : $pattern" "$(tr '\n' '|' <<<"$PP_OUTPUT" | head -c 600)"

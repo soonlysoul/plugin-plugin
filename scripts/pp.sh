@@ -375,9 +375,9 @@ render() {
 }
 
 # scaffold <dir>: the scaffolding of a plugin of the model, from NAME and DESCRIPTION — VERSION
-# (0.1.0 by default) and KEYWORDS, a JSON array, when a rebuild carries them: manifests,
-# root files, documents to fill, and plugin-plugin's own harness, so that both suites behave the
-# same way.
+# (0.1.0 by default), KEYWORDS, a JSON array, and the marketplace's MARKET_DESCRIPTION and
+# ENTRY_DESCRIPTION, when a rebuild carries them: manifests, root files, documents to fill, and
+# plugin-plugin's own harness, so that both suites behave the same way.
 scaffold() {
   local dir=$1 file scaffold="$PP_ROOT/scripts/scaffold" repository="https://github.com/$OWNER/$NAME"
   TODAY=$(date +%F)
@@ -387,22 +387,24 @@ scaffold() {
     '{name: $name, version: $version, description: $description, author: {name: "Soon"},
       homepage: $repository, repository: $repository, license: "MIT"}
      + (if $keywords == null then {} else {keywords: $keywords} end)' >"$dir/.claude-plugin/plugin.json"
-  jq -n --arg name "$NAME" --arg description "$DESCRIPTION" \
-    '{name: $name, description: "Local marketplace for the \($name) Claude Code plugin.", owner: {name: "Soon"},
+  jq -n --arg name "$NAME" --arg description "${ENTRY_DESCRIPTION:-$DESCRIPTION}" \
+    --arg market "${MARKET_DESCRIPTION:-Local marketplace for the $NAME Claude Code plugin.}" \
+    '{name: $name, description: $market, owner: {name: "Soon"},
       plugins: [{name: $name, source: "./", description: $description}]}' >"$dir/.claude-plugin/marketplace.json"
   sed -E "s/^Copyright \(c\) [0-9]+ Soon$/Copyright (c) ${TODAY%%-*} Soon/" "$PP_ROOT/LICENSE" >"$dir/LICENSE"
   for file in README.md CHANGELOG.md PROGRESS.md docs/INSTALLATION.md docs/USER_GUIDE.md docs/SECURITY.md docs/TROUBLESHOOTING.md; do
     render "$scaffold/$file" "$dir/$file"
   done
   render "$scaffold/gitignore" "$dir/.gitignore"
-  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/headers.sh" "$PP_ROOT/tests/mcp.sh" "$PP_ROOT/tests/run-all.sh" "$dir/tests/"
+  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/headers.sh" "$PP_ROOT/tests/mcp.sh" "$dir/tests/"
+  sed 's/^OVER_BUDGET=fail$/OVER_BUDGET=alert/' "$PP_ROOT/tests/run-all.sh" >"$dir/tests/run-all.sh"
   cp "$PP_ROOT/tests/static/test_paths.sh" "$PP_ROOT/tests/static/test_run_all.sh" "$PP_ROOT/tests/static/test_headers.sh" "$dir/tests/static/"
   sed "s/^NAME=plugin-plugin$/NAME=$NAME/" "$PP_ROOT/tests/static/test_manifest.sh" >"$dir/tests/static/test_manifest.sh"
 }
 
 cmd_create() {
   local dir=${1:-} file rc
-  NAME="" DESCRIPTION="" VERSION="" KEYWORDS=""
+  NAME="" DESCRIPTION="" VERSION="" KEYWORDS="" MARKET_DESCRIPTION="" ENTRY_DESCRIPTION=""
   shift || true
   while [[ $# -gt 0 ]]; do
     case $1 in
@@ -429,7 +431,7 @@ cmd_create() {
   log=$(mktemp)
   (cd "$dir" && bash tests/run-all.sh) >"$log" 2>&1
   rc=$?
-  grep -E '^(réussies|échouées|sautées|bloquées) :|^  - ' "$log"
+  grep -E '^(réussies|échouées|sautées|bloquées|alertes) :|^  - ' "$log"
   rm -f "$log"
   printf 'suite du plugin créé : exit %d\n' "$rc"
   ((rc == 0)) || exit 1
@@ -498,6 +500,8 @@ cmd_rebuild() {
   version=$(git -C "$orig" show HEAD:.claude-plugin/plugin.json | jq -r '.version // empty')
   VERSION=$version
   KEYWORDS=$(git -C "$orig" show HEAD:.claude-plugin/plugin.json | jq -c '.keywords // null')
+  MARKET_DESCRIPTION=$(git -C "$orig" show HEAD:.claude-plugin/marketplace.json 2>/dev/null | jq -r '.description // empty' 2>/dev/null)
+  ENTRY_DESCRIPTION=$(git -C "$orig" show HEAD:.claude-plugin/marketplace.json 2>/dev/null | jq -r '.plugins[0].description // empty' 2>/dev/null)
   [[ -n $NAME && -n $DESCRIPTION ]] || die "refusé : nom ou description illisible dans le plugin.json de $orig."
 
   mkdir -p "$dest" || die "échec : impossible de créer $dest"
@@ -529,7 +533,7 @@ cmd_rebuild() {
     printf "charpente : %d écarts avec l'originale\n" "$(grep -c . <<<"$gaps")"
     sed 's/^/- /' <<<"$gaps"
   fi
-  grep -E '^(réussies|échouées|sautées|bloquées) :|^  - ' "$log"
+  grep -E '^(réussies|échouées|sautées|bloquées|alertes) :|^  - ' "$log"
   rm -f "$log"
   printf 'suite de la reconstruction : exit %d\n' "$rc"
   after=$(repo_state "$orig")
@@ -1477,7 +1481,7 @@ bump() {
 plugin_cost() {
   local output
   output=$(claude --plugin-dir "$1" plugin details "$2" 2>&1) || return 1
-  COST_TOTAL=$(sed -n 's/.*Always-on:[[:space:]]*~\([0-9.]*k\{0,1\}\) tok.*/\1/p' <<<"$output" | head -n 1)
+  COST_TOTAL=$(sed -n 's/.*Always-on:[[:space:]]*~\([0-9.,]*k\{0,1\}\) tok.*/\1/p' <<<"$output" | head -n 1 | tr -d ,)
   COST_TOTAL=$(awk -v t="$COST_TOTAL" 'BEGIN { if (t == "") exit; n = t + 0; if (t ~ /k$/) n *= 1000; printf "%d", n }')
   [[ -n $COST_TOTAL ]] || return 1
   COST_ROWS=$(awk '/^Per-component/ { table = 1; next } table && $1 == "component" { rows = 1; next }
@@ -1727,7 +1731,7 @@ cmd_release() {
   local log rc summary
   log=$(cd "$clone" && bash tests/run-all.sh 2>&1)
   rc=$?
-  summary=$(grep -E '^(réussies|échouées|sautées|bloquées) : ' <<<"$log" | paste -sd, - | sed 's/,/, /g')
+  summary=$(grep -E '^(réussies|échouées|sautées|bloquées|alertes) : ' <<<"$log" | paste -sd, - | sed 's/,/, /g')
   printf 'suite du plugin : exit %d (%s)\n' "$rc" "${summary:-bilan illisible}"
   if ((rc != 0)); then
     grep -E '^  - ' <<<"$log" | head -n 5

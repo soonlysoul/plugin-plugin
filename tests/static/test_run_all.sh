@@ -108,10 +108,31 @@ refuse_output "claude absent : rien n'est réussi en silence" '^  ok +(\.|\.clau
 rm -rf "$no_claude"
 
 echo "# budget de contexte"
-run_suite "$intact" PATH="$work/stub:$PATH" STUB_ALWAYS_ON=1.2k
-expect_run "1.2k tokens permanents : exit 1" 1
+# Beyond the budget, plugin-plugin's own suite fails (criterion 9); a plugin it produces is only
+# alerted (PRD, « Coût en contexte »). OVER_BUDGET decides; each case sets it in its copy.
+name=$(jq -r '.name // empty' "$PLUGIN_ROOT/.claude-plugin/plugin.json")
+expected=alert
+[[ $name == plugin-plugin ]] && expected=fail
+grep -qx "OVER_BUDGET=$expected" "$PLUGIN_ROOT/tests/run-all.sh" \
+  && pass "$name : au-delà du budget, OVER_BUDGET=$expected" || fail "$name : au-delà du budget, OVER_BUDGET=$expected" "$(grep -n '^OVER_BUDGET=' "$PLUGIN_ROOT/tests/run-all.sh")"
+over_fail=$(copy_plugin over-fail) over_alert=$(copy_plugin over-alert)
+sed -i 's/^OVER_BUDGET=.*/OVER_BUDGET=fail/' "$over_fail/tests/run-all.sh"
+sed -i 's/^OVER_BUDGET=.*/OVER_BUDGET=alert/' "$over_alert/tests/run-all.sh"
+
+run_suite "$over_fail" PATH="$work/stub:$PATH" STUB_ALWAYS_ON=1.2k
+expect_run "OVER_BUDGET=fail, 1.2k tokens permanents : exit 1" 1
 expect_output "le dépassement est nommé" 'coût permanent : 1200 tokens, au-delà du seuil de 1000'
-run_suite "$intact" PATH="$work/stub:$PATH" STUB_ALWAYS_ON=1k
+expect_output "le dépassement est nommé au bilan" '^  - coût en contexte \(1200 tokens > 1000\)$'
+run_suite "$over_alert" PATH="$work/stub:$PATH" STUB_ALWAYS_ON=1.2k
+expect_run "OVER_BUDGET=alert, 1.2k tokens permanents : exit 0" 0
+expect_output "l'alerte est dite" 'alerte +coût permanent : 1200 tokens, au-delà du seuil de 1000'
+expect_output "l'alerte est comptée au bilan" '^alertes : 1$'
+expect_output "l'alerte est nommée au bilan" '^  - coût en contexte \(1200 tokens > 1000\)$'
+expect_output "l'alerte n'est pas un échec" '^échouées : 0$'
+run_suite "$over_alert" PATH="$work/stub:$PATH" STUB_ALWAYS_ON=1,126
+expect_output "~1,126 tok : 1126 tokens, séparateur de milliers lu" 'coût permanent : 1126 tokens, au-delà du seuil de 1000'
+run_suite "$over_fail" PATH="$work/stub:$PATH" STUB_ALWAYS_ON=1k
 expect_run "1k tokens permanents, au seuil : exit 0" 0
+expect_output "au seuil : aucune alerte" '^alertes : 0$'
 
 finish

@@ -88,6 +88,8 @@ for id in user-prompt-submit-input bash-mode-skips-user-prompt-submit plugin-tag
 done
 expect_fact user-prompt-submit-vscode confirmé
 expect_fact user-prompt-submit-vscode-selection "à vérifier"
+# Phase 14: how plugin details writes a cost of a thousand tokens or more.
+expect_fact plugin-details-thousands-separator confirmé
 # From plugin-dev, unverified, with its two contradictions of phase A.
 expect_fact plugindev-when-to-use-deprecated "à vérifier"
 expect_fact plugindev-hooks-need-restart "à vérifier"

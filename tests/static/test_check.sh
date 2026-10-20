@@ -112,6 +112,16 @@ gap "chemin sans CLAUDE_PLUGIN_ROOT" "CLAUDE_PLUGIN_ROOT" 'sed -i "s#\${CLAUDE_P
 gap "script non câblé" "non câblé.*orphan.sh" 'printf "#!/usr/bin/env bash\n" >hooks/scripts/orphan.sh; printf "#!/usr/bin/env bash\n" >tests/hooks/test_orphan.sh'
 gap "#!/bin/bash" "#!/usr/bin/env bash" 'sed -i "1s#.*#\#!/bin/bash#" hooks/scripts/demo-guard.sh'
 gap "hooks.json illisible" "hooks.json" 'echo "{" >hooks/hooks.json'
+# A tool under scripts/ named without .sh (plugin-nixos's nixconf) is a script all the same.
+gap "outil sans extension sous scripts/ qui ne se lit pas" "\[scripts\] scripts/outil : bash -n échoue" \
+  'mkdir -p scripts && printf "#!/usr/bin/env bash\nif then\n" >scripts/outil'
+gap "outil sans extension sous scripts/ en #!/bin/sh" "\[scripts\] scripts/outil : première ligne" \
+  'mkdir -p scripts && printf "#!/bin/sh\necho ok\n" >scripts/outil'
+copy=$(mktemp -d "$work/copy.XXXXXX") && cp -a "$BASE/." "$copy/"
+mkdir -p "$copy/scripts/modeles" && printf 'Notes.\n' >"$copy/scripts/LISEZMOI" && printf '{ }\n' >"$copy/scripts/modeles/flake.nix"
+run_pp check "$copy"
+[[ $PP_STATUS == 0 ]] && pass "fichiers de données sous scripts/, sans shebang : pas un écart" \
+  || fail "fichiers de données sous scripts/, sans shebang : pas un écart" "$(tr '\n' '|' <<<"$PP_OUTPUT" | head -c 300)"
 
 echo "# skills, agents, chemins, serveurs MCP"
 gap "skill avec allowed-tools" "allowed-tools" 'sed -i "2a allowed-tools: Bash" skills/demo/SKILL.md'

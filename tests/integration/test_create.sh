@@ -98,8 +98,10 @@ target="$work/plugin-essai"
 framed "$target"
 framing_before=$( (cd "$target" && sha256sum docs/PRD.md docs/ARCHITECTURE.md .plugin-plugin/approvals.log) )
 log="$work/gh.log"
-# VERSION and KEYWORDS from the environment never reach a created plugin (rebuild sets them).
-run_create "$target" plugin-essai PATH="$STUBPATH" STUB_GH_LOG="$log" VERSION=9.9.9 KEYWORDS='["fuite"]'
+# VERSION, KEYWORDS and the marketplace's descriptions from the environment never reach a created
+# plugin (rebuild sets them).
+run_create "$target" plugin-essai PATH="$STUBPATH" STUB_GH_LOG="$log" VERSION=9.9.9 KEYWORDS='["fuite"]' \
+  MARKET_DESCRIPTION=fuite ENTRY_DESCRIPTION=fuite
 if [[ $PP_STATUS == 0 ]]; then pass "create : exit 0"; else fail "create : exit 0" "exit $PP_STATUS ; sortie : $(tail -n 15 <<<"$PP_OUTPUT" | tr '\n' '|')"; fi
 grep -qF 'api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json' "$log" 2>/dev/null \
   && pass "la marketplace est lue sur GitHub par gh api" || fail "la marketplace est lue sur GitHub par gh api"
@@ -119,6 +121,9 @@ jq -e '.name == "plugin-essai" and .version == "0.1.0" and .description == "Plug
   "$target/.claude-plugin/plugin.json" >/dev/null 2>&1 && pass "plugin.json au modèle, sans e-mail" \
   || fail "plugin.json au modèle, sans e-mail" "$(cat "$target/.claude-plugin/plugin.json" 2>&1 | head -c 300)"
 grep -q '@' "$target/.claude-plugin/plugin.json" 2>/dev/null && fail "aucune adresse e-mail dans plugin.json" || pass "aucune adresse e-mail dans plugin.json"
+jq -e '.description == "Local marketplace for the plugin-essai Claude Code plugin." and .plugins[0].description == "Plugin d'"'"'essai."' \
+  "$target/.claude-plugin/marketplace.json" >/dev/null 2>&1 && pass "marketplace.json décrite par la charpente" \
+  || fail "marketplace.json décrite par la charpente" "$(jq -c . "$target/.claude-plugin/marketplace.json" 2>&1 | head -c 300)"
 personal=$(grep -rnE --exclude-dir=.git '/home/|/Users/|/nix/store/' "$target" 2>/dev/null)
 [[ -z $personal ]] && pass "aucun chemin personnel ni du store dans ce qui est produit" \
   || fail "aucun chemin personnel ni du store dans ce qui est produit" "$personal"
@@ -134,6 +139,8 @@ suite_status=$?
 [[ $suite_status == 0 ]] && pass "bash tests/run-all.sh du plugin créé : exit 0" \
   || fail "bash tests/run-all.sh du plugin créé : exit 0" "exit $suite_status ; $(tail -n 12 <<<"$suite_output" | tr '\n' '|')"
 grep -qx 'échouées : 0' <<<"$suite_output" && pass "son bilan compte zéro échec" || fail "son bilan compte zéro échec"
+grep -qx 'OVER_BUDGET=alert' "$target/tests/run-all.sh" 2>/dev/null \
+  && pass "au-delà du budget de contexte, sa suite alerte sans échouer" || fail "au-delà du budget de contexte, sa suite alerte sans échouer"
 for target_name in . .claude-plugin/plugin.json; do
   grep -qE "^  ok +${target_name//./\\.}$" <<<"$suite_output" && pass "sa validation stricte passe : $target_name" \
     || fail "sa validation stricte passe : $target_name"
@@ -142,5 +149,36 @@ check_output=$("$BASH" "$PP" check "$target" 2>&1)
 [[ $? == 0 ]] && grep -q '^écarts : 0' <<<"$check_output" && pass "pp.sh check : aucun écart au modèle" \
   || fail "pp.sh check : aucun écart au modèle" "$(tr '\n' '|' <<<"$check_output" | head -c 400)"
 refused "plugin déjà créé" "$target" plugin-essai 1 'hors cadrage' PATH="$STUBPATH"
+
+echo "# test_paths : un outil sans extension sous scripts/ (décision a)"
+# A tool named without .sh, as plugin-nixos's nixconf, gets the tests of every other script; a
+# data file there, without a shebang, is not a script.
+tool_copy="$work/outil/plugin-essai"
+mkdir -p "$work/outil" && cp -a "$target" "$tool_copy"
+mkdir -p "$tool_copy/scripts" "$tool_copy/skills/demo"
+printf '#!/usr/bin/env bash\necho ok\n' >"$tool_copy/scripts/outil"
+printf 'Notes de l outil.\n' >"$tool_copy/scripts/LISEZMOI"
+printf -- '---\nname: demo\ndescription: "Démo."\n---\n\nbash "${CLAUDE_PLUGIN_ROOT}/scripts/outil"\n' >"$tool_copy/skills/demo/SKILL.md"
+# The copy's own test_paths, never the plugin a mutated run points PLUGIN_UNDER_TEST at.
+paths_of() { PATHS_OUTPUT=$(env -u PLUGIN_UNDER_TEST "$BASH" "$tool_copy/tests/static/test_paths.sh" 2>&1); PATHS_STATUS=$?; }
+paths_of
+[[ $PATHS_STATUS == 0 ]] && grep -qE '^  ok +scripts/outil : bash -n$' <<<"$PATHS_OUTPUT" && grep -qE '^  ok +outil est cité par' <<<"$PATHS_OUTPUT" \
+  && pass "outil sans extension : contrôlé comme un script, et vert" \
+  || fail "outil sans extension : contrôlé comme un script, et vert" "exit $PATHS_STATUS ; $(grep -E 'outil|ÉCHEC' <<<"$PATHS_OUTPUT" | tr '\n' '|')"
+grep -q 'LISEZMOI' <<<"$PATHS_OUTPUT" && fail "fichier de données sans shebang sous scripts/ : pas un script" "$(grep LISEZMOI <<<"$PATHS_OUTPUT")" \
+  || pass "fichier de données sans shebang sous scripts/ : pas un script"
+printf '#!/usr/bin/env bash\nif then\n' >"$tool_copy/scripts/outil"
+paths_of
+grep -qE '^  ÉCHEC +scripts/outil : bash -n$' <<<"$PATHS_OUTPUT" && pass "outil sans extension qui ne se lit pas : bash -n échoue" \
+  || fail "outil sans extension qui ne se lit pas : bash -n échoue" "$(grep outil <<<"$PATHS_OUTPUT" | tr '\n' '|')"
+printf '#!/bin/sh\necho ok\n' >"$tool_copy/scripts/outil"
+paths_of
+grep -qE '^  ÉCHEC +scripts/outil : #!/usr/bin/env bash$' <<<"$PATHS_OUTPUT" && pass "outil sans extension en #!/bin/sh : refusé" \
+  || fail "outil sans extension en #!/bin/sh : refusé" "$(grep outil <<<"$PATHS_OUTPUT" | tr '\n' '|')"
+printf '#!/usr/bin/env bash\necho ok\n' >"$tool_copy/scripts/outil"
+printf -- '---\nname: demo\ndescription: "Démo."\n---\n\nRien.\n' >"$tool_copy/skills/demo/SKILL.md"
+paths_of
+grep -qE '^  ÉCHEC +outil est cité par' <<<"$PATHS_OUTPUT" && pass "outil sans extension cité par aucun skill : refusé" \
+  || fail "outil sans extension cité par aucun skill : refusé" "$(grep outil <<<"$PATHS_OUTPUT" | tr '\n' '|')"
 
 finish
