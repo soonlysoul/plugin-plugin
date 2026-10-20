@@ -1,16 +1,16 @@
 ---
 name: release
-description: "Rehearse the release of a plugin of the model — checks, version, CHANGELOG, tag, context cost, each gesture with its command — sending nothing. Use when Soon asks for a release; not for creating a plugin. « répète la publication »."
+description: "Rehearse, then publish step by step, a plugin of the model — checks, version, CHANGELOG, tag, context cost, each gesture with its exact command, run only after a typed « oui ». Use when Soon asks for a release; not for creating a plugin. « publie plugin-x »."
 argument-hint: "[dossier du plugin] [--bump patch|minor|major]"
 when_to_use: "Explicitly, as /plugin-plugin:release."
 disable-model-invocation: true
 ---
 
-# Rehearse a release
+# Release a plugin
 
 Address the user in French unless they write in another language.
 
-This version only rehearses. It reads GitHub and never writes to it, and it leaves the plugin's folder as it was. No listed gesture is run, not even on a "oui": the publication itself is not available yet.
+A rehearsal first, which reads GitHub and sends nothing. Then, only when Soon asks for it, the publication, one step at a time: each step is announced with its exact commands and runs only after Soon types « oui ». The hook consent-capture records that answer; the hook gesture-guard lets the announced command through once. Never run a gesture any other way — no `git push`, `gh repo create` or `gh pr create` typed by hand: the guard refuses them.
 
 ## Step 1 — The plugin
 
@@ -38,4 +38,22 @@ Present, from the output:
 - the gestures in order, each with its exact command, those marked `[GitHub]` going out of the machine;
 - the commands Soon runs on each device: after the merge of the PR for a new plugin, after the push for an update.
 
-End with « Répétition : rien n'a été envoyé. » and stop.
+End with « Répétition : rien n'a été envoyé. » and stop. Publish only if Soon then asks for it.
+
+## Step 5 — Publish, step by step
+
+The session must be open in the plugin's folder: the « oui » is captured there only, and the tool says so otherwise.
+
+1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" publish <folder>`, with the `--bump` agreed at step 3 if any. It rehearses again, freezes the plan in `.plugin-plugin/publication.json` and announces the first step. A publication in progress resumes from what is really done, without redoing anything.
+2. Show the announcement verbatim — the gestures, the line `commande : …` — and stop. Do not answer for Soon; run nothing.
+3. Soon's next message is « oui », and the hook confirms it: run exactly the `commande : …` line, once, and show its output with the exit code. It ends with the next announcement: back to 2. Any other answer withdraws the announcement: run nothing, and announce again only if Soon asks.
+4. `échoué` or `refusé`: show the report — the gesture, what is done, what remains, the `reprise : …` line — and stop. Resume only when Soon asks, by running that line, which announces the step again.
+5. `publication terminée`: give the commands Soon runs on each device. The PR of the marketplace is merged by Soon, never by Claude.
+
+## Step 6 — Mount as a submodule, on request
+
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" mount <folder> --host <host repository> [--path <path>]` announces the mount of the last published tag; then as in step 5, points 2 to 4. The host is committed, never pushed.
+
+## Never
+
+Delete a repository, force a push, rewrite published history, remove a plugin from the marketplace, merge a PR, or write `.plugin-plugin/pending` or `.plugin-plugin/consents.log`. The guard refuses each of them; the refusal is final.

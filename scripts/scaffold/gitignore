@@ -13,5 +13,11 @@ evals/**/results/
 .idea/
 .vscode/
 
-# Volatile resumption state; approvals and delegated decisions are versioned.
+# Volatile state: the resumption point, and a publication's plan, announcement and journals of
+# consents and gestures, written while the tree must stay clean. Approvals of documents and
+# delegated decisions are versioned.
 .plugin-plugin/checkpoint.md
+.plugin-plugin/publication.json
+.plugin-plugin/pending
+.plugin-plugin/consents.log
+.plugin-plugin/gestures.log

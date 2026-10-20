@@ -1087,5 +1087,59 @@
     "source": "claude plugin eval --help (« Supports Tool(pattern:*) syntax »)",
     "recheck": "premier passage réel de evals/release, --keep-temp : la trace montre un git push refusé par permission",
     "status": "à vérifier"
+  },
+  {
+    "id": "user-prompt-submit-input",
+    "statement": "Entrée d'un hook UserPromptSubmit : les champs communs (session_id, transcript_path, cwd, permission_mode, et, observés en 2.1.296, prompt_id et scratchpad_dir), hook_event_name, prompt — le texte soumis, tel quel ; le contexte de l'IDE (fichier ouvert, sélection) voyage à part — et session_title.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 12 : lecture du binaire 2.1.296 (construction de l'entrée du hook, texte passé par prompt.submit, contexte dans un champ distinct) ; sonde vivante VSCode du 2026-10-20 (build/probes/)",
+    "recheck": "grep -a -o 'hook_event_name:\"UserPromptSubmit\".\\{120\\}' sur le binaire de claude ; ou un hook UserPromptSubmit qui recopie son entrée dans un fichier",
+    "status": "confirmé"
+  },
+  {
+    "id": "bash-mode-skips-user-prompt-submit",
+    "statement": "Une commande tapée en mode bash (préfixe !), une commande / ou une entrée qui n'interroge pas le modèle ne passe pas par UserPromptSubmit : seul un message soumis au modèle est vu par consent-capture.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 12 : binaire 2.1.296, « the prompt did not go through prompt.submit (a command, bash mode, an input that did not query, or a failed pass) »",
+    "recheck": "grep -a -o 'did not go through prompt.submit.\\{100\\}' sur le binaire de claude",
+    "status": "confirmé"
+  },
+  {
+    "id": "plugin-tag-push-optional",
+    "statement": "claude plugin tag sans --push crée l'étiquette en local seulement ; --push la pousse vers --remote (origin par défaut) : sans --push, poser l'étiquette est un geste local, la pousser un geste GitHub.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde de phase 12 : claude plugin tag --help ; test_publish, où claude plugin tag pose l'étiquette sans aucun push",
+    "recheck": "claude plugin tag --help ; claude plugin tag <plugin commité> puis git ls-remote --tags origin",
+    "status": "confirmé"
+  },
+  {
+    "id": "user-prompt-submit-vscode",
+    "statement": "Dans l'extension VSCode, un message tapé déclenche UserPromptSubmit et son champ prompt est le texte tapé seul (« oui » reste « oui »), sans le fichier ouvert ni la sélection.",
+    "claude_version": null,
+    "date": "2026-10-20",
+    "source": "plugin-plugin, phase 12 : hypothèse tirée du binaire 2.1.296 et des transcriptions VSCode (contexte de l'IDE en pièce jointe distincte) ; sonde vivante à faire",
+    "recheck": "session VSCode, hook UserPromptSubmit qui recopie son entrée dans build/ ; taper « oui » avec un fichier ouvert et une sélection",
+    "status": "à vérifier"
+  },
+  {
+    "id": "user-prompt-submit-fires-on-notifications",
+    "statement": "UserPromptSubmit se déclenche aussi pour un message que Claude Code injecte lui-même — la notification de fin d'une tâche de fond, dans l'extension VSCode — ; prompt est alors le texte injecté (<task-notification>…), et rien dans l'entrée ne le distingue d'un message tapé. consent-capture n'y voit donc jamais un « oui » : l'annonce en attente est retirée.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde vivante de phase 12 : hook UserPromptSubmit de .claude/settings.local.json, déclenché par une notification de tâche de fond (build/probes/)",
+    "recheck": "session VSCode avec un hook UserPromptSubmit qui recopie son entrée ; lancer une commande en arrière-plan et attendre sa notification",
+    "status": "confirmé"
+  },
+  {
+    "id": "settings-hooks-hot-reload",
+    "statement": "Un hook ajouté à .claude/settings.local.json en cours de session se déclenche sans redémarrage, quand .claude/ portait déjà un fichier de réglages au démarrage de la session.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde vivante de phase 12 (extension VSCode)",
+    "recheck": "ajouter un hook UserPromptSubmit qui écrit un fichier dans .claude/settings.local.json, puis envoyer un message sans redémarrer",
+    "status": "confirmé"
   }
 ]

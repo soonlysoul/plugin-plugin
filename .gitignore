@@ -7,3 +7,10 @@ repomix-output.xml
 build/
 evals/**/results/
 .superpowers/
+
+# --- état de travail de plugin-plugin, quand il se publie lui-même (phase 16) ---
+.plugin-plugin/checkpoint.md
+.plugin-plugin/publication.json
+.plugin-plugin/pending
+.plugin-plugin/consents.log
+.plugin-plugin/gestures.log

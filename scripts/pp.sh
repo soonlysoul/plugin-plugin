@@ -27,6 +27,8 @@
 #   release PLUGIN [--bump patch|minor|major]
 #   release-write PLUGIN --version X.Y.Z [--date YYYY-MM-DD]
 #   marketplace-entry MARKETPLACE-CLONE --name N --description TEXT
+#   publish PLUGIN [--bump patch|minor|major] [--run N]
+#   mount PLUGIN --host HOST-REPO [--path PATH] [--run]
 # Exit codes: 0 done, 1 refused, bad usage or unreadable input, 2 a prerequisite is missing.
 set -uo pipefail
 
@@ -518,6 +520,7 @@ cmd_resume() {
     printf 'dernier commit : %s\n' "$(git -C "$dir" log -1 --format='%h %s' 2>/dev/null || echo aucun)"
     printf 'branche : %s\n' "$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null || echo -)"
     printf 'fichiers modifiés non commités : %d%s\n' "$count" "${list:+ ($list)}"
+    publication_in_progress "$dir"
     return 0
   fi
   read_checkpoint "$file"
@@ -545,6 +548,17 @@ cmd_resume() {
   [[ -z $CP_TEST ]] || printf 'test ciblé : `%s`\n' "$CP_TEST"
   printf 'incohérences : %s\n' "$( ((${#problems[@]})) && join ' ; ' "${problems[@]}" || echo aucune)"
   printf 'blocages : %s\n' "$( ((${#CP_BLOCKERS[@]})) && join ' ; ' "${CP_BLOCKERS[@]}" || echo aucun)"
+  publication_in_progress "$dir"
+}
+
+# publication_in_progress <dir>: one line when pp.sh publish left a plan there, with the command
+# that resumes it from what is really done.
+publication_in_progress() {
+  local plan="$1/.plugin-plugin/publication.json" dir
+  [[ -f $plan ]] || return 0
+  dir=$(cd "$1" && pwd -P)
+  printf 'publication en cours : %s ; reprise : bash %s publish %s\n' \
+    "$(jq -r '"\(.name) \(.version) (étiquette \(.tag))"' "$plan" 2>/dev/null)" "$(shell_word "$PP_ROOT/scripts/pp.sh")" "$(shell_word "$dir")"
 }
 
 # A skill or agent header at the model, house style included: every broken rule is named.
@@ -1388,12 +1402,27 @@ cmd_marketplace_entry() {
   printf 'écrit : %s (entrée %s, source github %s/%s)\n' "$file" "$name" "$OWNER" "$name"
 }
 
+# add_gesture <key> <local|GitHub> <label> <command>: one gesture of the release, in order.
+add_gesture() { G_KEY+=("$1"); G_WHERE+=("$2"); G_LABEL+=("$3"); G_CMD+=("$4"); }
+
+# print_install <listed: 0 or 1> <name>: the commands Soon runs on each device, after the release.
+print_install() {
+  if (($1)); then
+    printf 'après le push, sur chaque appareil, puis redémarrer Claude Code :\n'
+    printf '  claude plugin marketplace update %s\n  claude plugin update %s@%s\n' "$MARKETPLACE" "$2" "$MARKETPLACE"
+  else
+    printf 'après la fusion de la PR par Soon, sur chaque appareil (sans la marketplace : claude plugin marketplace add %s) :\n' "$MARKETPLACE_REPO"
+    printf '  claude plugin marketplace update %s\n  claude plugin install %s@%s\n' "$MARKETPLACE" "$2" "$MARKETPLACE"
+  fi
+}
+
 cmd_release() {
-  local dir=${1:-} bump_to="" usage="usage : pp.sh release DOSSIER [--bump patch|minor|major]"
+  local dir=${1:-} bump_to="" plan_out="" usage="usage : pp.sh release DOSSIER [--bump patch|minor|major]"
   shift || true
   while [[ $# -gt 0 ]]; do
     case $1 in
       --bump) bump_to=${2:-}; shift 2 ;;
+      --plan-out) plan_out=${2:-}; shift 2 ;;
       *) die "$usage" ;;
     esac
   done
@@ -1532,40 +1561,402 @@ cmd_release() {
   fi
 
   # The gestures, in order; none is run here.
-  local -a gestures=()
-  local d pp work branch_name="add-$name" body
+  G_KEY=() G_WHERE=() G_LABEL=() G_CMD=()
+  local d pp work_dir work branch_name="add-$name" body
   d=$(shell_word "$dir")
   pp="bash $(shell_word "$PP_ROOT/scripts/pp.sh")"
-  work=$(shell_word "${TMPDIR:-/tmp}/plugin-plugin-release/$name/claude-plugins")
+  work_dir="${TMPDIR:-/tmp}/plugin-plugin-release/$name/claude-plugins"
+  work=$(shell_word "$work_dir")
   if ((wrote)); then
-    gestures+=("[local] écrire la version et le CHANGELOG : $pp release-write $d --version $version")
-    gestures+=("[local] commit de version : git -C $d commit -m $(shell_word "chore(release): $name $version") -- .claude-plugin/plugin.json CHANGELOG.md")
+    add_gesture write local "écrire la version et le CHANGELOG" "$pp release-write $d --version $version"
+    add_gesture commit local "commit de version" "git -C $d commit -m $(shell_word "chore(release): $name $version") -- .claude-plugin/plugin.json CHANGELOG.md"
   fi
-  gestures+=("[local] étiquette : claude plugin tag $d")
-  ((repo_exists)) || gestures+=("[GitHub] création du dépôt : gh repo create $OWNER/$name --public --description $(shell_word "$description")")
-  [[ -n $origin ]] || gestures+=("[local] remote origin : git -C $d remote add origin $expected")
-  gestures+=("[GitHub] push de main : git -C $d push origin main")
-  gestures+=("[GitHub] push de l'étiquette : git -C $d push origin refs/tags/$tag")
+  add_gesture tag local "étiquette" "claude plugin tag $d"
+  ((repo_exists)) || add_gesture repo GitHub "création du dépôt" "gh repo create $OWNER/$name --public --description $(shell_word "$description")"
+  [[ -n $origin ]] || add_gesture origin local "remote origin" "git -C $d remote add origin $expected"
+  add_gesture push-main GitHub "push de main" "git -C $d push origin main"
+  add_gesture push-tag GitHub "push de l'étiquette" "git -C $d push origin refs/tags/$tag"
   if ((!listed)); then
     body="$name $version, source github $OWNER/$name, étiquette $tag. Suite : $summary ; validation stricte : ok. Coût en contexte permanent : $COST_SUMMARY."
-    gestures+=("[local] copie de la marketplace : gh repo clone $MARKETPLACE_REPO $work")
-    gestures+=("[local] branche de marketplace : git -C $work switch -c $branch_name")
-    gestures+=("[local] entrée de marketplace : $pp marketplace-entry $work --name $name --description $(shell_word "$description")")
-    gestures+=("[local] commit de marketplace : git -C $work commit -am $(shell_word "feat: ajouter $name à la marketplace $MARKETPLACE")")
-    gestures+=("[GitHub] push de la branche : git -C $work push origin $branch_name")
-    gestures+=("[GitHub] PR de marketplace : gh pr create --repo $MARKETPLACE_REPO --base main --head $branch_name --title $(shell_word "Ajouter $name $version") --body $(shell_word "$body")")
+    add_gesture clone local "copie de la marketplace" "gh repo clone $MARKETPLACE_REPO $work"
+    add_gesture branch local "branche de marketplace" "git -C $work switch -c $branch_name"
+    add_gesture entry local "entrée de marketplace" "$pp marketplace-entry $work --name $name --description $(shell_word "$description")"
+    add_gesture market-commit local "commit de marketplace" "git -C $work commit -am $(shell_word "feat: ajouter $name à la marketplace $MARKETPLACE")"
+    add_gesture push-branch GitHub "push de la branche" "git -C $work push origin $branch_name"
+    add_gesture pr GitHub "PR de marketplace" "gh pr create --repo $MARKETPLACE_REPO --base main --head $branch_name --title $(shell_word "Ajouter $name $version") --body $(shell_word "$body")"
   fi
   printf "gestes, dans l'ordre — aucun n'est exécuté :\n"
   local i
-  for i in "${!gestures[@]}"; do printf '  %d. %s\n' $((i + 1)) "${gestures[i]}"; done
-  if ((listed)); then
-    printf 'après le push, sur chaque appareil, puis redémarrer Claude Code :\n'
-    printf '  claude plugin marketplace update %s\n  claude plugin update %s@%s\n' "$MARKETPLACE" "$name" "$MARKETPLACE"
-  else
-    printf 'après la fusion de la PR par Soon, sur chaque appareil (sans la marketplace : claude plugin marketplace add %s) :\n' "$MARKETPLACE_REPO"
-    printf '  claude plugin marketplace update %s\n  claude plugin install %s@%s\n' "$MARKETPLACE" "$name" "$MARKETPLACE"
+  for i in "${!G_KEY[@]}"; do printf '  %d. [%s] %s : %s\n' $((i + 1)) "${G_WHERE[i]}" "${G_LABEL[i]}" "${G_CMD[i]}"; done
+  print_install "$listed" "$name"
+  printf 'répétition terminée : %d gestes listés, aucun exécuté\n' "${#G_KEY[@]}"
+  # pp.sh publish freezes what the rehearsal proved: the version, the tag and these gestures.
+  if [[ -n $plan_out ]]; then
+    for i in "${!G_KEY[@]}"; do
+      jq -nc --arg key "${G_KEY[i]}" --arg where "${G_WHERE[i]}" --arg label "${G_LABEL[i]}" --arg command "${G_CMD[i]}" \
+        '{key: $key, where: $where, label: $label, command: $command}'
+    done | jq -s --arg name "$name" --arg version "$version" --arg tag "$tag" --arg dir "$dir" --arg work "$work_dir" \
+      --arg branch "$branch_name" --argjson listed "$listed" --arg frozen "$(date +%FT%T%:z)" \
+      '{name: $name, version: $version, tag: $tag, dir: $dir, listed: ($listed == 1), work: $work, branch: $branch,
+        frozen: $frozen, gestures: .}' >"$plan_out" || die "échec : plan de publication non écrit ($plan_out)."
   fi
-  printf 'répétition terminée : %d gestes listés, aucun exécuté\n' "${#gestures[@]}"
+}
+
+# Publication. pp.sh publish freezes the gestures a green rehearsal proved, then announces them one
+# step at a time — the local gestures up to and including one GitHub gesture — with their exact
+# commands. A step runs only through the command announced, after the « oui » consent-capture
+# writes to consents.log (scripts/lib/consent.sh); gesture-guard lets that command through once.
+# What is done is read from the repositories themselves, so a resumption redoes nothing; each
+# gesture is written to .plugin-plugin/gestures.log: date, tag, gesture, label, outcome, exit code,
+# command, consent used, and for a failure the command that resumes. git ignores these files.
+STATE_FILES=(publication.json pending consents.log gestures.log)
+
+# state_ignored <dir>: refuses unless git ignores the state of a publication in <dir>.
+state_ignored() {
+  local file
+  local -a missing=()
+  for file in "${STATE_FILES[@]}"; do
+    git -C "$1" check-ignore -q ".plugin-plugin/$file" 2>/dev/null || missing+=(".plugin-plugin/$file")
+  done
+  ((${#missing[@]} == 0)) || die "refusé : $(join ', ' "${missing[@]}") $( ((${#missing[@]} > 1)) && echo "ne sont pas ignorés" || echo "n'est pas ignoré") par git ; écrits pendant la publication, ils saliraient l'arbre que claude plugin tag exige propre. Les ajouter au .gitignore, puis commiter."
+}
+
+# load_plan <file>: P_NAME, P_VERSION, P_TAG, P_DIR, P_LISTED, P_WORK, P_BRANCH, and the gestures.
+load_plan() {
+  local field count
+  jq -e '.gestures | type == "array" and length > 0' "$1" >/dev/null 2>&1 || die "refusé : plan de publication illisible : $1."
+  for field in name version tag dir work branch; do
+    printf -v "P_${field^^}" '%s' "$(jq -r --arg f "$field" '.[$f] // ""' "$1")"
+  done
+  P_LISTED=$(jq -r 'if .listed then 1 else 0 end' "$1")
+  mapfile -t G_KEY < <(jq -r '.gestures[].key' "$1")
+  mapfile -t G_WHERE < <(jq -r '.gestures[].where' "$1")
+  mapfile -t G_LABEL < <(jq -r '.gestures[].label' "$1")
+  mapfile -t G_CMD < <(jq -r '.gestures[].command' "$1")
+  count=$(jq '.gestures | length' "$1")
+  [[ ${#G_CMD[@]} == "$count" && ${#G_LABEL[@]} == "$count" ]] || die "refusé : plan de publication illisible : $1."
+}
+
+has_entry() { jq -e --arg n "$P_NAME" 'any(.plugins[]?; .name == $n)' >/dev/null 2>&1; }
+
+# market_branch_pushed: true when the marketplace branch of the release is on GitHub; read once
+# per scan. Once it is, the copy of the marketplace no longer matters.
+market_branch_pushed() {
+  if [[ -z ${MARKET_PUSHED:-} ]]; then
+    MARKET_PUSHED=0
+    [[ -n $(git ls-remote "https://github.com/$MARKETPLACE_REPO.git" "refs/heads/$P_BRANCH" 2>/dev/null) ]] && MARKET_PUSHED=1
+  fi
+  ((MARKET_PUSHED))
+}
+
+# gesture_done <index>: true when the effect of the gesture is already there, read from the
+# plugin, its copy of the marketplace and GitHub.
+gesture_done() {
+  local d=$P_DIR w=$P_WORK heading="^## \[${P_VERSION//./\\.}\] — [0-9]" sha count
+  case ${G_KEY[$1]} in
+    write) [[ $(jq -r '.version' "$d/.claude-plugin/plugin.json" 2>/dev/null) == "$P_VERSION" ]] && grep -qE "$heading" "$d/CHANGELOG.md" ;;
+    commit)
+      [[ $(git -C "$d" show HEAD:.claude-plugin/plugin.json 2>/dev/null | jq -r '.version' 2>/dev/null) == "$P_VERSION" ]] \
+        && git -C "$d" show HEAD:CHANGELOG.md 2>/dev/null | grep -qE "$heading"
+      ;;
+    tag) git -C "$d" rev-parse -q --verify "refs/tags/$P_TAG" >/dev/null ;;
+    repo) gh api "repos/$OWNER/$P_NAME" >/dev/null 2>&1 ;;
+    origin)
+      case $(git -C "$d" config --get remote.origin.url 2>/dev/null) in
+        "https://github.com/$OWNER/$P_NAME.git" | "https://github.com/$OWNER/$P_NAME" | "git@github.com:$OWNER/$P_NAME.git") return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
+    push-main)
+      sha=$(git -C "$d" ls-remote origin refs/heads/main 2>/dev/null | cut -f1)
+      [[ -n $sha && $sha == "$(git -C "$d" rev-parse -q --verify "refs/tags/$P_TAG^{commit}")" ]]
+      ;;
+    push-tag) [[ -n $(git -C "$d" ls-remote origin "refs/tags/$P_TAG" 2>/dev/null) ]] ;;
+    clone) market_branch_pushed || { [[ -d $w/.git && $(git -C "$w" config --get remote.origin.url 2>/dev/null) == *"$MARKETPLACE_REPO"* ]]; } ;;
+    branch) market_branch_pushed || git -C "$w" rev-parse -q --verify "refs/heads/$P_BRANCH" >/dev/null 2>&1 ;;
+    entry)
+      market_branch_pushed || git -C "$w" show "$P_BRANCH:.claude-plugin/marketplace.json" 2>/dev/null | has_entry \
+        || { [[ $(git -C "$w" symbolic-ref --short HEAD 2>/dev/null) == "$P_BRANCH" ]] && has_entry <"$w/.claude-plugin/marketplace.json"; }
+      ;;
+    market-commit) market_branch_pushed || git -C "$w" show "$P_BRANCH:.claude-plugin/marketplace.json" 2>/dev/null | has_entry ;;
+    push-branch) market_branch_pushed ;;
+    pr)
+      count=$(gh pr list --repo "$MARKETPLACE_REPO" --head "$P_BRANCH" --state all --json number 2>/dev/null | jq 'length' 2>/dev/null)
+      ((${count:-0} > 0))
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# gesture_ready <index>: why the gesture must not run in the present state; nothing when it may.
+gesture_ready() {
+  local branch
+  case ${G_KEY[$1]} in
+    entry | market-commit | push-branch)
+      branch=$(git -C "$P_WORK" symbolic-ref --short HEAD 2>/dev/null)
+      [[ $branch == "$P_BRANCH" ]] \
+        || echo "la copie de la marketplace ($P_WORK) est sur ${branch:-une tête détachée}, pas sur $P_BRANCH ; jamais sur main : la marketplace ne change que par une branche et une PR"
+      ;;
+    push-main)
+      branch=$(git -C "$P_DIR" symbolic-ref --short HEAD 2>/dev/null)
+      if [[ $branch != main ]]; then echo "le plugin est sur ${branch:-une tête détachée}, pas sur main"
+      elif [[ $(git -C "$P_DIR" rev-parse main) != "$(git -C "$P_DIR" rev-parse -q --verify "refs/tags/$P_TAG^{commit}")" ]]; then
+        echo "main a bougé depuis l'étiquette $P_TAG : seul l'état étiqueté se publie"
+      fi
+      ;;
+  esac
+}
+
+# The submodule of a mount: M_HOST, M_PATH, M_URL and M_SHA, the commit of the tag.
+mount_done() {
+  case ${G_KEY[$1]} in
+    submodule) [[ $(git -C "$M_HOST" config -f .gitmodules --get "submodule.$M_PATH.url" 2>/dev/null) == "$M_URL" && -e $M_HOST/$M_PATH/.git ]] ;;
+    pin) [[ $(git -C "$M_HOST/$M_PATH" rev-parse HEAD 2>/dev/null) == "$M_SHA" ]] ;;
+    stage) [[ $(git -C "$M_HOST" ls-files -s -- "$M_PATH" 2>/dev/null | awk '{ print $2 }') == "$M_SHA" ]] ;;
+    host-commit) [[ $(git -C "$M_HOST" ls-tree HEAD -- "$M_PATH" 2>/dev/null | awk '{ print $3 }') == "$M_SHA" ]] ;;
+    *) return 1 ;;
+  esac
+}
+mount_ready() { :; }
+
+# log_gesture <number> <outcome> <exit code> <consent> [resume command]
+log_gesture() {
+  printf '%s\t%s\t%s %d\t%s\t%s\texit %s\t%s\taccord %s%s\n' "$(date +%FT%T%:z)" "$P_TAG" "$JOURNAL_KIND" "$1" "${G_LABEL[$1 - 1]}" \
+    "$2" "$3" "${G_CMD[$1 - 1]}" "${4:--}" "${5:+	reprise : $5}" >>"$STATE/gestures.log"
+}
+journaled() {
+  awk -F'\t' -v tag="$P_TAG" -v gesture="$JOURNAL_KIND $1" '$2 == tag && $3 == gesture && ($5 == "fait" || $5 == "déjà fait") { found = 1 }
+    END { exit !found }' "$STATE/gestures.log" 2>/dev/null
+}
+show_gesture() { printf '%s : %d. [%s] %s : %s%s\n' "$1" $(($2 + 1)) "${G_WHERE[$2]}" "${G_LABEL[$2]}" "${G_CMD[$2]}" "${3:-}"; }
+
+# scan_steps: NEXT, the number of the first gesture not done. A gesture found done that the
+# journal does not hold as done — its answer lost in a cut — is journaled « déjà fait ».
+scan_steps() {
+  local i
+  MARKET_PUSHED=""
+  for ((i = 0; i < ${#G_KEY[@]}; i++)); do
+    "$DONE_FN" "$i" || break
+    journaled $((i + 1)) && continue
+    log_gesture $((i + 1)) "déjà fait" - ""
+    show_gesture "déjà fait" "$i"
+  done
+  NEXT=$((i + 1))
+}
+
+# step_end <index>: the last gesture of the step starting there, the first GitHub gesture on.
+step_end() {
+  local i
+  for ((i = $1; i < ${#G_KEY[@]} - 1; i++)); do [[ ${G_WHERE[i]} == GitHub ]] && break; done
+  printf '%d' "$i"
+}
+step_sha() {
+  local i
+  for ((i = $1; i <= $2; i++)); do printf '%s\n' "${G_CMD[i]}"; done | sha256sum | cut -d' ' -f1
+}
+done_summary() {
+  case $1 in
+    0) printf 'fait : aucun geste\n' ;;
+    1) printf 'fait : geste 1\n' ;;
+    *) printf 'fait : gestes 1 à %d\n' "$1" ;;
+  esac
+}
+
+# announce <first index> <last index> <id> <command to type>: prints the step and writes the
+# announcement that consent-capture answers and gesture-guard consumes.
+announce() {
+  local first=$1 last=$2 i github=0
+  for ((i = first; i <= last; i++)); do [[ ${G_WHERE[i]} == GitHub ]] && github=$((github + 1)); done
+  printf 'prochaine étape — gestes %d à %d, dont %d vers GitHub :\n' $((first + 1)) $((last + 1)) "$github"
+  for ((i = first; i <= last; i++)); do printf '  %d. [%s] %s : %s\n' $((i + 1)) "${G_WHERE[i]}" "${G_LABEL[i]}" "${G_CMD[i]}"; done
+  printf '%s\t%s\t%s\t%s\n' "$(date +%s%N)" "$3" "$(step_sha "$first" "$last")" "$4" >"$STATE/pending" \
+    || die "échec : annonce non écrite ($STATE/pending)."
+  printf 'commande : %s\n' "$4"
+  printf 'accord : seul un « oui » tapé lance cette étape ; toute autre réponse la retire.\n'
+  [[ $PWD == "$P_DIR" || $PWD == "$P_DIR"/* ]] \
+    || printf "session : l'accord ne se capte que dans une session Claude Code ouverte dans %s.\n" "$P_DIR"
+}
+
+# consent_for <id> <sha>: the date of the announcement when the last answer recorded for this step
+# is a « oui » to these very commands, not used yet; nothing otherwise.
+consent_for() {
+  local date
+  date=$(awk -F'\t' -v id="$1" -v sha="$2" '$3 == id { last = ($2 == "accord" && $5 == sha) ? $4 : "" } END { print last }' \
+    "$STATE/consents.log" 2>/dev/null)
+  [[ -n $date ]] || return 0
+  awk -F'\t' -v used="accord $date" '$8 == used { found = 1 } END { exit !found }' "$STATE/gestures.log" 2>/dev/null && return 0
+  printf '%s' "$date"
+}
+
+# step_report <index of the gesture that stopped> <resume command>
+step_report() {
+  done_summary "$1"
+  printf 'reste : gestes %d à %d\n' $(($1 + 1)) "${#G_KEY[@]}"
+  printf 'reprise : %s\n' "$2"
+  printf "la reprise annonce de nouveau l'étape du geste %d ; aucun geste fait n'est refait.\n" $(($1 + 1))
+}
+
+# run_step <first index> <last index> <consent> <resume command>: runs the gestures of a step; a
+# gesture found done is not run again. On a refusal or a failure, exits 1 after the report.
+run_step() {
+  local first=$1 last=$2 consent=$3 resume=$4 i n reason out rc
+  for ((i = first; i <= last; i++)); do
+    n=$((i + 1))
+    if ((i > first)) && "$DONE_FN" "$i"; then
+      log_gesture "$n" "déjà fait" - "$consent"
+      show_gesture "déjà fait" "$i"
+      continue
+    fi
+    reason=$("$READY_FN" "$i")
+    if [[ -n $reason ]]; then
+      log_gesture "$n" refusé - "$consent" "$resume"
+      printf 'refusé : %d. [%s] %s : %s\n' "$n" "${G_WHERE[i]}" "${G_LABEL[i]}" "$reason"
+      step_report "$i" "$resume"
+      exit 1
+    fi
+    out=$(cd "$P_DIR" && bash -c "${G_CMD[i]}" 2>&1)
+    rc=$?
+    if ((rc != 0)); then
+      log_gesture "$n" échoué "$rc" "$consent" "$resume"
+      show_gesture échoué "$i" " → exit $rc"
+      grep . <<<"$out" | tail -n 3 | sed 's/^/  /'
+      step_report "$i" "$resume"
+      exit 1
+    fi
+    log_gesture "$n" fait 0 "$consent"
+    show_gesture fait "$i" " → exit 0"
+    [[ ${G_WHERE[i]} != GitHub ]] || grep . <<<"$out" | tail -n 1 | sed 's/^/  /'
+  done
+}
+
+cmd_publish() {
+  local dir=${1:-} run="" bump="" usage="usage : pp.sh publish DOSSIER [--bump patch|minor|major] [--run N]"
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --run) run=${2:-}; shift 2 ;;
+      --bump) bump=${2:-}; shift 2 ;;
+      *) die "$usage" ;;
+    esac
+  done
+  [[ -n $dir && $run =~ ^[0-9]*$ ]] || die "$usage"
+  need jq
+  need git
+  need gh
+  [[ -f $dir/.claude-plugin/plugin.json ]] || die "refusé : $dir n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  dir=$(cd "$dir" && pwd -P)
+  [[ $(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) == "$dir" ]] || die "refusé : $dir n'est pas la racine de son dépôt git."
+  state_ignored "$dir"
+  STATE="$dir/.plugin-plugin" PLAN="$dir/.plugin-plugin/publication.json" JOURNAL_KIND=geste DONE_FN=gesture_done READY_FN=gesture_ready
+  if [[ ! -f $PLAN ]]; then
+    [[ -z $run ]] || die "refusé : aucune publication en cours dans $dir ; l'annoncer d'abord (pp.sh publish $dir)."
+    local tmp output rc
+    tmp=$(mktemp)
+    output=$( (cmd_release "$dir" --plan-out "$tmp" ${bump:+--bump "$bump"}) 2>&1)
+    rc=$?
+    if ((rc != 0)); then
+      rm -f "$tmp"
+      printf '%s\n' "$output"
+      exit "$rc"
+    fi
+    { mkdir -p "$STATE" && mv "$tmp" "$PLAN"; } || die "échec : plan de publication non écrit ($PLAN)."
+    grep -E '^(version|coût en contexte|alerte) : ' <<<"$output"
+    printf 'répétition : verte sur une copie jetable (validation stricte, suite, étiquette) ; plan figé dans .plugin-plugin/publication.json\n'
+  elif [[ -n $bump ]]; then
+    die "refusé : une publication est en cours ($PLAN) ; --bump ne vaut que pour son annonce."
+  fi
+  load_plan "$PLAN"
+  [[ $P_DIR == "$dir" ]] || die "refusé : le plan $PLAN vise $P_DIR, pas $dir."
+  printf 'publication : %s %s (étiquette %s)\n' "$P_NAME" "$P_VERSION" "$P_TAG"
+  local typed first last consent
+  typed="bash $(shell_word "$PP_ROOT/scripts/pp.sh") publish $(shell_word "$dir")"
+  scan_steps
+  if [[ -n $run ]]; then
+    ((NEXT <= ${#G_KEY[@]})) || die "refusé : la publication est terminée ; rien à lancer."
+    ((run >= NEXT)) || die "refusé : le geste $run est fait ; prochain geste : $NEXT."
+    ((run == NEXT)) || die "refusé : le geste $run n'est pas le prochain ; prochain geste : $NEXT."
+    first=$((NEXT - 1))
+    last=$(step_end "$first")
+    consent=$(consent_for "publish $P_TAG $NEXT" "$(step_sha "$first" "$last")")
+    [[ -n $consent ]] || die "refusé : aucun « oui » capté pour l'étape du geste $NEXT ; l'annoncer (pp.sh publish $dir), puis attendre la réponse de Soon."
+    rm -f "$STATE/pending"
+    run_step "$first" "$last" "$consent" "$typed"
+    scan_steps
+  fi
+  if ((NEXT > ${#G_KEY[@]})); then
+    rm -f "$STATE/pending" "$PLAN"
+    printf 'publication terminée : %s %s, %d gestes faits\n' "$P_NAME" "$P_VERSION" "${#G_KEY[@]}"
+    print_install "$P_LISTED" "$P_NAME"
+    return 0
+  fi
+  done_summary $((NEXT - 1))
+  first=$((NEXT - 1))
+  announce "$first" "$(step_end "$first")" "publish $P_TAG $NEXT" "$typed --run $NEXT"
+}
+
+# Mount a published plugin as a submodule of a host repository, pinned on its last tag: four local
+# gestures, one step, announced and run on a « oui » like a step of a publication. The host is
+# committed, never pushed.
+cmd_mount() {
+  local dir=${1:-} host="" path="" path_given=0 run=0 usage="usage : pp.sh mount DOSSIER --host DÉPÔT-HÔTE [--path CHEMIN] [--run]"
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --host) host=${2:-}; shift 2 ;;
+      --path) path=${2:-}; path_given=1; shift 2 ;;
+      --run) run=1; shift ;;
+      *) die "$usage" ;;
+    esac
+  done
+  [[ -n $dir && -n $host ]] || die "$usage"
+  need jq
+  need git
+  [[ -f $dir/.claude-plugin/plugin.json ]] || die "refusé : $dir n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  dir=$(cd "$dir" && pwd -P)
+  local name last version tag
+  name=$(jq -r '.name // empty' "$dir/.claude-plugin/plugin.json" 2>/dev/null)
+  [[ -n $name ]] || die "refusé : nom illisible dans .claude-plugin/plugin.json."
+  last=$(last_release "$dir" "$name")
+  [[ -n $last ]] || die "refusé : $name n'a aucune étiquette de publication ; le publier d'abord (pp.sh publish $dir)."
+  version=${last%%$'\t'*} tag=${last#*$'\t'}
+  M_URL="https://github.com/$OWNER/$name.git"
+  [[ -n $(git ls-remote "$M_URL" "refs/tags/$tag" 2>/dev/null) ]] || die "refusé : l'étiquette $tag est absente de $M_URL ; finir la publication d'abord."
+  [[ -d $host ]] || die "refusé : le dépôt hôte $host n'existe pas."
+  M_HOST=$(cd "$host" && pwd -P)
+  [[ $(git -C "$M_HOST" rev-parse --show-toplevel 2>/dev/null) == "$M_HOST" ]] || die "refusé : $M_HOST n'est pas la racine d'un dépôt git."
+  M_PATH=${path:-$name}
+  [[ $M_PATH != /* && /$M_PATH/ != */../* ]] || die "refusé : chemin « $M_PATH » : un chemin relatif, dans le dépôt hôte, est attendu."
+  M_SHA=$(git -C "$dir" rev-parse "refs/tags/$tag^{commit}")
+  if [[ -e $M_HOST/$M_PATH && $(git -C "$M_HOST" config -f .gitmodules --get "submodule.$M_PATH.url" 2>/dev/null) != "$M_URL" ]]; then
+    die "refusé : $M_HOST/$M_PATH existe déjà, et n'est pas un sous-module de $M_URL."
+  fi
+  state_ignored "$dir"
+  STATE="$dir/.plugin-plugin" P_DIR=$dir P_TAG=$tag JOURNAL_KIND="montage $M_HOST/$M_PATH" DONE_FN=mount_done READY_FN=mount_ready
+  mkdir -p "$STATE"
+  local h p
+  h=$(shell_word "$M_HOST") p=$(shell_word "$M_PATH")
+  G_KEY=() G_WHERE=() G_LABEL=() G_CMD=()
+  add_gesture submodule local "sous-module" "git -C $h submodule add $M_URL $p"
+  add_gesture pin local "épinglage" "git -C $(shell_word "$M_HOST/$M_PATH") checkout -q refs/tags/$tag"
+  add_gesture stage local "index de l'hôte" "git -C $h add $p"
+  add_gesture host-commit local "commit de l'hôte" "git -C $h commit -m $(shell_word "chore: monter $name $version en sous-module, épinglé sur $tag") -- .gitmodules $p"
+  local id="mount $tag $M_HOST/$M_PATH" typed first last=$((${#G_KEY[@]} - 1)) consent
+  typed="bash $(shell_word "$PP_ROOT/scripts/pp.sh") mount $(shell_word "$dir") --host $h"
+  ((path_given)) && typed+=" --path $p"
+  printf 'montage : %s %s (étiquette %s) dans %s/%s\n' "$name" "$version" "$tag" "$M_HOST" "$M_PATH"
+  scan_steps
+  ((NEXT <= ${#G_KEY[@]})) || die "refusé : $name est déjà monté dans $M_HOST/$M_PATH, sur $tag."
+  first=$((NEXT - 1))
+  if ((run)); then
+    consent=$(consent_for "$id" "$(step_sha "$first" "$last")")
+    [[ -n $consent ]] || die "refusé : aucun « oui » capté pour le montage ; l'annoncer (pp.sh mount sans --run), puis attendre la réponse de Soon."
+    rm -f "$STATE/pending"
+    run_step "$first" "$last" "$consent" "$typed"
+    printf "montage terminé : %s épinglé sur %s dans %s/%s ; le dépôt hôte est commité, pas poussé.\n" "$name" "$tag" "$M_HOST" "$M_PATH"
+    return 0
+  fi
+  done_summary "$first"
+  announce "$first" "$last" "$id" "$typed --run"
 }
 
 cmd_status() {
@@ -1601,5 +1992,7 @@ case ${1:-} in
   release) shift; cmd_release "$@" ;;
   release-write) shift; cmd_release_write "$@" ;;
   marketplace-entry) shift; cmd_marketplace_entry "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope | release | release-write | marketplace-entry" ;;
+  publish) shift; cmd_publish "$@" ;;
+  mount) shift; cmd_mount "$@" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope | release | release-write | marketplace-entry | publish | mount" ;;
 esac

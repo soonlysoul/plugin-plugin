@@ -81,6 +81,12 @@ for id in plugin-tag-climbs-to-enclosing-repo plugin-tag-checks-tree-tag-and-ent
   expect_fact "$id" confirmé
 done
 expect_fact eval-allowed-tools-pattern-narrows-bash "à vérifier"
+# Phase 12: what a UserPromptSubmit hook receives, the ground of decision g.
+for id in user-prompt-submit-input bash-mode-skips-user-prompt-submit plugin-tag-push-optional \
+  user-prompt-submit-fires-on-notifications settings-hooks-hot-reload; do
+  expect_fact "$id" confirmé
+done
+expect_fact user-prompt-submit-vscode ""
 # From plugin-dev, unverified, with its two contradictions of phase A.
 expect_fact plugindev-when-to-use-deprecated "à vérifier"
 expect_fact plugindev-hooks-need-restart "à vérifier"

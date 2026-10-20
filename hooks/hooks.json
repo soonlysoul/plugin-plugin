@@ -1,5 +1,5 @@
 {
-  "description": "plugin-plugin: a framing document approved then modified goes back to review; a stale checkpoint is recalled once.",
+  "description": "plugin-plugin: a framing document approved then modified goes back to review; a stale checkpoint is recalled once; a GitHub gesture runs only as announced, once, after a typed « oui ».",
   "hooks": {
     "PostToolUse": [
       {
@@ -27,6 +27,37 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/checkpoint-reminder.sh"
             ],
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/consent-capture.sh"
+            ],
+            "timeout": 10,
+            "onFailure": "continue"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gesture-guard.sh"
+            ],
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       }

@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7, 8, 9 et 11 terminées**. La phase 10 attend la phase 6 ; prochaine étape : phase 12 (publication sous accord), coût permanent 678 tokens.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7, 8, 9 et 11 terminées ; phase 12 faite, sauf la sonde vivante dans VSCode** (hook de sonde posé dans `.claude/settings.local.json`, en attente du prochain message de Soon, puis à retirer). La phase 10 attend la phase 6 ; coût permanent 692 tokens.
 
 **Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes : à recueillir auprès de Soon avant d'écrire `evals/add/`.
 
@@ -454,3 +454,78 @@ Copies faussées dans `build/mutants/p11/`, une ligne de `pp.sh` changée chacun
 | coût par composant omis | « coût du composant demo », « coût par composant, même en alerte » |
 | section « en cours » exigée chiffrée | « aucune entrée rédigée en double », « section publiée intacte, plus de section en cours » |
 | `eval-plan` accorde toujours Bash entier | « le motif du cas est accordé tel quel », « un cas restreint n'accorde jamais Bash entier » |
+
+## Phase 12 — Publication sous accord — faite, sauf la sonde vivante dans VSCode
+
+- [x] `pp.sh publish <plugin> [--bump …] [--run N]` : la répétition, verte, est figée dans `.plugin-plugin/publication.json` (version, étiquette, gestes et commandes exactes), puis annoncée étape par étape — les gestes locaux jusqu'à un geste GitHub, inclus. Une étape ne part que par la commande annoncée (`… publish <plugin> --run N`), après un « oui » tapé ; `pp.sh` le vérifie lui-même au journal des accords, et un accord ne sert qu'une fois.
+- [x] Le garde refuse tout geste GitHub sans accord ; un « oui » littéral laisse passer une seule fois la commande annoncée ; « ok », « oui mais attends », « d'accord », « ouais », « non », « vas-y », « oui, et ensuite le tag », le silence et une annonce de plus de trente minutes valent refus (US-20, critère 6). Hook `consent-capture` (UserPromptSubmit, fail-open) et garde `gesture-guard` (PreToolUse, `Bash|Edit|Write`, fail-closed).
+- [ ] Sonde : entrée de `UserPromptSubmit` en 2.1.296 — **faite** (binaire, puis en vivant dans l'extension VSCode, ci-dessous) ; un « oui » tapé dans VSCode — **en attente du prochain message de Soon**, le hook de sonde reste posé. Le mécanisme tient : une notification injectée par Claude Code passe aussi par `UserPromptSubmit`, mais n'est jamais un « oui » ; elle retire l'annonce, ce qui vaut refus. La décision g n'est pas révisée.
+- [x] Le garde est inerte hors d'un projet géré (un `.plugin-plugin/` au-dessus du dossier) et hors d'une copie de la marketplace `soon`, même sans `jq` ; il lit l'accord sur disque et ne dépend d'aucun autre hook : sans `consent-capture`, il refuse.
+- [x] Marketplace : une branche `add-<nom>` et une PR ; `main` de la marketplace (dépôt nu) identique avant et après ; un push sur `main` de la marketplace, `gh pr merge` et la fusion par `gh api` sont refusés ; l'entrée et le commit refusent une copie qui n'est pas sur la branche (US-21).
+- [x] Coupure simulée avant le push de `main`, après le push de l'étiquette (réponse perdue), au push de la branche, après la création de la PR : le rapport nomme le geste échoué avec son code, ce qui est fait, ce qui reste et la commande qui reprend ; la reprise lit ce qui est fait dans les dépôts eux-mêmes et ne refait rien — un dépôt créé, une PR, une étiquette poussée une fois (US-27). `pp.sh resume` signale la publication en cours et sa commande de reprise.
+- [x] `pp.sh mount <plugin> --host <dépôt> [--path …]` : sous-module vers `https://github.com/soonlysoul/<nom>.git`, épinglé sur la dernière étiquette publiée, commité dans l'hôte, jamais poussé ; refusé pour un plugin jamais publié, un hôte absent, un montage déjà fait (US-26).
+- [x] Gestes destructifs refusés, même annoncés et accordés : suppression de dépôt, push forcé (`--force`, `-f`, `--force-with-lease`, `+réf`), suppression de référence (`:réf`, `--delete`, `--mirror`), réécriture d'historique (`filter-branch`, `filter-repo`), push sur `main` de la marketplace, fusion. Le retrait d'un plugin n'a aucun chemin : `pp.sh` n'écrit que des ajouts à la marketplace, et tout autre push vers elle est refusé.
+
+**Décision : l'état d'une publication n'est pas versionné.** `publication.json`, `pending`, `consents.log` et `gestures.log` s'écrivent pendant la publication, alors que `claude plugin tag` exige un arbre propre ; versionnés, ils saliraient l'arbre à chaque geste. Le `.gitignore` des plugins créés les ignore, et `publish` refuse un plugin qui ne les ignore pas. Le journal des accords des documents (`approvals.log`) reste versionné.
+
+**Décision : ce qui est fait se lit dans les dépôts, pas dans le journal.** Version et CHANGELOG à HEAD, étiquette locale, dépôt sur GitHub, `origin`, `main` et étiquette sur le distant, branche de la marketplace, PR : chaque geste a sa preuve. Un geste parti dont la réponse s'est perdue est donc reconnu « déjà fait », et un journal perdu ne fait rien refaire. Le journal dit ce qui s'est passé ; il ne décide de rien.
+
+**Décision : un « oui » par étape, pas par geste.** Les gestes locaux (version, commit, étiquette, `origin`, copie et commit de la marketplace) partent avec le geste GitHub qui les suit, annoncés ensemble : cinq accords pour une première publication, deux pour une mise à jour, au lieu de treize et cinq.
+
+Le garde de plugin-flutter, installé pour le compte, a refusé un `rm -rf "$m"` pendant la mise en place d'une copie faussée : il ne voit pas qu'une variable désigne un dossier de `build/`. Non contourné : la copie a pris un dossier neuf, sans rien effacer.
+
+Limites connues : la session doit être ouverte dans le dépôt du plugin (l'accord se capte là, et `publish` le rappelle sinon) ; le garde arrête le geste tapé par erreur, pas un contournement délibéré (un script qui pousse) ; une commande tapée en mode bash (`!`) ne passe par aucun hook ; plugin-flutter, sans `.plugin-plugin/`, reste hors du garde.
+
+### Sondes
+
+| Sonde | Commande | Résultat |
+| --- | --- | --- |
+| Entrée de `UserPromptSubmit` | lecture du binaire 2.1.296 (`grep -a` autour de `hook_event_name:"UserPromptSubmit"`) | `{…champs communs, hook_event_name, prompt, session_title}` ; `prompt` est le texte soumis (`prompt.submit`), le contexte de l'IDE voyage dans un champ distinct. Fait `user-prompt-submit-input`, confirmé |
+| Mode bash | même binaire | « the prompt did not go through prompt.submit (a command, bash mode, an input that did not query, or a failed pass) ». Fait `bash-mode-skips-user-prompt-submit`, confirmé |
+| Transcriptions VSCode | `~/.claude/projects/*/*.jsonl`, `entrypoint: claude-vscode` | le fichier ouvert et la sélection y sont des pièces jointes distinctes, jamais mêlées au texte tapé |
+| VSCode, en vivant | hook de sonde ajouté en cours de session à `.claude/settings.local.json` (ignoré par git), qui recopie son entrée dans `build/probes/` | il s'est déclenché **sans redémarrage** (fait `settings-hooks-hot-reload`), et **pour la notification de fin d'une tâche de fond**, pas pour un message de Soon : `prompt` vaut `<task-notification>…`, et l'entrée, qui porte aussi `prompt_id` et `scratchpad_dir`, ne dit rien de l'origine (fait `user-prompt-submit-fires-on-notifications`). Un « oui » tapé : **en attente** (fait `user-prompt-submit-vscode`, à vérifier) |
+| `claude plugin tag` sans `--push` | `claude plugin tag --help` ; `test_publish` | l'étiquette est posée en local, aucun push. Fait `plugin-tag-push-optional`, confirmé |
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/hooks/test_consent_capture.sh` | 1 | « hooks/scripts/consent-capture.sh présent » : absent |
+| ROUGE | `bash tests/hooks/test_gesture_guard.sh` | 1 | « hooks/scripts/gesture-guard.sh présent » : absent |
+| ROUGE | `bash tests/static/test_components.sh` | 1 | 10 réussis, 2 échoués : les deux hooks non câblés |
+| ROUGE | `bash tests/static/test_facts.sh` | 1 | 70 réussis, 4 échoués : les quatre faits de la phase 12 absents |
+| ROUGE | `bash tests/integration/test_publish.sh` | 1 | « présent : hooks/scripts/consent-capture.sh », « … gesture-guard.sh » |
+| VERT | `bash tests/hooks/test_consent_capture.sh` ; `… test_gesture_guard.sh` | 0 | 39 et 63 réussis |
+| ROUGE | `bash tests/integration/test_publish.sh` (outil écrit) | 1 | 96 réussis, 29 échoués : la doublure de `gh` sortait en 1 après une création réussie (son dernier `[[ … ]] && …` faux) ; défaut de la doublure, corrigé |
+| ROUGE | `bash tests/run-all.sh` | 1 | `test_paths` : `shellcheck -S warning` sur `pp.sh` (SC2178, une variable homonyme d'un tableau) et `lib/consent.sh` (SC2034) ; `test_run_all`, qui copie le plugin, avec lui |
+| ROUGE | `bash tests/integration/test_publish.sh` (cas ajouté) | 1 | 123 réussis, 1 échoué : « pp.sh resume signale la publication en cours (US-34) » |
+| VERT | `bash tests/integration/test_publish.sh` | 0 | 127 réussis |
+| VERT | `bash tests/run-all.sh` | 0 | `test_publish : 127`, `test_gesture_guard : 63`, `test_consent_capture : 39`, `test_release : 102`, `test_facts : 74`, `test_components : 12` réussis ; « coût permanent : 692 tokens (seuil 1000) » ; « réussies : 26, échouées : 0, sautées : 1, bloquées : 0 » ; HEAD de plugin-plugin inchangé par la suite |
+| ROUGE | `bash tests/static/test_facts.sh` (après la sonde vivante) | 1 | 74 réussis, 2 échoués : `user-prompt-submit-fires-on-notifications`, `settings-hooks-hot-reload` absents |
+| VERT | `test_facts`, `test_reaudit`, `test_consent_capture`, `test_paths`, relancés seuls | 0 | 76, 34, 40 et 77 réussis. Le cas « notification de Claude Code » de `test_consent_capture`, écrit après la sonde, est passé d'emblée : la règle « toute autre réponse retire l'annonce » le couvrait déjà ; une copie faussée prouve qu'il discrimine (ci-dessous) |
+
+### Les tests discriminent
+
+Copies faussées dans `build/mutants/p12/`, une ligne changée chacune, `PLUGIN_UNDER_TEST=<copie> bash <test>` :
+
+| Copie faussée | Test | Premier échec |
+| --- | --- | --- |
+| tout message qui commence par « oui » vaut accord | test_consent_capture | « « oui mais attends » : aucun accord » |
+| une notification de Claude Code est ignorée au lieu de retirer l'annonce | test_consent_capture | « notification de Claude Code : aucun accord, annonce retirée » |
+| un refus laisse l'annonce en place | test_consent_capture | « « ok » : annonce retirée » |
+| une annonce ne périme jamais | test_consent_capture | « annonce de plus de 30 minutes : retirée, aucun accord » |
+| le garde ne consomme pas l'annonce | test_gesture_guard | « l'annonce est consommée », « la même commande, une seconde fois : bloquée » |
+| la date de l'annonce n'est plus comparée | test_gesture_guard | « nouvelle annonce, accord de l'ancienne : bloquée » |
+| `--force` admis | test_gesture_guard | « « git push --force origin main » : refusé » |
+| `gh pr merge` admis | test_gesture_guard | « « gh pr merge 3 … » : refusé » |
+| push sur `main` de la marketplace admis | test_gesture_guard | « push sur main de la marketplace : refusé » |
+| le journal des accords s'écrit par Edit | test_gesture_guard | « Edit sur .plugin-plugin/consents.log : bloqué » |
+| `git -C` ignoré | test_gesture_guard | « git -C vers le plugin géré, depuis ailleurs : bloqué » |
+| sans `jq`, tout passe | test_gesture_guard | d'abord **mal formée** : `exit 0 "…"` échoue en « too many arguments » sans sortir, et le garde bloquait plus loin (entrée illisible). Réécrite ; rejouée : « jq absent, geste : bloqué » |
+| `pp.sh` lance une étape sans accord | test_publish | « pp.sh lancé sans accord capté : refusé » |
+| un accord sert deux fois | test_publish | d'abord **non pris** : aucun cas ne relançait une étape dont le premier geste avait échoué. Cas ajouté (deuxième coupure du push de `main`, relance sur le même « oui ») ; rejoué : « la même étape relancée sur le même « oui » : refusée » |
+| l'étiquette poussée n'est jamais reconnue faite | test_publish | « étape de la marketplace : gestes 8 à 12 » |
+| toute la publication en une étape | test_publish | « étape annoncée : gestes 1 à 4 » |
+| entrée et commit de la marketplace sur `main` admis | test_publish | « marketplace remise sur main : refusé » |
+| un montage n'est jamais reconnu fait | test_publish | « montage refait : refusé » |
+| état de publication non ignoré admis | test_publish | « journal des gestes non ignoré : refusé » |
