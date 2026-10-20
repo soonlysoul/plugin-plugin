@@ -86,7 +86,8 @@ for id in user-prompt-submit-input bash-mode-skips-user-prompt-submit plugin-tag
   user-prompt-submit-fires-on-notifications settings-hooks-hot-reload; do
   expect_fact "$id" confirmé
 done
-expect_fact user-prompt-submit-vscode ""
+expect_fact user-prompt-submit-vscode confirmé
+expect_fact user-prompt-submit-vscode-selection "à vérifier"
 # From plugin-dev, unverified, with its two contradictions of phase A.
 expect_fact plugindev-when-to-use-deprecated "à vérifier"
 expect_fact plugindev-hooks-need-restart "à vérifier"

@@ -1117,10 +1117,19 @@
   },
   {
     "id": "user-prompt-submit-vscode",
-    "statement": "Dans l'extension VSCode, un message tapé déclenche UserPromptSubmit et son champ prompt est le texte tapé seul (« oui » reste « oui »), sans le fichier ouvert ni la sélection.",
+    "statement": "Dans l'extension VSCode, un message tapé déclenche UserPromptSubmit, et son champ prompt est le texte tapé, tel quel et seul.",
+    "claude_version": "2.1.296",
+    "date": "2026-10-20",
+    "source": "plugin-plugin, sonde vivante de phase 12 : hook UserPromptSubmit de .claude/settings.local.json ; le message tapé « Continue phase 13 » est arrivé tel quel dans prompt (build/probes/), sans fichier ouvert ni sélection jointe au message",
+    "recheck": "session VSCode, hook UserPromptSubmit qui recopie son entrée dans build/ ; taper un message court",
+    "status": "confirmé"
+  },
+  {
+    "id": "user-prompt-submit-vscode-selection",
+    "statement": "Dans l'extension VSCode, un message tapé avec un fichier ouvert et une sélection garde un prompt réduit au texte tapé (« oui » reste « oui ») : le contexte de l'IDE voyage à part.",
     "claude_version": null,
     "date": "2026-10-20",
-    "source": "plugin-plugin, phase 12 : hypothèse tirée du binaire 2.1.296 et des transcriptions VSCode (contexte de l'IDE en pièce jointe distincte) ; sonde vivante à faire",
+    "source": "plugin-plugin, phase 12 : hypothèse tirée du binaire 2.1.296 et des transcriptions VSCode (contexte de l'IDE en pièce jointe distincte) ; la sonde vivante n'a vu qu'un message sans sélection",
     "recheck": "session VSCode, hook UserPromptSubmit qui recopie son entrée dans build/ ; taper « oui » avec un fichier ouvert et une sélection",
     "status": "à vérifier"
   },
