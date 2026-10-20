@@ -6,6 +6,13 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_run_all
 
+# The cases copy the plugin this test is pointed at: anything but a plugin stops it before any
+# copy — an empty PLUGIN_ROOT would make it copy /.
+if [[ -z ${PLUGIN_ROOT:-} || ! -f $PLUGIN_ROOT/.claude-plugin/plugin.json ]]; then
+  echo "bloqué : PLUGIN_ROOT « ${PLUGIN_ROOT:-} » n'est pas un plugin (.claude-plugin/plugin.json absent) ; rien n'est copié." >&2
+  exit 2
+fi
+
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -29,9 +36,9 @@ copy_plugin() {
     case ${entry##*/} in .git | build | .superpowers | .shots) continue ;; esac
     cp -R "$entry" "$copy/"
   done
-  # Neither this test (it would recurse) nor the integration tests, which create plugins and need
-  # claude: the copies only exercise run-all.sh.
-  rm -rf "$copy/tests/static/test_run_all.sh" "$copy/tests/integration"
+  # Neither this test (it would recurse) nor its guard's, nor the integration tests, which create
+  # plugins and need claude: the copies only exercise run-all.sh.
+  rm -rf "$copy/tests/static/test_run_all.sh" "$copy/tests/static/test_run_all_guard.sh" "$copy/tests/integration"
   printf '%s' "$copy"
 }
 
@@ -77,12 +84,12 @@ jq '.license = "Apache-2.0"' "$PLUGIN_ROOT/.claude-plugin/plugin.json" >"$falsif
   || echo '{}' >"$falsified/.claude-plugin/plugin.json"
 run_suite "$falsified" PATH="$work/stub:$PATH"
 expect_run "manifeste faussé : exit 1" 1
-expect_output "le contrôle faussé est nommé" 'ÉCHEC +license est MIT'
+expect_output "la suite qui échoue est nommée au bilan" '^  - tests/static/test_manifest\.sh$'
 missing=$(copy_plugin missing)
 rm -f "$missing/.claude-plugin/plugin.json"
 run_suite "$missing" PATH="$work/stub:$PATH"
 expect_run "manifeste absent : exit 1" 1
-expect_output "le manifeste absent est nommé" 'manifeste absent : \.claude-plugin/plugin\.json'
+expect_output "le manifeste absent est nommé au bilan" '^  - claude plugin validate \.claude-plugin/plugin\.json --strict \(\.claude-plugin/plugin\.json absent\)$'
 expect_output "manifeste absent : sa validation échoue" 'ÉCHEC +\.claude-plugin/plugin\.json \(absent\)'
 refuse_output "manifeste absent : sa validation n'est jamais sautée" 'sauté +\.claude-plugin/plugin\.json'
 

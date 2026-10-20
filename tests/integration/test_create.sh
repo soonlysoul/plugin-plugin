@@ -98,7 +98,8 @@ target="$work/plugin-essai"
 framed "$target"
 framing_before=$( (cd "$target" && sha256sum docs/PRD.md docs/ARCHITECTURE.md .plugin-plugin/approvals.log) )
 log="$work/gh.log"
-run_create "$target" plugin-essai PATH="$STUBPATH" STUB_GH_LOG="$log"
+# VERSION and KEYWORDS from the environment never reach a created plugin (rebuild sets them).
+run_create "$target" plugin-essai PATH="$STUBPATH" STUB_GH_LOG="$log" VERSION=9.9.9 KEYWORDS='["fuite"]'
 if [[ $PP_STATUS == 0 ]]; then pass "create : exit 0"; else fail "create : exit 0" "exit $PP_STATUS ; sortie : $(tail -n 15 <<<"$PP_OUTPUT" | tr '\n' '|')"; fi
 grep -qF 'api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json' "$log" 2>/dev/null \
   && pass "la marketplace est lue sur GitHub par gh api" || fail "la marketplace est lue sur GitHub par gh api"
@@ -113,7 +114,8 @@ for file in .claude-plugin/plugin.json .claude-plugin/marketplace.json LICENSE R
   [[ -f $target/$file ]] && pass "créé : $file" || fail "créé : $file"
 done
 jq -e '.name == "plugin-essai" and .version == "0.1.0" and .description == "Plugin d'"'"'essai." and .author == {name: "Soon"}
-       and .license == "MIT" and .homepage == "https://github.com/soonlysoul/plugin-essai" and .repository == .homepage' \
+       and .license == "MIT" and .homepage == "https://github.com/soonlysoul/plugin-essai" and .repository == .homepage
+       and (has("keywords") | not)' \
   "$target/.claude-plugin/plugin.json" >/dev/null 2>&1 && pass "plugin.json au modèle, sans e-mail" \
   || fail "plugin.json au modèle, sans e-mail" "$(cat "$target/.claude-plugin/plugin.json" 2>&1 | head -c 300)"
 grep -q '@' "$target/.claude-plugin/plugin.json" 2>/dev/null && fail "aucune adresse e-mail dans plugin.json" || pass "aucune adresse e-mail dans plugin.json"

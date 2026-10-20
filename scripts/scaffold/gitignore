@@ -7,6 +7,9 @@ repomix-output.xml
 build/
 evals/**/results/
 
+# Test artefacts
+tests/.tmp/
+
 # OS and editors
 .DS_Store
 *.swp

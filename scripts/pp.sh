@@ -13,6 +13,7 @@
 #   approve DOC --quote MESSAGE
 #   status DOC
 #   create DIR --name NAME --description TEXT
+#   rebuild ORIGINAL DIR
 #   checkpoint DIR start --skill S --steps "a|b" | done N --command C --exit E [--test T] | block REASON
 #   resume DIR
 #   check-skill SKILL.md
@@ -373,9 +374,35 @@ render() {
   printf '%s\n' "$content" >"$2"
 }
 
+# scaffold <dir>: the scaffolding of a plugin of the model, from NAME and DESCRIPTION — VERSION
+# (0.1.0 by default) and KEYWORDS, a JSON array, when a rebuild carries them: manifests,
+# root files, documents to fill, and plugin-plugin's own harness, so that both suites behave the
+# same way.
+scaffold() {
+  local dir=$1 file scaffold="$PP_ROOT/scripts/scaffold" repository="https://github.com/$OWNER/$NAME"
+  TODAY=$(date +%F)
+  mkdir -p "$dir/.claude-plugin" "$dir/tests/static"
+  jq -n --arg name "$NAME" --arg description "$DESCRIPTION" --arg repository "$repository" \
+    --arg version "${VERSION:-0.1.0}" --argjson keywords "${KEYWORDS:-null}" \
+    '{name: $name, version: $version, description: $description, author: {name: "Soon"},
+      homepage: $repository, repository: $repository, license: "MIT"}
+     + (if $keywords == null then {} else {keywords: $keywords} end)' >"$dir/.claude-plugin/plugin.json"
+  jq -n --arg name "$NAME" --arg description "$DESCRIPTION" \
+    '{name: $name, description: "Local marketplace for the \($name) Claude Code plugin.", owner: {name: "Soon"},
+      plugins: [{name: $name, source: "./", description: $description}]}' >"$dir/.claude-plugin/marketplace.json"
+  sed -E "s/^Copyright \(c\) [0-9]+ Soon$/Copyright (c) ${TODAY%%-*} Soon/" "$PP_ROOT/LICENSE" >"$dir/LICENSE"
+  for file in README.md CHANGELOG.md PROGRESS.md docs/INSTALLATION.md docs/USER_GUIDE.md docs/SECURITY.md docs/TROUBLESHOOTING.md; do
+    render "$scaffold/$file" "$dir/$file"
+  done
+  render "$scaffold/gitignore" "$dir/.gitignore"
+  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/headers.sh" "$PP_ROOT/tests/mcp.sh" "$PP_ROOT/tests/run-all.sh" "$dir/tests/"
+  cp "$PP_ROOT/tests/static/test_paths.sh" "$PP_ROOT/tests/static/test_run_all.sh" "$PP_ROOT/tests/static/test_headers.sh" "$dir/tests/static/"
+  sed "s/^NAME=plugin-plugin$/NAME=$NAME/" "$PP_ROOT/tests/static/test_manifest.sh" >"$dir/tests/static/test_manifest.sh"
+}
+
 cmd_create() {
   local dir=${1:-} file rc
-  NAME="" DESCRIPTION=""
+  NAME="" DESCRIPTION="" VERSION="" KEYWORDS=""
   shift || true
   while [[ $# -gt 0 ]]; do
     case $1 in
@@ -394,24 +421,7 @@ cmd_create() {
   error=$(name_taken "$NAME") || exit $?
   [[ -z $error ]] || die "$error"
 
-  TODAY=$(date +%F)
-  local scaffold="$PP_ROOT/scripts/scaffold" repository="https://github.com/$OWNER/$NAME"
-  mkdir -p "$dir/.claude-plugin" "$dir/tests/static"
-  jq -n --arg name "$NAME" --arg description "$DESCRIPTION" --arg repository "$repository" \
-    '{name: $name, version: "0.1.0", description: $description, author: {name: "Soon"},
-      homepage: $repository, repository: $repository, license: "MIT"}' >"$dir/.claude-plugin/plugin.json"
-  jq -n --arg name "$NAME" --arg description "$DESCRIPTION" \
-    '{name: $name, description: "Local marketplace for the \($name) Claude Code plugin.", owner: {name: "Soon"},
-      plugins: [{name: $name, source: "./", description: $description}]}' >"$dir/.claude-plugin/marketplace.json"
-  sed -E "s/^Copyright \(c\) [0-9]+ Soon$/Copyright (c) ${TODAY%%-*} Soon/" "$PP_ROOT/LICENSE" >"$dir/LICENSE"
-  for file in README.md CHANGELOG.md PROGRESS.md docs/INSTALLATION.md docs/USER_GUIDE.md docs/SECURITY.md docs/TROUBLESHOOTING.md; do
-    render "$scaffold/$file" "$dir/$file"
-  done
-  render "$scaffold/gitignore" "$dir/.gitignore"
-  # The harness is plugin-plugin's own, so that both suites behave the same way.
-  cp "$PP_ROOT/tests/lib.sh" "$PP_ROOT/tests/headers.sh" "$PP_ROOT/tests/mcp.sh" "$PP_ROOT/tests/run-all.sh" "$dir/tests/"
-  cp "$PP_ROOT/tests/static/test_paths.sh" "$PP_ROOT/tests/static/test_run_all.sh" "$PP_ROOT/tests/static/test_headers.sh" "$dir/tests/static/"
-  sed "s/^NAME=plugin-plugin$/NAME=$NAME/" "$PP_ROOT/tests/static/test_manifest.sh" >"$dir/tests/static/test_manifest.sh"
+  scaffold "$dir"
   git -C "$dir" init -q -b main || die "échec : git init dans $dir"
   printf 'créé : %s, plugin %s 0.1.0\n' "$dir" "$NAME"
 
@@ -423,6 +433,112 @@ cmd_create() {
   rm -f "$log"
   printf 'suite du plugin créé : exit %d\n' "$rc"
   ((rc == 0)) || exit 1
+}
+
+# Rebuild: an existing plugin in a folder of its own — the scaffolding plugin-plugin produces, and
+# the content of the original's last commit imported as is. The original is only read.
+# The files the scaffolding owns; every other tracked file of the original is its content.
+REBUILD_OWNED=(.claude-plugin/plugin.json .claude-plugin/marketplace.json LICENSE .gitignore tests/lib.sh tests/run-all.sh)
+
+# repo_state <repo>: HEAD, git status and the sum of every file but .git/; git status without
+# taking the index lock, which would rewrite it.
+repo_state() {
+  printf '%s|%s|%s' "$(git -C "$1" rev-parse HEAD)" "$(GIT_OPTIONAL_LOCKS=0 git -C "$1" status --porcelain)" \
+    "$(cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+}
+
+# lib_defines <lib.sh>: the functions and global variables the file defines, one per line.
+lib_defines() {
+  grep -oE '^[A-Za-z_][A-Za-z0-9_]*\(\)' "$1" | tr -d '()'
+  grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | grep -oE '(^|[[:space:]])[A-Za-z_][A-Za-z0-9_]*=' | tr -d ' \t='
+}
+
+# scaffold_gaps <original> <rebuilt>: one line per gap between the scaffolding produced and the
+# original's — a manifest field, the licence, a line of .gitignore, a test helper its tests use.
+scaffold_gaps() {
+  local orig=$1 dest=$2 file name users line
+  for file in .claude-plugin/plugin.json .claude-plugin/marketplace.json; do
+    jq -rn --argjson a "$(git -C "$orig" show "HEAD:$file" | jq -c .)" --argjson b "$(jq -c . "$dest/$file")" --arg f "$file" '
+      ($a | keys) + ($b | keys) | unique[] as $k | select($a[$k] != $b[$k])
+      | "[\($f)] \($k) : original \($a[$k] | tojson), produit \($b[$k] | tojson)"'
+  done
+  cmp -s <(git -C "$orig" show HEAD:LICENSE 2>/dev/null) "$dest/LICENSE" || echo "[LICENSE] différente de celle de l'original"
+  while IFS= read -r line; do
+    grep -qxF -- "$line" "$dest/.gitignore" || echo "[.gitignore] ligne de l'original absente : $line"
+  done < <(git -C "$orig" show HEAD:.gitignore 2>/dev/null | grep -v '^#' | grep .)
+  local orig_lib
+  local -a tests
+  mapfile -t tests < <(git -C "$orig" ls-files 'tests/*.sh' | grep -vx 'tests/lib.sh')
+  ((${#tests[@]} > 0)) || return 0
+  orig_lib=$(mktemp)
+  git -C "$orig" show HEAD:tests/lib.sh >"$orig_lib" 2>/dev/null
+  while IFS= read -r name; do
+    users=$( (cd "$dest" && grep -lw -- "$name" "${tests[@]}") 2>/dev/null | head -n 1)
+    [[ -n $users ]] || continue
+    (source "$dest/tests/lib.sh" >/dev/null 2>&1 && { declare -F "$name" >/dev/null || [[ -v $name ]]; }) \
+      || echo "[tests/lib.sh] aide absente : $name, dont se sert $users"
+  done < <(lib_defines "$orig_lib" | sort -u)
+  rm -f "$orig_lib"
+}
+
+cmd_rebuild() {
+  local orig=${1:-} dest=${2:-} before after file tmp count=0 log rc gaps version
+  [[ -n $orig && -n $dest ]] || die "usage : pp.sh rebuild ORIGINAL DOSSIER"
+  need jq
+  need git
+  [[ -f $orig/.claude-plugin/plugin.json ]] || die "refusé : $orig n'est pas un plugin (.claude-plugin/plugin.json absent)."
+  { git -C "$orig" rev-parse --verify -q HEAD >/dev/null && [[ $(git -C "$orig" rev-parse --show-toplevel 2>/dev/null) -ef $orig ]]; } \
+    || die "refusé : $orig n'est pas la racine d'un dépôt git avec un commit ; la reconstruction lit son dernier commit."
+  if [[ -e $dest ]]; then
+    [[ -d $dest && -z $(ls -A "$dest") ]] || die "refusé : $dest existe et n'est pas vide ; la reconstruction n'écrase rien."
+  fi
+  before=$(repo_state "$orig")
+  NAME=$(git -C "$orig" show HEAD:.claude-plugin/plugin.json | jq -r '.name // empty')
+  DESCRIPTION=$(git -C "$orig" show HEAD:.claude-plugin/plugin.json | jq -r '.description // empty')
+  version=$(git -C "$orig" show HEAD:.claude-plugin/plugin.json | jq -r '.version // empty')
+  VERSION=$version
+  KEYWORDS=$(git -C "$orig" show HEAD:.claude-plugin/plugin.json | jq -c '.keywords // null')
+  [[ -n $NAME && -n $DESCRIPTION ]] || die "refusé : nom ou description illisible dans le plugin.json de $orig."
+
+  mkdir -p "$dest" || die "échec : impossible de créer $dest"
+  scaffold "$dest"
+  tmp=$(mktemp -d)
+  git -C "$orig" archive HEAD | tar -x -C "$tmp" || { rm -rf "$tmp"; die "échec : git archive de $orig"; }
+  while IFS= read -r file; do
+    [[ " ${REBUILD_OWNED[*]} " == *" $file "* ]] && continue
+    mkdir -p "$dest/$(dirname "$file")" && cp -p "$tmp/$file" "$dest/$file" && count=$((count + 1))
+  done < <(git -C "$orig" ls-files)
+  rm -rf "$tmp"
+  git -C "$dest" init -q -b main || die "échec : git init dans $dest"
+  printf 'reconstruit : %s — %s %s, depuis %s à %s\n' "$dest" "$NAME" "$version" "$orig" "$(git -C "$orig" rev-parse --short HEAD)"
+  printf 'contenu importé tel quel : %d fichiers ; charpente produite : %s\n' "$count" "${REBUILD_OWNED[*]}"
+  [[ -z $(GIT_OPTIONAL_LOCKS=0 git -C "$orig" status --porcelain) ]] \
+    || printf "attention : changements non enregistrés de l'original ignorés ; seul son dernier commit est reconstruit\n"
+
+  log=$(mktemp)
+  (cd "$dest" && bash tests/run-all.sh) >"$log" 2>&1
+  rc=$?
+  gaps=$(scaffold_gaps "$orig" "$dest")
+  while IFS= read -r file; do
+    grep -qxF "== $file" "$log" || gaps+=$'\n'"[tests/run-all.sh] test de l'original non lancé : $file"
+  done < <(git -C "$orig" ls-files 'tests/static/test_*.sh' 'tests/hooks/test_*.sh')
+  gaps=$(grep . <<<"$gaps")
+  if [[ -z $gaps ]]; then
+    printf "charpente : 0 écart avec l'originale\n"
+  else
+    printf "charpente : %d écarts avec l'originale\n" "$(grep -c . <<<"$gaps")"
+    sed 's/^/- /' <<<"$gaps"
+  fi
+  grep -E '^(réussies|échouées|sautées|bloquées) :|^  - ' "$log"
+  rm -f "$log"
+  printf 'suite de la reconstruction : exit %d\n' "$rc"
+  after=$(repo_state "$orig")
+  if [[ $after != "$before" ]]; then
+    printf "ÉCHEC : l'original a changé pendant la reconstruction (HEAD, git status ou empreintes).\n"
+    exit 1
+  fi
+  printf 'original intact : HEAD, git status et empreintes identiques\n'
+  [[ -z $gaps && $rc == 0 ]] || exit 1
 }
 
 # The checkpoint, .plugin-plugin/checkpoint.md: header fields, one line per step of the running
@@ -2051,6 +2167,7 @@ case ${1:-} in
   approve) shift; cmd_approve "$@" ;;
   status) shift; cmd_status "$@" ;;
   create) shift; cmd_create "$@" ;;
+  rebuild) shift; cmd_rebuild "$@" ;;
   checkpoint) shift; cmd_checkpoint "$@" ;;
   resume) shift; cmd_resume "$@" ;;
   check-skill) shift; cmd_check_skill "$@" ;;
@@ -2068,5 +2185,5 @@ case ${1:-} in
   marketplace-entry) shift; cmd_marketplace_entry "$@" ;;
   publish) shift; cmd_publish "$@" ;;
   mount) shift; cmd_mount "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | check | delegate | approve | status | create | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope | release | release-write | marketplace-entry | publish | mount" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | check | delegate | approve | status | create | rebuild | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope | release | release-write | marketplace-entry | publish | mount" ;;
 esac

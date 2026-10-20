@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7 à 12 terminées**. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Elle débloque la phase 13. Coût permanent 824 tokens.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phase 6 faite, sauf son passage réel**, payant, qui attend l'accord de Soon (voir « Phase 6 — En attente »). Les phases 7, 8, 9, 11 et 12 n'en dépendent pas : **phases 7 à 13 terminées**. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Coût permanent 824 tokens.
 
 **Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes : à recueillir auprès de Soon avant d'écrire `evals/add/`.
 
@@ -603,3 +603,79 @@ Copies faussées dans `build/mutants/p12/`, une ligne changée chacune, `PLUGIN_
 | entrée et commit de la marketplace sur `main` admis | test_publish | « marketplace remise sur main : refusé » |
 | un montage n'est jamais reconnu fait | test_publish | « montage refait : refusé » |
 | état de publication non ignoré admis | test_publish | « journal des gestes non ignoré : refusé » |
+
+## Phase 13 — Reconstruction de plugin-flutter — terminée
+
+- [x] `pp.sh rebuild <original> <dossier>` reconstruit un plugin existant dans un dossier absent ou vide : la charpente que plugin-plugin produit (la fonction `scaffold`, commune avec `create`), puis chaque fichier suivi du dernier commit de l'original, tel quel, sauf les six que la charpente possède — `plugin.json`, `marketplace.json`, `LICENSE`, `.gitignore`, `tests/lib.sh`, `tests/run-all.sh`. L'original n'est lu que par `git archive HEAD` ; un changement non enregistré est signalé et ignoré.
+- [x] plugin-flutter reconstruit dans `build/rebuild/plugin-flutter` depuis sa copie de lecture : 47 fichiers importés tels quels ; « charpente : 0 écart avec l'originale » ; la suite de la reconstruction sort en 0 — 16 réussies, 0 échouée, 0 sautée, 0 bloquée (critère 2).
+- [x] Validation stricte sur chaque cible : `.`, `.claude-plugin/plugin.json`, `skills`, `agents` ; coût permanent 841 tokens.
+- [x] Original intact : `../plugin-flutter` et sa copie de lecture à 55df72c, `git status` vide, avant et après ; `rebuild` le prouve lui-même (HEAD, `git status` sans verrou d'index, empreintes hors `.git/`).
+- [x] Chaque écart entre la charpente produite et l'originale corrigé dans plugin-plugin, jamais dans la reconstruction, et consigné ci-dessous.
+
+**Incident, réparé** — le 2026-10-20, une copie faussée de `rebuild` (la charpente importée de l'original au lieu d'être produite) a reconstruit un original d'essai dont le `tests/lib.sh` ne définit pas `PLUGIN_ROOT`. Le `test_run_all.sh` de la charpente, lancé là, copiait `"$PLUGIN_ROOT"/*` : vide, cela faisait `/*`. Il a copié `/home` et `/nix` dans `/tmp/tmp.TkiXQogIFk`, 62 Go, avant que le processus soit arrêté ; son piège de sortie a effacé la copie de `/home`, mais 14 Go de `/nix` restent, que le garde de plugin-flutter interdit d'effacer hors de `build/` : non contourné, **à effacer par Soon** (`rm -rf /tmp/tmp.TkiXQogIFk`). Rien n'a été modifié hors de `/tmp`. Le test est désormais gardé : pointé ailleurs que sur un plugin, il sort en 2 avant toute copie (`test_run_all_guard`, vu rouge sur un petit dossier, jamais sur `/`). Ce test voyage dans chaque plugin créé et chaque reconstruction : la garde aussi.
+
+### Écarts de charpente, à la première reconstruction
+
+`bash scripts/pp.sh rebuild build/ref/plugin-flutter build/rebuild-probe/plugin-flutter` → exit 1, « charpente : 6 écarts avec l'originale », suite à 5 échecs :
+
+| Écart rapporté | Correction dans plugin-plugin |
+| --- | --- |
+| `[.claude-plugin/plugin.json] keywords : original ["flutter","dart","tdd","git"], produit null` | `scaffold` porte `KEYWORDS`, que `rebuild` lit dans l'original |
+| `[.claude-plugin/plugin.json] version : original "0.1.2", produit "0.1.0"` | `scaffold` porte `VERSION` ; `create` remet les deux à zéro, sans quoi l'environnement fuyait dans un plugin créé (prouvé par `test_create`, vu rouge) |
+| `[.gitignore] ligne de l'original absente : tests/.tmp/` | ajoutée au `.gitignore` de charpente |
+| `[tests/lib.sh] aide absente : bash_input`, `restricted_path`, `SCRIPTS` | ajoutées à `tests/lib.sh`, reprises du harnais de plugin-flutter ; les quatre tests de hooks échouaient sans elles |
+| (sans ligne de charpente) `test_run_all` de la charpente échouait : il cherchait les messages de `test_manifest`, que celui de l'original remplace | `test_run_all` contrôle le bilan de `run-all.sh` — la suite qui échoue y est nommée —, plus les messages d'un autre test |
+
+Ce que la charpente a en plus n'est pas un écart : `.gitignore` ignore aussi `build/`, les résultats d'évaluation et l'état volatil de `.plugin-plugin/` ; `run-all.sh` lance aussi `tests/integration/` et `tests/project/`, et mesure le coût en contexte ; ses messages sont en français.
+
+### La suite d'origine, dans l'original et dans la reconstruction
+
+`bash tests/run-all.sh` dans un clone de l'original, puis dans `build/rebuild/plugin-flutter` : exit 0 tous deux.
+
+| Suite de plugin-flutter | Original | Reconstruction |
+| --- | --- | --- |
+| test_frontmatter | 66 réussis | 66 réussis |
+| test_manifest | 16 | 16 |
+| test_paths | 69 | 69 |
+| test_settings_template | 16 | 16 |
+| test_tdd_skill | 25 | 25 |
+| test_agent_scope_guard | 73 | 73 |
+| test_checkpoint_reminder | 17 | 17 |
+| test_format_dart | 14, 1 sauté (`dart` absent du poste) | 14, 1 sauté, le même |
+| test_guard_destructive | 206 | 206 |
+| validation stricte (4 cibles) | 4 ok | 4 ok |
+
+La reconstruction lance en plus les deux tests de charpente sans homonyme dans l'original — `test_headers` (15 réussis) et `test_run_all` (22) — et le coût en contexte : 841 tokens.
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/integration/test_rebuild.sh` | 1 | 2 réussis, 20 échoués : commande inconnue. Un contrôle passait à tort (`.gitignore` absent compté conforme) : corrigé avant l'implémentation |
+| ROUGE | `bash scripts/pp.sh rebuild build/ref/plugin-flutter build/rebuild-probe/plugin-flutter` | 1 | les six écarts ci-dessus, suite à 5 échecs |
+| ROUGE | `bash tests/integration/test_create.sh` (VERSION et KEYWORDS dans l'environnement) | 1 | « create : exit 0 » : la suite du plugin créé échouait, version fuyée |
+| VERT | `bash tests/integration/test_create.sh` | 0 | 61 réussis |
+| VERT | `bash tests/integration/test_rebuild.sh` | 0 | 22 réussis (deux comparaisons JSON d'abord fausses : membre droit de `==` non cité, lu comme un motif) |
+| VERT | `bash tests/integration/test_rebuild.sh` (charpente de plugin-plugin, écart rapporté sur un original d'essai) | 0 | 29 réussis ; l'original d'essai cachait d'abord son échec (`helper && pass` sans `fail`), corrigé |
+| ROUGE | `bash tests/integration/test_rebuild.sh` (changement non enregistré) | 1 | « changement non enregistré de l'original : signalé, pas reconstruit » |
+| VERT | `bash tests/integration/test_rebuild.sh` | 0 | 30 réussis |
+| ROUGE | `bash tests/static/test_run_all_guard.sh` (après l'incident) | 1 | 0 réussis, 3 échoués : pointé sur un petit dossier qui n'est pas un plugin, `test_run_all.sh` le copiait et lançait sa suite |
+| VERT | `bash tests/static/test_run_all_guard.sh` ; `… test_run_all.sh` | 0 | 3 et 22 réussis (la garde exclue des copies de `test_run_all`) |
+| VERT | `bash tests/run-all.sh` (après la garde) | 0 | `test_rebuild : 30`, `test_create : 61`, `test_run_all : 22`, `test_run_all_guard : 3` réussis ; « coût permanent : 824 tokens (seuil 1000) » ; « réussies : 31, échouées : 0, sautées : 1, bloquées : 0 » |
+
+### Les tests discriminent
+
+Copies faussées dans `build/mutants/p13b/` (les premières, `p13/`, avaient le `test_run_all.sh` d'avant la garde : retirées), une ligne changée chacune, contre leur propre clone de la copie de lecture (`build/mutants/p13b-ref/`), une des copies écrivant dans l'original :
+
+| Copie faussée | Test | Premier échec |
+| --- | --- | --- |
+| version toujours 0.1.0 | test_rebuild | « rebuild : exit 0 », « aucun écart entre la charpente produite et l'originale », « plugin.json : le même que l'original » |
+| keywords jamais portés | test_rebuild | les mêmes |
+| `restricted_path` retiré de `tests/lib.sh` | test_rebuild | « rebuild : exit 0 », « aucun écart … », « rebuild rapporte la suite verte » |
+| la charpente importée de l'original | test_rebuild | d'abord **hors de contrôle** : la copie de `/` décrite plus haut, délai dépassé. Rejouée après la garde : « tests/lib.sh : celui de plugin-plugin, jamais celui de l'original » |
+| dossier cible non vide accepté | test_rebuild | « dossier cible non vide : refusé, rien n'y est écrit » |
+| écarts de charpente jamais rapportés | test_rebuild | « rapporté : ^charpente : 2 écarts », « aide absente : helper_maison … », « ligne de l'original absente : cache-local/ » |
+| changement non enregistré passé sous silence | test_rebuild | « changement non enregistré de l'original : signalé, pas reconstruit » |
+| `create` hérite de VERSION et KEYWORDS | test_create | « create : exit 0 », « plugin.json au modèle, sans e-mail » |
+| `rebuild` écrit dans l'original | test_rebuild | « original intact : HEAD, git status et empreintes identiques » ; `rebuild` le dit lui-même, exit 1 |
+| (test) `test_run_all.sh` sans garde | test_run_all_guard | « PLUGIN_ROOT hors d'un plugin : exit 2 » — vu rouge sur un petit dossier |

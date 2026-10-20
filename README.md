@@ -46,6 +46,16 @@ Suite déterministe : bash et jq, sans réseau, sans session, sans quota. Elle l
 | 1 | au moins une étape échoue |
 | 2 | un prérequis manque (`jq`, ou `claude` pour la validation et le coût) : l'étape est bloquée, jamais comptée réussie |
 
+Les tests sur les plugins réels — `check`, l'ajout à plugin-flutter, sa reconstruction — lisent les copies de lecture de `build/ref/` (ou `PP_REF_DIR`) et sont sautés sans elles.
+
+## Reconstruire un plugin existant
+
+```bash
+bash scripts/pp.sh rebuild <dépôt d'origine> build/rebuild/<nom>
+```
+
+La charpente que plugin-plugin produit — manifestes, licence, `.gitignore`, `tests/lib.sh`, `tests/run-all.sh` —, puis tout le reste du dernier commit de l'original, tel quel. L'outil rapporte chaque écart entre sa charpente et celle de l'original, lance la suite de la reconstruction, et prouve l'original intact (HEAD, `git status`, empreintes). Il n'écrit que dans un dossier absent ou vide.
+
 ## Licence
 
 MIT — voir [LICENSE](LICENSE).

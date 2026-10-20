@@ -4,6 +4,7 @@
 
 # PLUGIN_UNDER_TEST points a test at a mutated copy of the plugin, to prove it fails there.
 PLUGIN_ROOT=${PLUGIN_UNDER_TEST:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
+SCRIPTS="$PLUGIN_ROOT/hooks/scripts"
 PASS=0 FAIL=0 SKIP=0
 
 # The suite must not depend on the session it runs from.
@@ -53,6 +54,24 @@ expect_silent_allow() {
   else
     fail "$1" "attendu exit 0 silencieux, obtenu exit $HOOK_STATUS ; stdout : ${HOOK_STDOUT:0:200} ; stderr : ${HOOK_STDERR:0:200}"
   fi
+}
+
+# bash_input <command> [tool] [cwd]: PreToolUse input for a shell tool.
+bash_input() {
+  jq -nc --arg c "$1" --arg t "${2:-Bash}" --arg d "${3:-/work/proj}" \
+    '{session_id: "test", cwd: $d, hook_event_name: "PreToolUse", permission_mode: "default",
+      tool_name: $t, tool_input: {command: $c}, tool_use_id: "toolu_test"}'
+}
+
+# restricted_path <tool...>: a PATH holding only the named tools, to simulate a missing
+# dependency. Prints the directory; the caller removes it.
+restricted_path() {
+  local dir tool
+  dir=$(mktemp -d)
+  for tool in "$@"; do
+    ln -s "$(command -v "$tool")" "$dir/$tool"
+  done
+  printf '%s' "$dir"
 }
 
 # path_without <tool...>: a directory of links to every command of PATH except the named
