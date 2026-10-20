@@ -4,9 +4,19 @@
 > (`soonlysoul/plugin-flutter`, v0.1.2) · Design : sans objet, aucune interface.
 > Mesures de référence : Claude Code 2.1.296, 2026-10-19.
 
-**Statut : APPROUVÉ** le 2026-10-19, par Soon (« oui juste change le nom par
-plugin-plugin »), renommage compris. Toute modification d'un document approuvé le
-repasse en revue.
+**Statut : APPROUVÉ** le 2026-10-20 (« Je valide »).
+
+Approuvé le 2026-10-19, par Soon (« oui juste change le nom par plugin-plugin »), renommage
+compris. Toute modification d'un document approuvé le repasse en revue.
+
+Errata de la clôture (phase 16, 2026-10-20), corrigés en une fois dans le texte :
+
+1. « Tests et validation » : la validation stricte de la racine couvre aussi `plugin.json` ;
+   mesuré en phase 2 (fait `validate-root-covers-plugin`). La suite vise toujours chaque cible.
+2. « Évaluations », bac à sable : `~/Documents/Nixos` n'existe pas sur ce poste ; `~/Nixos`
+   ne mentionne pas bwrap, absent du `PATH`.
+3. Phase 14 : aucun sous-module ne cite plugin-nixos sur ce poste ; seul le clone a pu être prouvé
+   intact (Soon, le 2026-10-20).
 
 ## Décisions architecturales
 
@@ -95,9 +105,9 @@ Valables pour toutes les phases. Une phase s'y réfère ; aucune ne les rouvre.
 
 - **Suite déterministe** : bash et jq, sans réseau, sans session, sans quota. `tests/run-all.sh`
   sort en 0 (tout passe), 1 (un échec), 2 (un prérequis manque).
-- **`claude plugin validate --strict` ne valide que la cible nommée.** La racine ne valide que la
-  marketplace : la suite vise aussi `.claude-plugin/plugin.json` et chaque dossier de composants
-  présent (`skills`, `agents`). Le validateur ne voit ni un en-tête d'agent cassé ni un script de
+- **`claude plugin validate --strict` sur chaque cible.** La validation de la racine couvre la
+  marketplace et `plugin.json` ; la suite vise malgré tout `.claude-plugin/plugin.json` et chaque
+  dossier de composants présent (`skills`, `agents`), pour nommer la cible en défaut. Le validateur ne voit ni un en-tête d'agent cassé ni un script de
   hook absent : des tests statiques stricts les couvrent.
 - **Doublures** : `gh`, les dépôts distants et `claude` sont remplacés dans le PATH ; les gestes
   GitHub se testent contre des dépôts nus locaux.
@@ -127,8 +137,8 @@ Valables pour toutes les phases. Une phase s'y réfère ; aucune ne les rouvre.
 - **Avant chaque lancement** s'affichent le nombre de sessions (cas × exécutions × bras), le coût
   estimé (0,13 à 0,23 USD par session, mesuré), le plafond et le compte qui paie. Le rapport
   reste sur le poste, hors git.
-- **Bac à sable** : Bash y reste indisponible tant que bwrap n'est pas appliqué sur le poste. Il
-  est déclaré dans `~/Documents/Nixos` ; l'application revient à Soon. Un cas qui a besoin de
+- **Bac à sable** : Bash y reste indisponible tant que bwrap n'est pas appliqué sur le poste. Sa
+  déclaration et son application, dans la configuration du poste, reviennent à Soon. Un cas qui a besoin de
   Bash est « bloqué », avec la cause, jamais « réussi ».
 - **Décision c** : les suites des sept skills de plugin-plugin sont écrites et vérifiées sans être
   lancées, phase après phase ; elles ne tournent qu'après l'application de bwrap et sont
@@ -665,8 +675,8 @@ C'est un test de plugin-plugin : jamais publié.
 - [ ] Validation stricte sur chaque cible.
 - [ ] Le script appelé par les skills est rangé selon la décision a ; le serveur MCP est déclaré
       comme en phase 9.
-- [ ] Original intact : HEAD et `git status --porcelain` identiques, dans le clone comme dans le
-      sous-module de `~/Documents/Nixos`.
+- [ ] Original intact : HEAD et `git status --porcelain` identiques, dans le clone (aucun
+      sous-module ne cite plugin-nixos sur ce poste).
 
 ### Preuve
 

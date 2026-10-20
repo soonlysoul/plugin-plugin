@@ -15,7 +15,7 @@ A value the user keeps to themselves — a token, a key, a path of their own —
 
 ## 2. Red
 
-Run `bash <pp> add-mcp <folder> --name <name> (--launcher scripts/<name>.sh [--args "<a>,<b>"] [--env "<VAR>,<VAR>"] | --url <address> [--header '<Name>=<value>']…) --test-only`. A refusal names the broken rule — address in HTTP, launcher absent or outside `scripts/`, an imperative install, a secret in clear, a variable outside `${VAR}` —: relay it, fix it with the user, and run again. Otherwise it writes `tests/static/test_mcp_<name>.sh` alone. Run it: it must fail on « serveur <name> déclaré ». Record the output and the exit code.
+Run `bash <pp> add-mcp <folder> --name <name> (--launcher scripts/<name>.sh [--args "<a>,<b>"] [--env "<VAR>,<VAR>"] | --url <address> [--header '<Name>=<value>']…) --test-only`. A refusal names the broken rule — address in HTTP, launcher absent or outside `scripts/`, an imperative install, a secret in clear, a variable outside `${VAR}` —: relay it, fix it with the user, and run again. Otherwise it writes the server's test alone, `tests/static/test_mcp_<name>.sh` with each `-` of the name turned to `_`: run the path its `écrit :` line gives. It must fail on « serveur <name> déclaré ». Record the output and the exit code.
 
 ## 3. The declaration
 

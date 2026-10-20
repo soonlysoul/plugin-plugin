@@ -44,6 +44,7 @@ refused "outil inconnu" 'outil inconnu : Telepathy' --name doc-reader --tools "R
 refused "relecteur qui écrit" 'relecteur' --name code-reviewer --tools "Read, Edit" --model sonnet --writes docs/
 refused "Write sans dossiers d'écriture" '--writes' --name doc-writer --tools "Read, Write" --model sonnet
 refused "Bash sans liste blanche" '--bash' --name doc-runner --tools "Read, Bash" --model sonnet
+refused "Monitor sans liste blanche" '--bash' --name log-watcher --tools "Read, Monitor" --model sonnet
 refused "dossier d'écriture qui remonte" '\.\.' --name doc-writer --tools "Read, Write" --model sonnet --writes ../docs/
 refused "model inconnu" 'model' --name doc-reader --tools "Read" --model gpt
 [[ $(tree_sum "$plugin") == "$before" ]] && pass "après les refus, plugin identique" || fail "après les refus, plugin identique"

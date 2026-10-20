@@ -2,7 +2,7 @@
 
 Plugin Claude Code qui construit des plugins Claude Code au modèle de [plugin-flutter](https://github.com/soonlysoul/plugin-flutter) : cadrage, création d'un plugin dédié et vert, composants ajoutés en TDD (skills avec leur évaluation, agents, hooks, déclaration d'un serveur MCP), publication dans la marketplace `soon` sous accord explicite, ré-audit après une mise à jour de Claude Code, reprise depuis le disque.
 
-Version **0.1.0**, en construction. Le périmètre et l'ordre de construction sont fixés par [docs/PRD.md](docs/PRD.md) et [docs/PLAN.md](docs/PLAN.md) ; l'avancement, par [PROGRESS.md](PROGRESS.md). Claude Code **2.1.295 ou plus** requis (forme exec des hooks).
+Version **0.1.0**, en construction. Le périmètre et l'ordre de construction sont fixés par [docs/PRD.md](docs/PRD.md) et [docs/PLAN.md](docs/PLAN.md) ; la construction, par [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ; l'avancement, par [PROGRESS.md](PROGRESS.md). Installation, usage, sécurité et dépannage : [docs/](docs/INSTALLATION.md). Claude Code **2.1.295 ou plus** requis (forme exec des hooks).
 
 | Composant | Rôle |
 | --- | --- |

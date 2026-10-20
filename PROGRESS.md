@@ -5,7 +5,7 @@ Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PL
 
 ## État courant
 
-Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phases 6 à 15 terminées.** Le passage réel de la phase 6, payant, est celui du skill du témoin de la phase 15 (choix de Soon) ; les phases 7 à 12 n'en dépendaient pas. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Phase 15 : le témoin `plugin-changelog` — un skill, un hook, un agent — construit par plugin-plugin du cadrage à la répétition de publication, 26 interventions de Soon, toutes demandées ; il a révélé deux écarts de plugin-plugin, corrigés. Prochaine étape : la phase 16, clôture de 0.1.0 puis publication de 0.1.1. Coût permanent 824 tokens.
+Branche de travail `feat/v0.1.0`. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phases 6 à 15 terminées.** Le passage réel de la phase 6, payant, est celui du skill du témoin de la phase 15 (choix de Soon) ; les phases 7 à 12 n'en dépendaient pas. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Phase 15 : le témoin `plugin-changelog` — un skill, un hook, un agent — construit par plugin-plugin du cadrage à la répétition de publication, 26 interventions de Soon, toutes demandées ; il a révélé deux écarts de plugin-plugin, corrigés. Phase 16 en cours : relecture des skills faite, ses 22 constats critiques et majeurs corrigés, trois défauts de `pp.sh` corrigés (rouge puis vert), documents d'usage et architecture posés, `check` à zéro écart sur plugin-plugin, plan et architecture approuvés (« Je valide »), étiquette locale `plugin-plugin--v0.1.0` sur `fec6a94`. Prochaine étape : la publication de 0.1.1 par `/plugin-plugin:release`, chaque geste sur un « oui ». Coût permanent 880 tokens.
 
 **Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes. **Décision de Soon, le 2026-10-20** : ils viennent de la phase 15 — les demandes tapées pour ajouter le skill, l'agent et le hook du témoin font les cas positifs ; un ou deux négatifs proposés, validés par Soon. **Fermé en phase 15** : `evals/add/`, cinq cas, conforme à `check-evals`, non lancé (choix de Soon).
 
@@ -836,3 +836,67 @@ Suite de plugin-plugin après les correctifs, la base de faits et `evals/add/` :
 `evals/add/` : cinq cas, écrits et vérifiés par `pp.sh check-evals . add` (« conforme : 5 cas (3 positifs, 2 négatifs), 3 exécutions par cas au moins »), sans être lancés (choix de Soon). Positifs : les trois demandes du témoin, telles que choisies — hook, agent, skill désigné par l'architecture —, sur un `plugin-changelog` posé par `setup.sh`. Négatifs, validés par Soon : « ajoute une ligne au CHANGELOG de plugin-changelog pour le hook changelog-guard » (« ajoute » et un nom de hook, mais une ligne de journal) et « crée-moi un nouveau plugin plugin-notes pour prendre des notes » (le terrain de `frame`).
 
 Non fait, par choix de Soon : l'exécution réelle de l'agent `changelog-reviewer` sur un dépôt d'essai — ses tests et son garde de portée suffisent à la phase.
+
+## Phase 16 — Clôture de 0.1.0, puis publication de 0.1.1 — en cours
+
+### Relecture des skills par `plugin-dev:skill-reviewer`
+
+plugin-dev est installé pour le compte mais désactivé. Plutôt que de l'activer (un réglage, puis `/reload-plugins`), sa définition — `agents/skill-reviewer.md` du cache `a0b04d9ddcca`, identique à celle de la marketplace — a été donnée telle quelle à sept sous-agents, un par skill, en un seul passage : mêmes consignes, mêmes outils en lecture (`Read`, `Grep`, `Glob`), modèle hérité. plugin-dev reste une aide de développement, pas une dépendance.
+
+Verdicts : `release` Pass ; les six autres « Needs Improvement ». 1 constat critique, 21 majeurs, une quarantaine de mineurs. Chaque constat critique ou majeur a été vérifié dans le code avant d'être traité ; tous sont réels et tous sont corrigés :
+
+| Skill | Constat | Traitement |
+| --- | --- | --- |
+| `resume` | critique : le test ciblé n'était pas lancé depuis le dossier du plugin, et « pas de suite complète » contredisait le `--test "bash tests/run-all.sh"` de `create` | lancé par `cd <dossier> && …` ; une suite complète notée est le test ciblé ; une commande qui n'est pas `bash tests/…` est montrée et demandée |
+| `resume`, `frame` | reprendre un skill relance son `checkpoint … start`, qui efface les étapes faites (`pp.sh`, `cmd_checkpoint`) | `start` refusé sur un point inachevé du même skill, l'étape suivante nommée ; `--restart` si Soon abandonne ce travail ; les skills reprennent par `done` |
+| `resume` | branches de `pp.sh resume` sans consigne (sans point de reprise, `reste : rien`, publication en cours) ; blocages absents du résumé | une consigne par branche ; blocages et incohérences nommés, Soon décide avant toute reprise |
+| `check` | un nom de plugin (« plugin-nixos suit-il le modèle ? ») pris pour un dossier | cherché à côté du dépôt courant, demandé sinon ; dossier courant seulement sans nom |
+| `release` | « publie plugin-x » inatteignable sous `disable-model-invocation` | « /plugin-plugin:release plugin-x » |
+| `frame` | reprise lue sur le seul PRD ; gabarit rempli par-dessus un document ; refus du script et demande de changement confondus ; user stories et choix d'architecture jamais demandés, « à trancher » approuvables ; un seul déclencheur | reprise lue sur les deux documents ; jamais de gabarit sur un document existant ; trois cas d'accord ; stories dérivées des réponses, choix réglés avec chaque composant, « à trancher » listés avant l'accord, sans question nouvelle ; « je veux un plugin qui… » |
+| `create` | point de reprise ouvert avant l'étape 1, refus qui pousse vers `init-state` ; codes de sortie mal lus (suite bloquée, `jq`, `échec : git init`, recréation refusée) ; validation stricte illisible, `alertes` oubliées | point ouvert après l'étape 1, jamais `init-state` ; une consigne par issue ; la validation se lit sur les lignes `claude plugin validate` du bilan |
+| `add` | un seul déclencheur (agents) ; chemins de tests faux pour un nom à tirets — un fichier absent (exit 127) passait pour le rouge attendu ; étapes du point de reprise dans une référence pas encore lue | « ajoute un hook à plugin-… » ; le chemin que donne la ligne `écrit :`, tirets changés en `_` ; la référence lue avant `start` |
+| `reaudit` | l'étape 4 compare un instantané que le ré-audit a effacé ; la copie installée est auditée, le clone modifié ; clés de `facts.json` mal nommées, `probe.expect` oublié ; classement ambigu ; un seul « oui » pour deux accords, rien après | instantané écrit dans un dossier jetable, diff par chemin ; ré-audit du clone (`--facts`, `--snapshots`, `--probes`) ; clés exactes ; `confirmé` / `infirmé` / `non tranché` et « non lancé » ; deux questions, étape 7 après le « oui » |
+
+Mineurs retenus, dont deux défauts de `pp.sh` : un agent qui déclare `Monitor` sans `Bash` échappait au garde de portée, alors que `Monitor` lance une commande — il est traité comme `Bash` ; un `&` dans la description d'un plugin créé devenait `__DESCRIPTION__` (bash ≥ 5.2 remplace `&` par le motif dans une substitution non citée). Aussi : guillemets simples pour `--quote` et `--description`, première publication et montage dans `release`, numéro de ligne jamais inventé dans `check`, approbation jamais déléguée dans `frame`, consentement de 30 minutes nommé.
+
+Écartés, contraires aux règles du modèle (`tests/headers.sh`, base de faits) : description à la troisième personne ; `when_to_use` « déprécié » (fait `plugindev-when-to-use-deprecated`, à vérifier, contredit par `skill-fields`) ; corps de 1 000 à 3 000 mots ; champ `version`. Non retenus, pour le coût en contexte : `when_to_use` de `check` reformulé, énumération des travaux dans la description de `resume`. Non retenus : cas d'évaluation supplémentaires (`check` par nom, `frame` sur « crée-moi un plugin »).
+
+### Rouge puis vert
+
+| Défaut | Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- | --- |
+| `&` dans la description | ROUGE | `bash tests/integration/test_create.sh` | 1 | 68 réussis, 1 échoué : « README : la description telle quelle, & compris » — `Notes __DESCRIPTION__ brouillons, a\b compris.` |
+| | VERT | même test | 0 | 69 réussis, 0 échoué |
+| `checkpoint start` efface un point inachevé | ROUGE | `bash tests/static/test_resume.sh` | 1 | 31 réussis, 8 échoués : start exit 0, point effacé, et les cinq cas de reprise qui suivent, faute d'étapes faites |
+| | VERT | même test | 0 | 39 réussis, 0 échoué |
+| `Monitor` sans liste blanche | ROUGE | `bash tests/integration/test_add_agent.sh` | 1 | 45 réussis, 2 échoués : « Monitor sans liste blanche : refusé », « après les refus, plugin identique » |
+| | VERT | même test | 0 | 47 réussis, 0 échoué |
+
+`pp.sh check-skill` : les sept skills conformes ; `pp.sh check-evals` : les sept suites conformes.
+
+Suite complète après les corrections et `init-state` : `bash tests/run-all.sh`, exit 0 — réussies 32, échouées 0, sautées 1 (`agents` absent), bloquées 0, alertes 0 ; coût permanent 880 tokens.
+
+### Coût en contexte permanent
+
+824 tokens avant la relecture ; 911 après les corrections ; 880 après élagage des descriptions (les déclencheurs corrigés gardés). Seuil : 1 000 (critère 9).
+
+### Documents
+
+- `docs/ARCHITECTURE.md`, `docs/INSTALLATION.md`, `docs/USER_GUIDE.md`, `docs/SECURITY.md`, `docs/TROUBLESHOOTING.md` : `pp.sh check .` passe de 5 écarts à « écarts : 0 — au modèle de plugin-flutter ». L'architecture est dans `docs/`, où `pp.sh approve` la reconnaît, statut REVUE.
+- `docs/PLAN.md` : les errata de la clôture, corrigés en une fois et listés sous son statut, repassé en REVUE — la validation de la racine couvre `plugin.json` ; `~/Documents/Nixos` n'existe pas et `~/Nixos` ne mentionne pas bwrap, absent du `PATH` ; le volet sous-module de la phase 14 sans objet sur ce poste.
+- `pp.sh init-state .` : plugin-plugin porte désormais son propre `.plugin-plugin/` (`approvals.log`, `decisions.md`, versionnés), pour tracer les approbations et la publication.
+
+### Constaté sur GitHub, par `gh api`
+
+`soonlysoul/plugin-plugin` existe déjà : public, créé le 2026-10-19 à 21:19 UTC, branche par défaut `feat/v0.1.0`, poussée jusqu'à `688d4f1` (phase 8) ; `main` à `bd531f4` ; aucune étiquette. Ni sa création ni ce push ne sont passés par les gestes annoncés de plugin-plugin, qui n'existaient pas encore. L'entrée de la marketplace `soon` n'a pas de `ref` (fait `marketplace-soon-entry-format`) : l'installation suivrait donc la branche par défaut, ici celle de la phase 8 — déduit du clone git, à vérifier avant la publication.
+
+### Décisions de Soon, le 2026-10-20 (« Je valide »)
+
+- `docs/PLAN.md`, errata compris, et `docs/ARCHITECTURE.md` approuvés : `pp.sh approve … --quote 'Je valide'`, exit 0 pour chacun, empreintes dans `.plugin-plugin/approvals.log`.
+- Étiquette locale `plugin-plugin--v0.1.0` sur `fec6a94`, la fin de la phase 15 : 0.1.0 est ce que les phases 1 à 15 ont construit ; les corrections de la relecture forment la 0.1.1, un correctif, sous `## [à venir] — en cours` du CHANGELOG, que la publication datera.
+- Dépôt GitHub existant : le critère 6 ne peut être tenu pour sa création, faite le 2026-10-19 hors des gestes annoncés — écart consigné. La branche par défaut passe à `main` par Soon, dans son terminal (`gh repo edit soonlysoul/plugin-plugin --default-branch main`), après le push de `main` et avant la fusion de la PR de la marketplace.
+- Commit de clôture sur `feat/v0.1.0`, puis `main` avancé en local par avance rapide ; rien de poussé.
+
+### Faux positif de `gesture-guard`
+
+Depuis `init-state`, plugin-plugin est un dépôt géré, et son propre garde y est actif. Le 2026-10-20, il a bloqué une commande qui ajoutait à PROGRESS.md, par un heredoc cité (`<<'EOF'`), un texte contenant `gh repo edit` : « geste GitHub sans accord (gh repo edit) : aucun geste annoncé ». Rien n'a été exécuté. Le garde préfère le faux positif, comme celui de plugin-flutter ; contourné par l'outil Edit, non corrigé.

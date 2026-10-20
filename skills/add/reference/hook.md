@@ -15,11 +15,11 @@ Run `bash <pp> add-hook <folder> --name <name> --event <event> [--matcher <tools
 
 ## 3. Skeleton
 
-Run the same command without `--dry-run`. It writes `hooks/scripts/<name>.sh`, whose input contract is done and whose rule is not; `tests/hooks/test_<name>.sh`; the exec-form entry of `hooks/hooks.json`; and the hook's line in `docs/INSTALLATION.md`, under « Portée des hooks ».
+Run the same command without `--dry-run`. It writes `hooks/scripts/<name>.sh`, whose input contract is done and whose rule is not; its test, `tests/hooks/test_<name>.sh` with each `-` of the name turned to `_` (the path its `écrit :` line gives); the exec-form entry of `hooks/hooks.json`; and the hook's line in `docs/INSTALLATION.md`, under « Portée des hooks ».
 
 ## 4. Red
 
-In `tests/hooks/test_<name>.sh`, replace the `rule_placeholder` call by the rule's simulated inputs, built with `jq -nc`: what it blocks (`expect_blocked`) or reports, what it lets through (`expect_silent_allow`), and an input outside its context, where it stays silent. Run `bash tests/hooks/test_<name>.sh`: the rule's cases must fail — the skeleton lets everything through — and the contract's cases must pass. Record the output and the exit code.
+In that test, replace the `rule_placeholder` call by the rule's simulated inputs, built with `jq -nc`: what it blocks (`expect_blocked`) or reports, what it lets through (`expect_silent_allow`), and an input outside its context, where it stays silent. Run it, `bash <that path>`: the rule's cases must fail — the skeleton lets everything through — and the contract's cases must pass. Record the output and the exit code.
 
 ## 5. The rule
 

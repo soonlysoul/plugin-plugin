@@ -150,6 +150,15 @@ check_output=$("$BASH" "$PP" check "$target" 2>&1)
   || fail "pp.sh check : aucun écart au modèle" "$(tr '\n' '|' <<<"$check_output" | head -c 400)"
 refused "plugin déjà créé" "$target" plugin-essai 1 'hors cadrage' PATH="$STUBPATH"
 
+echo "# la description rendue telle quelle"
+# From bash 5.2, an & in the replacement of a pattern substitution stands for the matched text.
+amp="$work/plugin-amp"
+framed "$amp"
+PP_OUTPUT=$(env PATH="$STUBPATH" "$BASH" "$PP" create "$amp" --name plugin-amp --description 'Notes & brouillons, a\b compris.' 2>&1)
+grep -qxF 'Notes & brouillons, a\b compris.' "$amp/README.md" 2>/dev/null \
+  && pass "README : la description telle quelle, & compris" \
+  || fail "README : la description telle quelle, & compris" "$(sed -n 3p "$amp/README.md" 2>&1)"
+
 echo "# test_paths : un outil sans extension sous scripts/ (décision a)"
 # A tool named without .sh, as plugin-nixos's nixconf, gets the tests of every other script; a
 # data file there, without a shebang, is not a script.

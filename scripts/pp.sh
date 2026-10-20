@@ -14,7 +14,7 @@
 #   status DOC
 #   create DIR --name NAME --description TEXT
 #   rebuild ORIGINAL DIR
-#   checkpoint DIR start --skill S --steps "a|b" | done N --command C --exit E [--test T] | block REASON
+#   checkpoint DIR start --skill S --steps "a|b" [--restart] | done N --command C --exit E [--test T] | block REASON
 #   resume DIR
 #   check-skill SKILL.md
 #   check-agent agents/NAME.md
@@ -372,9 +372,10 @@ framing_error() {
 render() {
   local content
   content=$(<"$1")
-  content=${content//__NAME__/$NAME}
-  content=${content//__DESCRIPTION__/$DESCRIPTION}
-  content=${content//__DATE__/$TODAY}
+  # Quoted replacements: from bash 5.2, an unquoted & stands for the matched text.
+  content=${content//__NAME__/"$NAME"}
+  content=${content//__DESCRIPTION__/"$DESCRIPTION"}
+  content=${content//__DATE__/"$TODAY"}
   mkdir -p "$(dirname "$2")"
   printf '%s\n' "$content" >"$2"
 }
@@ -594,15 +595,25 @@ cmd_checkpoint() {
   file="$dir/.plugin-plugin/checkpoint.md"
   case $action in
     start)
-      local skill="" steps="" step n=0
+      local skill="" steps="" step n=0 restart=0 left=()
       while [[ $# -gt 0 ]]; do
         case $1 in
           --skill) skill=${2:-}; shift 2 ;;
           --steps) steps=${2:-}; shift 2 ;;
+          --restart) restart=1; shift ;;
           *) shift ;;
         esac
       done
-      [[ -n $skill && -n $steps ]] || die "usage : pp.sh checkpoint DOSSIER start --skill SKILL --steps \"étape|étape|…\""
+      [[ -n $skill && -n $steps ]] || die "usage : pp.sh checkpoint DOSSIER start --skill SKILL --steps \"étape|étape|…\" [--restart]"
+      # Resuming a skill runs it again: its start must not wipe the steps already done.
+      if [[ -f $file ]] && ((!restart)); then
+        read_checkpoint "$file"
+        for step in "${CP_STEPS[@]}"; do
+          [[ $step == "- [ ] "* ]] && left+=("$(step_name "$step")")
+        done
+        [[ $CP_SKILL != "$skill" || ${#left[@]} == 0 ]] \
+          || die "refusé : le point de reprise de $skill a des étapes à faire ($(join ', ' "${left[@]}")). Reprendre à l'étape suivante par « checkpoint DOSSIER done N », ou --restart si Soon abandonne ce travail."
+      fi
       CP_SKILL=$skill CP_TEST="" CP_STEPS=() CP_BLOCKERS=()
       IFS='|' read -ra parts <<<"$steps"
       for step in "${parts[@]}"; do
@@ -1189,11 +1200,12 @@ cmd_add_agent() {
       [[ $name != *review* ]] || die "refusé : un relecteur n'a ni Write ni Edit ($tool)."
       writer=1
     fi
-    [[ $tool != Bash ]] || shell=1
+    # Monitor runs a shell command too: same allowlist, same guard.
+    [[ $tool != Bash && $tool != Monitor ]] || shell=1
   done
   [[ $AGENT_MODELS == *" $model "* || $model == claude-* ]] || die "refusé : model « $model » inconnu ; connus :$AGENT_MODELS, ou un identifiant claude-…"
   ((writer == 0)) || [[ -n $writes ]] || die "refusé : un agent qui écrit déclare ses dossiers d'écriture (--writes \"docs/\")."
-  ((shell == 0)) || [[ -n $allow ]] || die "refusé : un agent qui a Bash déclare sa liste blanche (--bash \"git diff,git log\")."
+  ((shell == 0)) || [[ -n $allow ]] || die "refusé : un agent qui a Bash ou Monitor déclare sa liste blanche (--bash \"git diff,git log\")."
   ((writer == 1)) || [[ -z $writes ]] || die "refusé : --writes sans outil d'écriture dans --tools."
   [[ /${writes//,//,/}/ != */../* && ,$writes != *,/* ]] || die "refusé : dossier d'écriture qui remonte (..) ou absolu : $writes."
   local file="agents/$name.md" test="tests/static/test_agent_${name//-/_}.sh"

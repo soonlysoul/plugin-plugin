@@ -60,6 +60,30 @@ expect_pp "étape inconnue : refusé" 1
 run_pp checkpoint "$target" "done" 4 --command "x"
 expect_pp "étape sans code de sortie : refusé" 1
 
+echo "# un point inachevé n'est pas effacé"
+# Resuming a skill runs it again; its start must not wipe the steps already done.
+saved=$(cat "$cp")
+run_pp checkpoint "$target" start --skill create --steps "$CREATE_STEPS"
+expect_pp "start sur un point inachevé du même skill : refusé" 1
+expect_output "le refus nomme l'étape suivante" 'Rapport et premier commit'
+[[ $(cat "$cp") == "$saved" ]] && pass "le point inachevé reste tel quel" || fail "le point inachevé reste tel quel"
+for case in "autre skill|--skill add" "abandon accordé|--skill create --restart"; do
+  copy="$work/copie-${case%%|*}"
+  copy=${copy// /-}
+  cp -a "$target" "$copy"
+  read -ra args <<<"${case#*|}"
+  run_pp checkpoint "$copy" start "${args[@]}" --steps "$CREATE_STEPS"
+  expect_pp "start, ${case%%|*} : exit 0" 0
+  [[ $(grep -c '^- \[ \] ' "$copy/.plugin-plugin/checkpoint.md" 2>/dev/null) == 5 ]] \
+    && pass "start, ${case%%|*} : cinq étapes à faire" || fail "start, ${case%%|*} : cinq étapes à faire"
+done
+finished="$work/copie-fini"
+cp -a "$target" "$finished"
+run_pp checkpoint "$finished" "done" 4 --command x --exit 0
+run_pp checkpoint "$finished" "done" 5 --command x --exit 0
+run_pp checkpoint "$finished" start --skill create --steps "$CREATE_STEPS"
+expect_pp "start sur un point achevé du même skill : exit 0" 0
+
 echo "# reprise d'une création interrompue"
 before=$(tree_sum "$target")
 run_pp resume "$target"

@@ -2,9 +2,31 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
-## [0.1.0] — en cours
+## [à venir] — en cours
 
-Version d'amorçage, construite à la main et jamais publiée : elle reçoit une étiquette locale à la clôture. La 0.1.1 sera la première publication.
+Clôture de 0.1.0 : la relecture des sept skills par `plugin-dev:skill-reviewer`, ses constats traités.
+
+### Corrigé
+
+- `pp.sh checkpoint … start` refuse d'effacer le point de reprise inachevé du même skill et nomme l'étape suivante ; `--restart` quand Soon abandonne ce travail. Reprendre un skill relançait son `start`, qui effaçait les étapes faites.
+- Un `&` dans la description d'un plugin créé devenait `__DESCRIPTION__` (bash 5.2 et plus) : la charpente rend la description telle quelle.
+- `pp.sh add-agent` : un agent qui déclare `Monitor` déclare sa liste blanche et passe sous le garde de portée, comme `Bash`.
+- `resume` : test ciblé lancé depuis le dossier du plugin, une consigne pour chaque issue de `pp.sh resume` (sans point de reprise, rien qui reste, publication en cours), blocages et incohérences laissés à la décision de Soon.
+- `frame` : reprise lue sur les deux documents, jamais de gabarit sur un document existant, refus du script distingué d'une demande de changement, points « à trancher » listés avant l'accord.
+- `create` : point de reprise ouvert après la vérification du cadrage, une consigne par code de sortie, validation stricte lue dans le bilan, `alertes` rapportées.
+- `add` : chemins des tests générés (tirets changés en `_`), étapes du point de reprise lues avant de l'ouvrir.
+- `check` : un plugin désigné par son nom est cherché à côté du dépôt courant.
+- `release` : phrase de déclenchement atteignable sous `disable-model-invocation`, première publication, montage terminé, refus sans ligne de reprise.
+- `reaudit` : formats comparés sur un instantané conservé, clone audité, clés exactes de `facts.json`, `non tranché` et « non lancé », un accord par question, étape après le « oui ».
+
+### Ajouté
+
+- `docs/ARCHITECTURE.md`, `docs/INSTALLATION.md`, `docs/USER_GUIDE.md`, `docs/SECURITY.md`, `docs/TROUBLESHOOTING.md` : `check` ne relève plus aucun écart sur plugin-plugin.
+- `.plugin-plugin/` de plugin-plugin lui-même : approbations du plan et de l'architecture consignées.
+
+## [0.1.0] — 2026-10-20
+
+Version d'amorçage, construite à la main et jamais publiée : étiquette locale `plugin-plugin--v0.1.0`, posée sur la fin de la phase 15. La 0.1.1 est la première publication.
 
 ### Ajouté
 

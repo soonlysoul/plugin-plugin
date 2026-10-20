@@ -1,6 +1,6 @@
 ---
 name: check
-description: "List the gaps of a plugin to the model — manifests, root files, tree, hook form, components, harness, stray files, credentials in clear — changing nothing. Use when Soon asks whether a plugin follows the model; not for fixing one. « plugin-nixos suit-il le modèle ? »."
+description: "List the gaps of a plugin to the plugin-flutter model — manifests, root files, tree, hook form, components, harness, stray files, credentials in clear — changing nothing. Use when Soon asks whether a plugin follows the model; not for fixing one. « plugin-nixos suit-il le modèle ? »."
 argument-hint: "[dossier du plugin]"
 when_to_use: "On any Claude Code plugin folder, before adding to it or rebuilding it."
 ---
@@ -13,18 +13,19 @@ This skill only reads: no edit, no commit, no checkpoint.
 
 ## Step 1 — Run the check
 
-Take the plugin folder from the arguments, or the current folder. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check <folder>`.
+Take the plugin folder from the arguments. When Soon names a plugin rather than a folder (« plugin-nixos »), look for it beside the current repository (`../<name>`), then in the current folder; when none or several match, ask. Use the current folder only when nothing is named. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check "<folder>"`.
 
 - Exit 0, « écarts : 0 »: the plugin follows the model.
 - Exit 1, « écarts : N »: the gaps follow, one per line.
 - Exit 1, « refusé »: the folder is not a plugin; say so and stop.
+- Exit 1, « usage »: the call was malformed; quote the folder and run it once more.
 - Exit 2: a prerequisite is missing; name it and stop.
 
 ## Step 2 — Report
 
-Relay every gap, grouped by its category in brackets, with the file and the line it names. A credential is never copied: the tool gives its line only, and so do you. End with one line:
+Relay every gap, grouped by its category in brackets, with the file, and the line when the gap gives one; add no line number the tool did not give. A credential is never copied: the tool gives its line only, and the report too. End with one line:
 
 - no gap: plugin-plugin can add to it (`/plugin-plugin:add`) without touching its content;
-- gaps: plugin-plugin adds nothing to it as it is — its suite would not cover what it adds. Bringing it to the model is a rewrite that Soon decides.
+- gaps: plugin-plugin adds nothing to it as it is — the plugin's own suite would not cover what plugin-plugin adds. Bringing it to the model is a rewrite that Soon decides.
 
 Propose no fix and change nothing: a gap is reported, not acted on.
