@@ -2,7 +2,7 @@
 
 2026-10-20 · Soon · PRD : [PRD.md](PRD.md) · Plan : [PLAN.md](PLAN.md)
 
-**Statut : REVUE** — approuvé le 2026-10-20, modifié depuis : à réapprouver.
+**Statut : APPROUVÉ** le 2026-10-20 (« je valide »).
 
 Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0. Les décisions qui le fondent — principes, modèle de plugin, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan, approuvé le 2026-10-19 ; elles ne sont pas recopiées ici.
 

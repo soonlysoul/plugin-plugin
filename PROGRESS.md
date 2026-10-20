@@ -985,7 +985,7 @@ Demande de Soon, le 2026-10-20 : « plugin-plugin doit mettre à jour les docume
 - [x] PRD amendé (US-35 à US-37, critère 10, deux décisions, hors périmètre) et PLAN (décision h, phase 18), approuvés par Soon (« je valide ») : `pp.sh approve`, exit 0 pour chacun, empreintes dans `.plugin-plugin/approvals.log`.
 - [x] Tests écrits avant le code, vus rouges, puis verts (ci-dessous).
 - [x] Skill `release`, README, `docs/` (USER_GUIDE, SECURITY, TROUBLESHOOTING, ARCHITECTURE), CHANGELOG `[à venir]`, deux faits nouveaux et un corrigé dans la base.
-- [ ] `docs/ARCHITECTURE.md` réapprouvé : sa ligne `release` a changé, il est repassé en REVUE.
+- [x] `docs/ARCHITECTURE.md` réapprouvé le 2026-10-20 (« je valide ») : sa ligne `release` avait changé.
 - [ ] plugin-plugin publié par ce chemin ; plugin-nixos aligné ; plugin-flutter aligné après l'ajout des entrées `.plugin-plugin/` à son `.gitignore` ; PR fusionnées par Soon (critère 10).
 
 ### Ce que fait `release` désormais
