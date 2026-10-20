@@ -1,6 +1,6 @@
 {
   "name": "plugin-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Frame, scaffold, test and publish Claude Code plugins at the plugin-flutter model: TDD components, evals, release, re-audit.",
   "author": {
     "name": "Soon"

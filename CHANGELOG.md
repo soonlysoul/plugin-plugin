@@ -2,7 +2,7 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
-## [à venir] — en cours
+## [0.1.1] — 2026-10-20
 
 Clôture de 0.1.0 : la relecture des sept skills par `plugin-dev:skill-reviewer`, ses constats traités.
 
@@ -23,6 +23,8 @@ Clôture de 0.1.0 : la relecture des sept skills par `plugin-dev:skill-reviewer`
 
 - `docs/ARCHITECTURE.md`, `docs/INSTALLATION.md`, `docs/USER_GUIDE.md`, `docs/SECURITY.md`, `docs/TROUBLESHOOTING.md` : `check` ne relève plus aucun écart sur plugin-plugin.
 - `.plugin-plugin/` de plugin-plugin lui-même : approbations du plan et de l'architecture consignées.
+
+Coût en contexte permanent : ~880 tokens — release ~130, create ~100, check ~140, resume ~110, add ~170, frame ~130, reaudit ~100.
 
 ## [0.1.0] — 2026-10-20
 
