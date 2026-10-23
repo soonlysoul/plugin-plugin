@@ -1,15 +1,18 @@
 # Plan : plugin-plugin v0.1
 
-> PRD source : `docs/PRD.md` · Modèle : plugin-flutter seul
-> (`soonlysoul/plugin-flutter`, v0.1.2) · Design : sans objet, aucune interface.
+> PRD source : `docs/PRD.md` · Modèle : propre à plugin-plugin, `docs/MODEL.md` (phase 19) ;
+> plugin-flutter v0.1.2 jusqu'au 2026-10-23 · Design : sans objet, aucune interface.
 > Mesures de référence : Claude Code 2.1.296, 2026-10-19.
 
-**Statut : APPROUVÉ** le 2026-10-20 (« je valide »).
+**Statut : APPROUVÉ** le 2026-10-23 (« oui »).
 
 Approuvé le 2026-10-19, par Soon (« oui juste change le nom par plugin-plugin »), renommage
 compris. Toute modification d'un document approuvé le repasse en revue.
 
 Amendé le 2026-10-20, avec le PRD (US-35 à US-37, critère 10) : décision h et phase 18.
+
+Amendé le 2026-10-23, avec le PRD (US-38, critères 2 et 10) : décision i, fin de la phase 18,
+phase 19.
 
 Errata de la clôture (phase 16, 2026-10-20), corrigés en une fois dans le texte :
 
@@ -39,7 +42,10 @@ Valables pour toutes les phases. Une phase s'y réfère ; aucune ne les rouvre.
 
 ### Le modèle de plugin
 
-- **Le modèle est plugin-flutter.** Un plugin du modèle :
+- **Le modèle** était plugin-flutter jusqu'au 2026-10-23 ; il est désormais propre à
+  plugin-plugin (décision i). Les règles ci-dessous sont celles qu'a fixées la v0.1 : la
+  phase 19 les reprend dans `docs/MODEL.md`, qui devient leur seule source et l'emporte sur
+  cette section. Un plugin du modèle :
   - s'appelle `plugin-<domaine>`, vit dans le dépôt dédié `soonlysoul/<nom>`, plugin à la racine ;
   - a un `.claude-plugin/plugin.json` portant `name`, `version` SemVer, `description`,
     `author.name` « Soon » **sans e-mail**, `license` MIT, `homepage` = `repository` = son dépôt
@@ -194,6 +200,16 @@ Valables pour toutes les phases. Une phase s'y réfère ; aucune ne les rouvre.
   modèle impose : forme des hooks, arborescence, harnais de tests.
 - **Décision f** : le cadrage s'écrit dans `docs/` du dossier cible ; la création accepte un
   dossier qui ne contient que ce cadrage approuvé, refuse tout le reste et n'écrase jamais rien.
+- **Décision i** (2026-10-23, déléguée par Soon, révisable) : le modèle est propre à
+  plugin-plugin. Il s'écrit dans `docs/MODEL.md`, chaque règle avec sa raison — un fait de la
+  base, la documentation de Claude Code ou une convention de Soon — et le contrôle de `check`
+  qui la vérifie ; les exclusions y gardent chacune sa raison propre et ce qui la rouvrirait.
+  Aucun plugin existant ne sert plus de modèle, de référence ni de banc d'essai, car ces plugins
+  changent avec le temps : les tests qui lisaient `build/ref/` construisent leurs propres
+  plugins d'essai, et la réécriture de plugin-nixos (`tests/rewrite/`) est retirée — son
+  résultat a été publié en phase 17. Les décisions d et e valent désormais pour un plugin
+  d'essai. Les sources de la base de faits gardent leur provenance, qui est un historique ;
+  seule une façon de revérifier qui exige un autre plugin change.
 
 ### Écarté, et ce qui le rouvrirait
 
@@ -796,16 +812,65 @@ et les documents de plugin-plugin le disent.
       nommée.
 - [ ] Coupure simulée pendant un alignement : la reprise ne refait aucun geste fait (US-27).
 - [ ] Coût permanent de plugin-plugin sous 1 000 tokens (critère 9).
-- [ ] plugin-plugin publie sa version suivante par ce chemin ; plugin-nixos et plugin-flutter
-      sont alignés, chaque geste sur un « oui » ; PR fusionnées par Soon (critère 10).
+- [ ] plugin-plugin publie sa version suivante par ce chemin, chaque geste sur un « oui » ; PR
+      fusionnée par Soon (critère 10). plugin-nixos a été aligné le 2026-10-21 ; l'alignement
+      de plugin-flutter sort du plan le 2026-10-23 (décision i) : c'est un usage de
+      plugin-plugin, à la main de Soon.
 
 ### Preuve
 
 `bash tests/run-all.sh` — répétition, publication et alignement contre des dépôts nus locaux et
 la doublure de `gh` : la marketplace et le README produits, le journal des gestes. Puis `gh api`
-sur les trois dépôts et sur `soonlysoul/claude-plugins` après les fusions.
+sur le dépôt de plugin-plugin et sur `soonlysoul/claude-plugins` après la fusion.
 
 ### Bloquée par
 
-Phase 16 ; pour plugin-flutter, des entrées `.plugin-plugin/` dans son `.gitignore`, que
-`publish` exige.
+Phase 16.
+
+---
+
+## Phase 19 : Un modèle propre à plugin-plugin
+
+**User stories** : US-38, US-17, US-18, US-19. **Critères de succès** : 2, 1, 9.
+
+### Ce qu'on livre
+
+`docs/MODEL.md`, approuvé : le modèle de plugin, seule source de ses règles (décision i). Chaque
+règle y porte sa raison et le contrôle de `check` qui la vérifie ; chaque exclusion, sa raison
+propre et ce qui la rouvrirait. Skills, gabarits, messages de `pp.sh`, manifestes et documents
+d'usage nomment ce modèle, plus aucun autre plugin. Les tests qui lisaient les copies de lecture
+de `build/ref/` construisent leurs propres plugins d'essai ; la réécriture de plugin-nixos est
+retirée ; `rebuild` reste, éprouvé sur un plugin d'essai.
+
+### Critères d'acceptation
+
+- [ ] `docs/MODEL.md` existe et est approuvé ; chaque catégorie d'écart que `check` peut relever
+      y renvoie à une règle, chaque règle cite sa raison ; un test le vérifie (US-38).
+- [ ] Un test d'indépendance, vu rouge puis vert : aucun fichier de `skills/`, `scripts/`,
+      `hooks/`, `templates/`, `tests/`, `evals/`, des manifestes, du README ni de
+      `docs/` hors PRD et PLAN ne nomme un autre plugin de Soon, ni ne lit `build/ref/` ou
+      `PP_REF_DIR`. L'historique en est exempté : CHANGELOG, PROGRESS, PRD, PLAN, et la
+      provenance des faits (`source`, `statement`, `note`) ; leur façon de revérifier ne l'est
+      pas (US-38, critère 2).
+- [ ] `bash tests/run-all.sh` sans aucune copie de lecture : rien n'est sauté faute de copie
+      (critère 2).
+- [ ] `check` sur plugin-plugin lui-même : « écarts : 0 », au modèle de plugin-plugin ; aucun
+      fichier modifié (US-18).
+- [ ] `add` sur un plugin d'essai qu'il n'a pas créé, avec sa propre suite et son propre garde
+      de portée : le diff ne touche que le composant et son câblage, la suite d'origine reste
+      à 100 %, un agent qui écrit sous ce garde est refusé, raison nommée (US-17).
+- [ ] `rebuild` sur un plugin d'essai : sa suite d'origine à 100 % et la validation stricte
+      dans la reconstruction, l'original intact (US-19, critère 2).
+- [ ] Les refus hors périmètre donnent chacun une raison propre ; aucun ne s'appuie sur
+      l'usage d'un autre plugin (US-16).
+- [ ] Coût permanent de plugin-plugin sous 1 000 tokens (critère 9).
+
+### Preuve
+
+`bash tests/run-all.sh` avec `PP_REF_DIR` pointé sur un dossier vide : sa sortie, sans aucun
+« sauté » faute de copie ; la sortie du test d'indépendance en échec avant le changement, puis
+qui passe.
+
+### Bloquée par
+
+Rien.

@@ -1,8 +1,8 @@
 # plugin-plugin
 
-Plugin Claude Code qui construit des plugins Claude Code au modèle de [plugin-flutter](https://github.com/soonlysoul/plugin-flutter) : cadrage, création d'un plugin dédié et vert, composants ajoutés en TDD (skills avec leur évaluation, agents, hooks, déclaration d'un serveur MCP), publication dans la marketplace `soon` sous accord explicite, ré-audit après une mise à jour de Claude Code, reprise depuis le disque.
+Plugin Claude Code qui construit des plugins Claude Code à un modèle qui lui est propre, écrit règle par règle dans [docs/MODEL.md](docs/MODEL.md) : cadrage, création d'un plugin dédié et vert, composants ajoutés en TDD (skills avec leur évaluation, agents, hooks, déclaration d'un serveur MCP), publication dans la marketplace `soon` sous accord explicite, ré-audit après une mise à jour de Claude Code, reprise depuis le disque.
 
-Version **0.1.2**. Le périmètre et l'ordre de construction sont fixés par [docs/PRD.md](docs/PRD.md) et [docs/PLAN.md](docs/PLAN.md) ; la construction, par [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ; l'avancement, par [PROGRESS.md](PROGRESS.md). Installation, usage, sécurité et dépannage : [docs/](docs/INSTALLATION.md). Claude Code **2.1.295 ou plus** requis (forme exec des hooks).
+Version **0.1.2**. Le périmètre et l'ordre de construction sont fixés par [docs/PRD.md](docs/PRD.md) et [docs/PLAN.md](docs/PLAN.md) ; le modèle de plugin, par [docs/MODEL.md](docs/MODEL.md) ; la construction, par [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ; l'avancement, par [PROGRESS.md](PROGRESS.md). Installation, usage, sécurité et dépannage : [docs/](docs/INSTALLATION.md). Claude Code **2.1.295 ou plus** requis (forme exec des hooks).
 
 | Composant | Rôle |
 | --- | --- |
@@ -46,7 +46,7 @@ Suite déterministe : bash et jq, sans réseau, sans session, sans quota. Elle l
 | 1 | au moins une étape échoue |
 | 2 | un prérequis manque (`jq`, ou `claude` pour la validation et le coût) : l'étape est bloquée, jamais comptée réussie |
 
-Les tests sur les plugins réels — `check`, l'ajout à plugin-flutter, sa reconstruction, la réécriture de plugin-nixos — lisent les copies de lecture de `build/ref/` (ou `PP_REF_DIR`) et sont sautés sans elles.
+Aucun test ne lit un autre plugin : un plugin change avec le temps, et le modèle n'en dépend pas. `check` se prouve sur plugin-plugin lui-même et sur des copies faussées ; l'ajout à un plugin que plugin-plugin n'a pas créé et la reconstruction, sur un plugin d'essai que la suite écrit elle-même (`tests/helpers/foreign.sh`). `tests/static/test_independence.sh` le garantit.
 
 ## Reconstruire un plugin existant
 
@@ -54,15 +54,7 @@ Les tests sur les plugins réels — `check`, l'ajout à plugin-flutter, sa reco
 bash scripts/pp.sh rebuild <dépôt d'origine> build/rebuild/<nom>
 ```
 
-La charpente que plugin-plugin produit — manifestes, licence, `.gitignore`, `tests/lib.sh`, `tests/run-all.sh` —, puis tout le reste du dernier commit de l'original, tel quel. L'outil rapporte chaque écart entre sa charpente et celle de l'original, lance la suite de la reconstruction, et prouve l'original intact (HEAD, `git status`, empreintes). Il n'écrit que dans un dossier absent ou vide.
-
-## La réécriture de plugin-nixos, un test
-
-```bash
-bash tests/rewrite/plugin-nixos.sh <dépôt de plugin-nixos> build/rewrite/plugin-nixos
-```
-
-Un test de plugin-plugin, jamais publié : `rebuild`, puis seulement ce que le modèle impose — hooks en forme exec sous `hooks/scripts/`, harnais du modèle —, chaque changement fermant un écart que `check` relève sur l'original. Elle prouve la suite portée verte, `check` à zéro écart, chaque cas de la suite d'origine présent dans la suite portée, et l'original intact. Lancée par `tests/integration/test_rewrite_nixos.sh`.
+La charpente que plugin-plugin produit — manifestes, licence, `.gitignore`, `tests/lib.sh`, `tests/run-all.sh` —, puis tout le reste du dernier commit de l'original, tel quel. L'outil rapporte chaque écart entre sa charpente et celle de l'original, lance la suite de la reconstruction, et prouve l'original intact (HEAD, `git status`, empreintes). Il n'écrit que dans un dossier absent ou vide. Amener ensuite la reconstruction au modèle — ce que `check` y relève — est une réécriture que Soon décide.
 
 ## Licence
 

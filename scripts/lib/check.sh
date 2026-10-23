@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# The gaps of a plugin to the model, plugin-flutter, for pp.sh check: one line per broken rule,
+# The gaps of a plugin to the model of docs/MODEL.md, for pp.sh check: one line per broken rule,
 # « [catégorie] détail », nothing when the plugin follows the model. It reads, it never writes.
 # Structure only: the house style of the components plugin-plugin adds (tests/headers.sh) and the
 # language of a plugin are its own choices. Relies on name_error and OWNER (pp.sh), tests/headers.sh

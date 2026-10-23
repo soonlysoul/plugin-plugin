@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# plugin.json and marketplace.json at the model of plugin-flutter, and the files every plugin
+# plugin.json and marketplace.json at the model (docs/MODEL.md), and the files every plugin
 # of the model carries at its root: LICENSE, README, CHANGELOG, .gitignore, no CLAUDE.md.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"

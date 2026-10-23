@@ -2,7 +2,7 @@
 # Helpers of plugin-plugin's own tests: a gh stub and a plugin created by pp.sh create in a
 # temporary folder. Not copied into the plugins it creates.
 
-# gh_stub <dir>: writes <dir>/gh. The marketplace soon lists plugin-flutter and plugin-nixos;
+# gh_stub <dir>: writes <dir>/gh. The marketplace soon lists plugin-alpha and plugin-beta;
 # soonlysoul/plugin-taken-repo exists; every other repository is free (HTTP 404).
 gh_stub() {
   mkdir -p "$1"
@@ -11,7 +11,7 @@ gh_stub() {
 printf '%s\n' "$*" >>"${STUB_GH_LOG:-/dev/null}"
 case "$*" in
   "api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json"*)
-    printf '%s' '{"name":"soon","owner":{"name":"Soon"},"plugins":[{"name":"plugin-flutter"},{"name":"plugin-nixos"}]}' ;;
+    printf '%s' '{"name":"soon","owner":{"name":"Soon"},"plugins":[{"name":"plugin-alpha"},{"name":"plugin-beta"}]}' ;;
   "api repos/soonlysoul/plugin-taken-repo"*) echo '{"full_name":"soonlysoul/plugin-taken-repo"}' ;;
   "api repos/soonlysoul/"*) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
   *) echo "gh stub: unexpected arguments: $*" >&2; exit 3 ;;
@@ -34,7 +34,7 @@ market_readme() {
   printf '%s\n' "${rows[@]}"
   printf '\n## Installer sur un appareil\n\n```bash\nclaude plugin marketplace add soonlysoul/claude-plugins\n'
   for name in "${names[@]}"; do printf 'claude plugin install %s@soon --scope user\n' "$name"; done
-  printf '```\n\n## Mettre à jour\n\n```bash\nclaude plugin marketplace update soon\nclaude plugin install plugin-flutter@soon --scope user\n```\n'
+  printf '```\n\n## Mettre à jour\n\n```bash\nclaude plugin marketplace update soon\nclaude plugin install plugin-alpha@soon --scope user\n```\n'
 }
 
 # new_plugin <parent dir> <name>: frames, approves and creates <parent>/<name> with pp.sh,

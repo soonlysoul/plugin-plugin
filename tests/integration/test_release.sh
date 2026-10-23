@@ -24,7 +24,7 @@ export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.invalid GIT_COMMITTER_
 
 # Stubs. gh: a read (gh api without a method or a field) is logged to STUB_GH_READS and answered;
 # any other call is a gesture, logged to STUB_GH_LOG and refused. The marketplace soon lists
-# plugin-flutter, plugin-nixos and the names of STUB_LISTED, these described by
+# plugin-alpha, plugin-beta and the names of STUB_LISTED, these described by
 # STUB_ENTRY_DESCRIPTION (« Plugin d'essai. » by default) in its marketplace.json and by
 # STUB_README_DESCRIPTION in the table of its README, whose install commands leave them out with
 # STUB_README_NO_INSTALL=1; the repositories of STUB_REPOS exist, described by
@@ -54,12 +54,12 @@ case $2 in
   repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json)
     jq -n --arg listed "${STUB_LISTED:-}" --arg d "${STUB_ENTRY_DESCRIPTION-$essai}" \
       '{name: "soon", description: "Plugins Claude Code de Soon.", owner: {name: "Soon"},
-      plugins: ((["plugin-flutter", "plugin-nixos"] | map({name: ., description: "Plugin \(.)."}))
+      plugins: ((["plugin-alpha", "plugin-beta"] | map({name: ., description: "Plugin \(.)."}))
         + ($listed | split(" ") | map(select(length > 0)) | map({name: ., description: $d}))
         | map({name, source: {source: "github", repo: "soonlysoul/\(.name)"}, description}))}' ;;
   repos/soonlysoul/claude-plugins/contents/README.md)
     {
-      printf 'plugin-flutter\tPlugin plugin-flutter.\nplugin-nixos\tPlugin plugin-nixos.\n'
+      printf 'plugin-alpha\tPlugin plugin-alpha.\nplugin-beta\tPlugin plugin-beta.\n'
       for name in ${STUB_LISTED:-}; do printf '%s\t%s\n' "$name" "${STUB_README_DESCRIPTION-$essai}"; done
     } | market_readme | if [[ ${STUB_README_NO_INSTALL:-0} == 1 ]]; then grep -v "install plugin-essai"; else cat; fi ;;
   repos/soonlysoul/claude-plugins/branches/*)
@@ -431,14 +431,14 @@ jq -e --arg n "$NAME" '.plugins[-1] == {name: $n, source: {source: "github", rep
 added=$(diff "$work/readme-before.md" "$work/market/README.md" | grep -E '^[<>]')
 [[ $added == "> $row"$'\n'"> $install" ]] && pass "README : la ligne du plugin et sa commande d'installation, rien d'autre (US-35)" \
   || fail "README : la ligne du plugin et sa commande d'installation, rien d'autre (US-35)" "$(tr '\n' '|' <<<"$added")"
-[[ $(grep -n -A1 -F '| `plugin-nixos` |' "$work/market/README.md" | tail -n 1) == *"-$row" ]] \
+[[ $(grep -n -A1 -F '| `plugin-beta` |' "$work/market/README.md" | tail -n 1) == *"-$row" ]] \
   && pass "README : la ligne à la fin du tableau" || fail "README : la ligne à la fin du tableau"
-[[ $(grep -n -A1 -Fx 'claude plugin install plugin-nixos@soon --scope user' "$work/market/README.md" | tail -n 1) == *"-$install" ]] \
+[[ $(grep -n -A1 -Fx 'claude plugin install plugin-beta@soon --scope user' "$work/market/README.md" | tail -n 1) == *"-$install" ]] \
   && pass "README : la commande à la suite des autres, dans le premier bloc" || fail "README : la commande à la suite des autres, dans le premier bloc"
 expect_line "marketplace-entry nomme le README" "^écrit : $work/market/README\.md \(ligne de $NAME, commande d'installation\)$"
-run_entry "$work/market" --name plugin-flutter --description "Doublon."
+run_entry "$work/market" --name plugin-alpha --description "Doublon."
 expect_exit "nom déjà présent : refusé" 1
-expect_line "nom déjà présent : --update proposé" 'refusé : plugin-flutter est déjà dans .* ; --update pour aligner sa description'
+expect_line "nom déjà présent : --update proposé" 'refusé : plugin-alpha est déjà dans .* ; --update pour aligner sa description'
 cp "$work/market/README.md" "$work/readme-before.md"
 run_entry "$work/market" --name "$NAME" --description "Nouvelle | description." --update
 expect_exit "marketplace-entry --update : exit 0" 0
@@ -568,8 +568,9 @@ expect_line "consigne corrigée : correctif" "^version : 0\.1\.0 → 0\.1\.1 \(c
 expect_line "commits repris au CHANGELOG" '^  - fix: consigne de demo précisée$'
 
 echo "# hook passé de la forme shell à la forme exec"
-# As plugin-nixos 0.1.2 declared its guard, under a former vX.Y.Z tag: the path in quotes inside
-# the command string. Moved to hooks/scripts/ in exec form, it is the same component.
+# As a plugin published before the exec form declared its guard, under a former vX.Y.Z tag: the
+# path in quotes inside the command string. Moved to hooks/scripts/ in exec form, it is the same
+# component.
 p=$(published shellform)
 trial "$p" && mkdir -p "$p/hooks" && printf '#!/usr/bin/env bash\nexit 0\n' >"$p/hooks/garde.sh"
 printf '\n- Hook `garde`.\n' >>"$p/README.md"

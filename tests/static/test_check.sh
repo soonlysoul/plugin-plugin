@@ -79,7 +79,7 @@ edit_json() { jq "$2" "$1" >"$1.tmp" && mv "$1.tmp" "$1"; }
 
 echo "# manifestes"
 gap "nom sans préfixe plugin-" "nom hors format.*préfixe plugin-" \
-  'edit_json .claude-plugin/plugin.json ".name = \"flutter-forge\""; edit_json .claude-plugin/marketplace.json ".plugins[0].name = \"flutter-forge\""'
+  'edit_json .claude-plugin/plugin.json ".name = \"alpha-forge\""; edit_json .claude-plugin/marketplace.json ".plugins[0].name = \"alpha-forge\""'
 gap "version hors SemVer" "version" 'edit_json .claude-plugin/plugin.json ".version = \"1.0\""'
 gap "auteur avec e-mail" "e-mail" 'edit_json .claude-plugin/plugin.json ".author.email = \"a@b.c\""'
 gap "homepage hors du dépôt" "homepage" 'edit_json .claude-plugin/plugin.json ".homepage = \"https://example.com\""'
@@ -112,7 +112,7 @@ gap "chemin sans CLAUDE_PLUGIN_ROOT" "CLAUDE_PLUGIN_ROOT" 'sed -i "s#\${CLAUDE_P
 gap "script non câblé" "non câblé.*orphan.sh" 'printf "#!/usr/bin/env bash\n" >hooks/scripts/orphan.sh; printf "#!/usr/bin/env bash\n" >tests/hooks/test_orphan.sh'
 gap "#!/bin/bash" "#!/usr/bin/env bash" 'sed -i "1s#.*#\#!/bin/bash#" hooks/scripts/demo-guard.sh'
 gap "hooks.json illisible" "hooks.json" 'echo "{" >hooks/hooks.json'
-# A tool under scripts/ named without .sh (plugin-nixos's nixconf) is a script all the same.
+# A tool under scripts/ named without .sh is a script all the same (decision a).
 gap "outil sans extension sous scripts/ qui ne se lit pas" "\[scripts\] scripts/outil : bash -n échoue" \
   'mkdir -p scripts && printf "#!/usr/bin/env bash\nif then\n" >scripts/outil'
 gap "outil sans extension sous scripts/ en #!/bin/sh" "\[scripts\] scripts/outil : première ligne" \

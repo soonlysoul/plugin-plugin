@@ -58,7 +58,7 @@ expect_fact() {
     pass "fait $1${2:+ : $2}"
   fi
 }
-# Phase A of plugin-flutter, then its findings of phases B to F.
+# The first import (phase 2 of the plan), measurements and findings alike.
 for id in manifest-unknown-field hook-exit-1-not-blocking hook-onfailure-block hook-exec-form \
   agent-tools-omitted-inherits-all skill-description-limit-1536 hooks-scope-all-sessions \
   plugin-root-not-in-bash-env validator-ignores-hooks validator-accepts-broken-agent-frontmatter \
@@ -67,7 +67,7 @@ for id in manifest-unknown-field hook-exit-1-not-blocking hook-onfailure-block h
 done
 # Facts of 2026-10-19.
 for id in validate-root-marketplace-only plugin-init-scaffold plugin-eval-command plugin-tag-command \
-  plugin-details-cost flutter-forge-guard-rm-rf local-catalog-lag homepage-missing-repo-loads; do
+  plugin-details-cost account-guard-rm-rf local-catalog-lag homepage-missing-repo-loads; do
   expect_fact "$id" ""
 done
 # Phase 9: what the strict validation sees of an MCP declaration.
@@ -93,7 +93,7 @@ expect_fact plugin-details-thousands-separator confirmé
 # From plugin-dev, unverified, with its two contradictions of phase A.
 expect_fact plugindev-when-to-use-deprecated "à vérifier"
 expect_fact plugindev-hooks-need-restart "à vérifier"
-expect_fact plugin-nixos-description-limit-1024 "à vérifier"
+expect_fact skill-description-limit-1024-unsourced "à vérifier"
 check "toute source plugin-dev est à vérifier" \
   'all(.[] | select(.source | test("plugin-dev")) | select(.id | startswith("plugindev-")); .status == "à vérifier")'
 check "au moins trois sondes par la validation stricte" '[.[] | select(has("probe"))] | length >= 3'

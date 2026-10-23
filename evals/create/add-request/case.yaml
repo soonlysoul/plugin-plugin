@@ -9,7 +9,7 @@
   "runs": 3,
   "expected_outcome": "Le skill create n'est pas invoqué et aucun plugin n'est créé.",
   "execution": {
-    "prompt": "Ajoute un agent de relecture à mon plugin plugin-flutter existant.",
+    "prompt": "Ajoute un agent de relecture à mon plugin plugin-notes existant.",
     "max_turns": 6,
     "allowed_tools": [
       "Skill",

@@ -55,17 +55,17 @@ refuse() {
 }
 refuse Plugin-Notes "majuscules" 'majuscule'
 refuse plugin_notes "soulignés" 'souligné'
-refuse flutter-forge "préfixe absent" 'préfixe plugin-'
+refuse alpha-forge "préfixe absent" 'préfixe plugin-'
 refuse plugin- "domaine vide" 'domaine vide'
 refuse plugin "nom nu" 'préfixe plugin-'
 refuse plugin--notes "tirets doublés" 'kebab-case'
 refuse "plugin notes" "espace" 'kebab-case'
 
 echo "# delegate"
-run_pp delegate "$target" --question "Langue des identifiants ?" --choice "anglais" --reason "convention de plugin-flutter"
+run_pp delegate "$target" --question "Langue des identifiants ?" --choice "anglais" --reason "convention de Soon"
 expect_pp "delegate : exit 0" 0
 line=$(grep -F 'Langue des identifiants ?' "$target/.plugin-plugin/decisions.md")
-[[ $line == *"anglais"* && $line == *"convention de plugin-flutter"* && $line == *"révisable"* && $line =~ [0-9]{4}-[0-9]{2}-[0-9]{2} ]] \
+[[ $line == *"anglais"* && $line == *"convention de Soon"* && $line == *"révisable"* && $line =~ [0-9]{4}-[0-9]{2}-[0-9]{2} ]] \
   && pass "décision déléguée consignée : date, question, choix, raison, révisable" \
   || fail "décision déléguée consignée : date, question, choix, raison, révisable" "$line"
 run_pp delegate "$target" --question "Sans choix ?"

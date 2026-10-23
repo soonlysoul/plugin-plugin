@@ -249,7 +249,7 @@ cmd_check() {
   count=$(grep -c . <<<"$gaps")
   printf 'check : %s (%s)\n' "$(jq -r '.name // "?" | tostring' "$1/.claude-plugin/plugin.json" 2>/dev/null)" "$1"
   if ((count == 0)); then
-    printf 'écarts : 0 — au modèle de plugin-flutter\n'
+    printf 'écarts : 0 — au modèle de plugin-plugin (docs/MODEL.md)\n'
   else
     printf 'écarts : %d\n' "$count"
     sed 's/^/- /' <<<"$gaps"
@@ -1218,7 +1218,7 @@ cmd_add_agent() {
   writes_json=$(tr ',' '\n' <<<"$writes" | sed 's/^ *//; s/ *$//' | grep . | jq -Rsc 'split("\n") | map(select(length > 0))')
   bash_json=$(tr ',' '\n' <<<"$allow" | sed 's/^ *//; s/ *$//' | grep . | jq -Rsc 'split("\n") | map(select(length > 0))')
   ((writer == 0 && shell == 0)) || scoped=1
-  # A scope guard of the plugin's own (plugin-flutter's) knows its agents by name and would block
+  # A scope guard the plugin wrote itself knows its agents by name and would block
   # this one: declaring its scope there means editing the plugin's content.
   local own_guard
   if ((scoped)); then
@@ -1420,7 +1420,7 @@ cmd_out_of_scope() {
     mcp-code) die "refusé : écrire le code d'un serveur MCP est hors périmètre ; plugin-plugin déclare un serveur existant (add-mcp), il n'en écrit pas ; $cli." ;;
     channel) die "refusé : un channel est hors périmètre ; il exige le code d'un serveur MCP écrit pour le plugin ; $cli." ;;
     lsp) die "refusé : la déclaration d'un serveur de langage est hors périmètre de la v0.1 ; rouvert en v0.2, où elle est prévue." ;;
-    output-style) die "refusé : un style de sortie est hors périmètre ; aucun plugin du modèle n'en a l'usage, et le plugin reste petit ; rouvert par une révision du PRD." ;;
+    output-style) die "refusé : un style de sortie est hors périmètre ; il ne se prouve qu'en session, aucun test déterministe ne le couvre, et aucun besoin ne l'a demandé ; rouvert par une révision du PRD, sur un besoin réel." ;;
     command) die "refusé : une commande classique (commands/) est une forme ancienne, exclue par le PRD ; rouvert : jamais, un skill la remplace et s'invoque déjà par /<plugin>:<skill>." ;;
     plugin-option) die "refusé : une option de plugin est hors périmètre ; compte, marketplace et langue des messages restent écrits en dur ; rouvert par une révision du PRD, le jour où un plugin doit se régler par utilisateur." ;;
     plugin-dependency) die "refusé : une dépendance entre plugins est hors périmètre ; un plugin du modèle s'installe et fonctionne seul ; rouvert par une révision du PRD, quand un plugin ne peut pas fonctionner sans un autre plugin." ;;

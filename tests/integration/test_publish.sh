@@ -33,7 +33,7 @@ done
 ((FAIL == 0)) || { finish; exit; }
 
 # GitHub, simulated: every https://github.com/soonlysoul/<repo> is the bare repository
-# $GITHUB/<repo>.git. The marketplace soon lists plugin-flutter and plugin-nixos on main.
+# $GITHUB/<repo>.git. The marketplace soon lists plugin-alpha and plugin-beta on main.
 GITHUB="$work/github"
 mkdir -p "$GITHUB"
 export GIT_CONFIG_GLOBAL="$work/gitconfig"
@@ -44,9 +44,9 @@ seed="$work/seed-marketplace"
 git init -q -b main "$seed"
 mkdir -p "$seed/.claude-plugin"
 jq -n '{name: "soon", description: "Plugins Claude Code de Soon.", owner: {name: "Soon"},
-  plugins: (["plugin-flutter", "plugin-nixos"] | map({name: ., source: {source: "github", repo: "soonlysoul/\(.)"}, description: "Plugin \(.)."}))}' \
+  plugins: (["plugin-alpha", "plugin-beta"] | map({name: ., source: {source: "github", repo: "soonlysoul/\(.)"}, description: "Plugin \(.)."}))}' \
   >"$seed/.claude-plugin/marketplace.json"
-printf 'plugin-flutter\tPlugin plugin-flutter.\nplugin-nixos\tPlugin plugin-nixos.\n' | market_readme >"$seed/README.md"
+printf 'plugin-alpha\tPlugin plugin-alpha.\nplugin-beta\tPlugin plugin-beta.\n' | market_readme >"$seed/README.md"
 git -C "$seed" add -A && git -C "$seed" commit -qm "init"
 git clone -q --bare "$seed" "$GITHUB/claude-plugins.git"
 market_main=$(git --git-dir="$GITHUB/claude-plugins.git" rev-parse main)

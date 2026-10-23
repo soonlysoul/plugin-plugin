@@ -2,6 +2,25 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
+## [à venir] — en cours
+
+### Modifié
+
+- Le modèle de plugin est propre à plugin-plugin (US-38, décision i du plan) : `docs/MODEL.md` en est la seule source, chaque règle avec sa raison — un fait de la base ou une convention de Soon — et le contrôle de `check` qui la vérifie ; chaque exclusion avec sa raison et ce qui la rouvrirait. Aucun plugin existant n'en est plus la référence, car un plugin change avec le temps.
+- `check` dit « écarts : 0 — au modèle de plugin-plugin (docs/MODEL.md) » ; le skill `check` cite la raison d'une règle depuis MODEL.md.
+- Le refus d'un style de sortie donne sa raison propre : il ne se prouve qu'en session, aucun test déterministe ne le couvre, aucun besoin ne l'a demandé.
+- Les tests ne lisent plus aucun autre plugin : l'ajout à un plugin que plugin-plugin n'a pas créé et la reconstruction se prouvent sur un plugin d'essai écrit par la suite (`tests/helpers/foreign.sh`), `check` sur plugin-plugin lui-même ; rien n'est plus sauté faute de copie de lecture.
+- Base de faits : deux identifiants renommés (`skill-description-limit-1024-unsourced`, `account-guard-rm-rf`), et trois façons de revérifier qui exigeaient un autre plugin se font sur plugin-plugin ou sur un plugin d'essai.
+
+### Ajouté
+
+- `tests/static/test_model.sh` : chaque catégorie d'écart de `check` a sa règle dans MODEL.md, chaque règle sa raison, chaque fait cité existe.
+- `tests/static/test_independence.sh` : aucun composant, gabarit, test, évaluation, manifeste ni document d'usage ne nomme un autre plugin de Soon ni ne lit sa copie.
+
+### Retiré
+
+- La réécriture de plugin-nixos (`tests/rewrite/`, `test_rewrite_nixos`) et les tests sur les copies de lecture de `build/ref/` (`test_check_real`) ; la réécriture a été publiée en plugin-nixos 0.2.0.
+
 ## [0.1.2] — 2026-10-20
 
 ### Ajouté

@@ -2,7 +2,7 @@
 
 2026-10-19 · Soon
 
-**Statut : APPROUVÉ** le 2026-10-20 (« je valide »).
+**Statut : APPROUVÉ** le 2026-10-23 (« oui »).
 
 Approuvé le 2026-10-19, après le renommage du plugin, d'abord nommé
 plugin-agent, en plugin-plugin. Approbations antérieures du même jour : « oui »,
@@ -15,6 +15,14 @@ descriptions — dépôt GitHub, marketplace `soon`, marketplace locale — et l
 documents du plugin (US-35 à US-37, critère 10). Choix de Soon, le même jour :
 `plugin.json` pour seule source, version écrite et composants exigés dans le
 README, alignement sans nouvelle version, description seule sur GitHub.
+
+Amendé le 2026-10-23, à la demande de Soon : le modèle devient propre à
+plugin-plugin. Il est écrit dans `docs/MODEL.md`, chaque règle avec sa raison,
+et plus aucun plugin existant ne sert de modèle, de référence ou de banc
+d'essai, car ces plugins changent avec le temps (US-38, critère 2). Décision
+déléguée du même jour, révisable : les règles restent celles du modèle
+approuvé, les exclusions aussi, chacune avec sa raison propre ; les tests
+s'appuient sur des plugins d'essai construits par la suite elle-même.
 
 ## Problème
 
@@ -30,8 +38,9 @@ marketplace.
 Ce savoir a été acquis à la main, parfois en corrigeant une hypothèse fausse :
 la validation lancée à la racine d'un plugin ne contrôle que la marketplace. Il
 vit aujourd'hui dans les documents d'un seul plugin. Le second a été construit
-autrement ; plugin-flutter sert seul de modèle. Chaque nouveau
-plugin repart donc de zéro, ou recopie un aîné et en diverge. Un nom choisi trop
+autrement. Chaque nouveau plugin repart donc de zéro, ou recopie un aîné et en
+diverge ; et un aîné change avec le temps, il ne peut pas servir de référence
+stable. Un nom choisi trop
 vite coûte un renommage après publication, comme flutter-forge devenu
 plugin-flutter. L'outil générique officiel ne connaît ni ces conventions ni
 plusieurs faits récents de la plateforme, et ne date rien de ce qu'il sait.
@@ -44,6 +53,8 @@ commencera à dater à la prochaine mise à jour.
 
 plugin-plugin permet à Soon de :
 
+- **s'appuyer sur un modèle propre**, écrit dans plugin-plugin, chaque règle
+  avec sa raison, qui ne dépend d'aucun plugin existant ;
 - **cadrer** un plugin : décrire le besoin, être interrogé une question à la
   fois, approuver le cadrage et l'architecture avant toute écriture ;
 - **créer** un plugin dédié, nommé `plugin-<domaine>`, dans son propre dépôt,
@@ -51,8 +62,8 @@ plugin-plugin permet à Soon de :
 - **ajouter un composant** — skill, agent, hook, déclaration d'un serveur MCP
   existant — en voyant son test échouer avant qu'il passe ; pour un skill, ce
   test est un cas d'évaluation comparé à une exécution sans le plugin ;
-- **faire évoluer ses plugins existants** qui suivent le modèle (plugin-flutter),
-  sans toucher à leur contenu métier ;
+- **faire évoluer ses plugins existants** qui suivent le modèle, sans toucher à
+  leur contenu métier ;
 - **publier** : créer le dépôt GitHub, ouvrir la PR qui ajoute le plugin à la
   marketplace `soon`, augmenter la version, tenir le journal des changements,
   poser l'étiquette de version, aligner sur `plugin.json` la description du
@@ -133,14 +144,23 @@ condition qu'elle soit motivée et révisable.
 
 ### Plugins existants
 
-- **US-17** — En tant que Soon, je veux ajouter un composant à plugin-flutter
-  sans toucher à son contenu métier, afin de faire évoluer mes plugins publiés.
+- **US-17** — En tant que Soon, je veux ajouter un composant à un plugin du
+  modèle que plugin-plugin n'a pas créé, sans toucher à son contenu métier, afin
+  de faire évoluer mes plugins publiés.
 - **US-18** — En tant que Soon, je veux qu'un plugin hors modèle soit signalé
   avec la liste de ses écarts, sans aucune modification, afin de savoir pourquoi
   plugin-plugin ne s'en charge pas.
 - **US-19** — En tant que Soon, je veux reconstruire un plugin existant dans un
-  dossier à part et y faire passer sa propre suite de tests, sans jamais modifier
-  l'original, afin de confronter le modèle à mes plugins réels.
+  dossier à part, sur la charpente du modèle, et y faire passer sa propre suite
+  de tests, sans jamais modifier l'original, afin de l'amener au modèle sans
+  risque.
+
+### Modèle
+
+- **US-38** — En tant que Soon, je veux que le modèle soit écrit dans
+  plugin-plugin, chaque règle avec sa raison, et qu'aucun composant, gabarit ni
+  test de plugin-plugin ne dépende d'un autre de mes plugins, afin que le modèle
+  ne bouge pas quand un plugin évolue.
 
 ### Publication
 
@@ -210,11 +230,14 @@ condition qu'elle soit motivée et révisable.
 
 1. Un plugin fraîchement créé passe la validation stricte et sa propre suite de
    tests : zéro échec, aucune retouche à la main.
-2. Reconstruit dans un dossier à part, plugin-flutter passe 100 % de sa propre
-   suite de tests et la validation stricte. Réécrit au modèle dans un dossier à
-   part, plugin-nixos passe la validation stricte et sa suite portée au modèle,
-   qui garde chacun de ses cas d'origine, et le contrôle de conformité n'y relève
-   plus aucun écart. Les originaux ne portent aucun changement.
+2. Le modèle est écrit dans plugin-plugin, chaque règle avec sa raison, et le
+   contrôle de conformité n'y relève aucun écart sur plugin-plugin lui-même.
+   Aucun composant, gabarit ni test ne nomme un autre plugin de Soon ni ne lit
+   sa copie, et la suite passe sans eux, sans rien sauter faute de copie.
+   Reconstruit dans un dossier à part, un plugin d'essai passe 100 % de sa
+   propre suite et la validation stricte ; l'original ne porte aucun changement.
+   (Jusqu'au 2026-10-23, ce critère portait sur plugin-flutter et plugin-nixos ;
+   il a été atteint en phases 13 et 14.)
 3. Le plugin témoin — un skill, un agent, un hook — se construit de bout en bout,
    du cadrage à la répétition de publication, sans autre intervention que les
    accords demandés.
@@ -233,20 +256,21 @@ condition qu'elle soit motivée et révisable.
    inchangée, les deux listes sont vides.
 9. Le coût en contexte permanent de plugin-plugin lui-même reste sous le seuil
    d'alerte.
-10. Après la publication ou l'alignement de plugin-plugin, plugin-nixos et
-    plugin-flutter, la description de chaque dépôt GitHub, son entrée et sa
-    ligne dans le README de la marketplace `soon` sont la description de son
-    `plugin.json` ; après une publication, sa marketplace locale aussi, et son
-    README porte la version publiée et nomme chacun de ses composants.
+10. Après la publication ou l'alignement d'un plugin — prouvé sur plugin-plugin
+    —, la description de son dépôt GitHub, son entrée et sa ligne dans le
+    README de la marketplace `soon` sont la description de son `plugin.json` ;
+    après une publication, sa marketplace locale aussi, et son README porte la
+    version publiée et nomme chacun de ses composants.
 
 ## Hors périmètre
 
-- Le contenu métier des plugins (consignes Flutter, règles NixOS) : plugin-plugin
-  fournit la charpente et la méthode.
+- Le contenu métier des plugins (les consignes propres à un domaine) :
+  plugin-plugin fournit la charpente et la méthode.
 - Les plugins hors modèle — plugins de tiers, anciennes formes non dédiées — et
-  leur mise en conformité. La réécriture de plugin-nixos au modèle est un test de
-  plugin-plugin, pas une fonction : elle se fait dans un dossier à part et n'est
-  jamais publiée.
+  leur mise en conformité.
+- Un plugin existant comme modèle, référence ou banc d'essai : il change avec
+  le temps. Le modèle vit dans plugin-plugin ; ses tests construisent leurs
+  propres plugins d'essai.
 - Le plugin embarqué dans le dépôt qu'il sert, remplacé par le montage en
   sous-module.
 - La configuration pour d'autres utilisateurs : compte, marketplace et langue

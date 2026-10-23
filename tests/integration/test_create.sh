@@ -11,7 +11,7 @@ PP="$PLUGIN_ROOT/scripts/pp.sh"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# A gh stub: the marketplace soon lists plugin-flutter and plugin-nixos; the repository
+# A gh stub: the marketplace soon lists plugin-alpha and plugin-beta; the repository
 # soonlysoul/plugin-taken-repo exists; STUB_GH_FAIL=1 makes every call fail like a network error,
 # STUB_GH_REPO_FAIL=1 only the repository lookups.
 mkdir "$work/stub"
@@ -21,7 +21,7 @@ printf '%s\n' "$*" >>"${STUB_GH_LOG:-/dev/null}"
 if [[ ${STUB_GH_FAIL:-0} == 1 ]]; then echo "error connecting to api.github.com" >&2; exit 1; fi
 case "$*" in
   "api repos/soonlysoul/claude-plugins/contents/.claude-plugin/marketplace.json"*)
-    printf '%s' '{"name":"soon","owner":{"name":"Soon"},"plugins":[{"name":"plugin-flutter","source":{"source":"github","repo":"soonlysoul/plugin-flutter"}},{"name":"plugin-nixos","source":{"source":"github","repo":"soonlysoul/plugin-nixos"}}]}' ;;
+    printf '%s' '{"name":"soon","owner":{"name":"Soon"},"plugins":[{"name":"plugin-alpha","source":{"source":"github","repo":"soonlysoul/plugin-alpha"}},{"name":"plugin-beta","source":{"source":"github","repo":"soonlysoul/plugin-beta"}}]}' ;;
   "api repos/soonlysoul/plugin-taken-repo"*) echo '{"full_name":"soonlysoul/plugin-taken-repo"}' ;;
   "api repos/soonlysoul/"*) if [[ ${STUB_GH_REPO_FAIL:-0} == 1 ]]; then echo "error connecting to api.github.com" >&2; exit 1; fi ;;&
   "api repos/soonlysoul/"*) echo '{"message":"Not Found","status":"404"}'; echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
@@ -68,11 +68,11 @@ echo "# nom hors règle"
 framed "$work/rule"
 refused "majuscules" "$work/rule" Plugin-Essai 1 'majuscules' PATH="$STUBPATH"
 refused "soulignés" "$work/rule" plugin_essai 1 'soulignés' PATH="$STUBPATH"
-refused "préfixe absent" "$work/rule" flutter-forge 1 'préfixe plugin-' PATH="$STUBPATH"
+refused "préfixe absent" "$work/rule" alpha-forge 1 'préfixe plugin-' PATH="$STUBPATH"
 refused "domaine vide" "$work/rule" plugin- 1 'domaine vide' PATH="$STUBPATH"
 
 echo "# nom déjà pris"
-refused "dans la marketplace soon" "$work/rule" plugin-flutter 1 'déjà dans la marketplace soon' PATH="$STUBPATH"
+refused "dans la marketplace soon" "$work/rule" plugin-alpha 1 'déjà dans la marketplace soon' PATH="$STUBPATH"
 refused "dépôt GitHub existant" "$work/rule" plugin-taken-repo 1 'le dépôt soonlysoul/plugin-taken-repo existe' PATH="$STUBPATH"
 refused "GitHub illisible" "$work/rule" plugin-essai 2 'bloqué : GitHub' PATH="$STUBPATH" STUB_GH_FAIL=1
 refused "dépôt illisible, marketplace lisible" "$work/rule" plugin-essai 2 'bloqué : GitHub illisible \(gh api repos/soonlysoul/plugin-essai\)' PATH="$STUBPATH" STUB_GH_REPO_FAIL=1
@@ -160,7 +160,7 @@ grep -qxF 'Notes & brouillons, a\b compris.' "$amp/README.md" 2>/dev/null \
   || fail "README : la description telle quelle, & compris" "$(sed -n 3p "$amp/README.md" 2>&1)"
 
 echo "# test_paths : un outil sans extension sous scripts/ (décision a)"
-# A tool named without .sh, as plugin-nixos's nixconf, gets the tests of every other script; a
+# A tool named without .sh gets the tests of every other script (decision a); a
 # data file there, without a shebang, is not a script.
 tool_copy="$work/outil/plugin-essai"
 mkdir -p "$work/outil" && cp -a "$target" "$tool_copy"

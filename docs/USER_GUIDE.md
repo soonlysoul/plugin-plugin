@@ -1,6 +1,6 @@
 # Guide d'utilisation — plugin-plugin
 
-plugin-plugin construit des plugins Claude Code au modèle de plugin-flutter, du cadrage à la publication dans la marketplace `soon`. Les décisions sont les vôtres ; plugin-plugin les prépare, les trace et refuse d'avancer sans elles.
+plugin-plugin construit des plugins Claude Code à son propre modèle, écrit règle par règle dans `docs/MODEL.md`, du cadrage à la publication dans la marketplace `soon`. Les décisions sont les vôtres ; plugin-plugin les prépare, les trace et refuse d'avancer sans elles.
 
 ## Principes
 
@@ -40,11 +40,11 @@ plugin-plugin construit des plugins Claude Code au modèle de plugin-flutter, du
 
 Un composant hors périmètre — code d'un serveur MCP, channel, serveur de langage, style de sortie, commande classique, option de plugin, dépendance entre plugins — est refusé, avec sa raison et ce qui le rouvrirait.
 
-`add` travaille aussi sur plugin-flutter, qu'il n'a pas créé : il n'y écrit que le composant et son câblage.
+`add` travaille aussi sur un plugin du modèle qu'il n'a pas créé : il n'y écrit que le composant et son câblage.
 
 ## Contrôler — `check`
 
-« plugin-nixos suit-il le modèle ? ». La liste des écarts, un par ligne, sans rien modifier. `add` refuse un plugin qui en a.
+« ce plugin suit-il le modèle ? ». La liste des écarts, un par ligne, sans rien modifier. Chaque catégorie d'écart est une règle de `docs/MODEL.md`, avec sa raison. `add` refuse un plugin qui en a.
 
 ## Publier — `release`
 

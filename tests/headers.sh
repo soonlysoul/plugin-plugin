@@ -1,7 +1,7 @@
 # shellcheck shell=bash disable=SC2034  # FM and FM_ERROR are read by the caller
 # Strict reading of skill and agent headers, and the rules they follow. Shared by plugin-plugin's
 # scripts/pp.sh and by the test suite of every plugin it creates, where it is copied as is.
-# Structure rules hold for every plugin of the model, plugin-flutter included; style rules are
+# Structure rules hold for every plugin of the model, whoever wrote it; style rules are
 # the house style plugin-plugin applies to the components it adds.
 
 KNOWN_TOOLS=" Read Grep Glob Bash Write Edit NotebookEdit WebFetch WebSearch TodoWrite Skill Monitor "

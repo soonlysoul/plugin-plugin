@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
-# pp.sh add-* on a plugin of the model it did not create — a clone of plugin-flutter's read copy
-# (build/ref/, PP_REF_DIR elsewhere): the diff touches only the component and its wiring, existing
-# lines stay as they were, the generated tests run under the plugin's own harness, and its
-# original suite stays at 100 % once the hook's rule is written (US-17). Skipped without the copy.
+# pp.sh add-* on a plugin of the model it did not create — plugin-essai, written by
+# tests/helpers/foreign.sh with a harness and a scope guard of its own (decision i): the diff
+# touches only the component and its wiring, existing lines stay as they were, the generated tests
+# run under the plugin's own harness, and its original suite stays at 100 % once the hook's rule
+# is written (US-17).
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
+# shellcheck source=../helpers/foreign.sh
+source "$PLUGIN_ROOT/tests/helpers/foreign.sh"
 SUITE=test_add_existing
 PP="$PLUGIN_ROOT/scripts/pp.sh"
-REF=${PP_REF_DIR:-$PLUGIN_ROOT/build/ref}
-
-if [[ ! -d $REF/plugin-flutter/.git ]]; then
-  skip "ajout à plugin-flutter" "copie de lecture absente de $REF/plugin-flutter"
-  finish
-  exit
-fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -26,7 +22,7 @@ run_pp() {
 tree_sum() {
   (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
 }
-# suite <clone>: runs the plugin's own suite; SUITE_STATUS, SUITE_OUTPUT and FAILED, the failed
+# suite <plugin>: runs the plugin's own suite; SUITE_STATUS, SUITE_OUTPUT and FAILED, the failed
 # suites of its summary, one per line.
 suite() {
   SUITE_OUTPUT=$(cd "$1" && bash tests/run-all.sh 2>&1)
@@ -34,9 +30,9 @@ suite() {
   FAILED=$(awk '/^failed:/ { on = 1; next } /^blocked:/ { on = 0 } on && /^  - / { print $2 }' <<<"$SUITE_OUTPUT")
 }
 
-pf="$work/plugin-flutter"
-git clone -q "$REF/plugin-flutter" "$pf" && pass "clone de la copie de lecture" || fail "clone de la copie de lecture"
-git -C "$pf" config user.email test@example.test && git -C "$pf" config user.name Test
+pf="$work/plugin-essai"
+foreign_plugin "$pf" && [[ ! -e $pf/.plugin-plugin && ! -e $pf/tests/headers.sh ]] \
+  && pass "plugin d'essai écrit, sans .plugin-plugin/ ni tests/headers.sh" || fail "plugin d'essai écrit, sans .plugin-plugin/ ni tests/headers.sh"
 suite "$pf"
 [[ $SUITE_STATUS == 0 ]] && pass "suite d'origine, avant l'ajout : exit 0" \
   || fail "suite d'origine, avant l'ajout : exit 0" "$(tail -n 8 <<<"$SUITE_OUTPUT" | tr '\n' '|')"

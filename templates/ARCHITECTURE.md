@@ -6,7 +6,7 @@
 
 ## Modèle
 
-Plugin au modèle de plugin-flutter : dépôt dédié `soonlysoul/<nom>`, plugin à la racine, manifeste sans e-mail, licence MIT, marketplace locale `"source": "./"`, composants à la racine, tests dans `tests/`.
+Plugin au modèle de plugin-plugin (son `docs/MODEL.md`) : dépôt dédié `soonlysoul/<nom>`, plugin à la racine, manifeste sans e-mail, licence MIT, marketplace locale `"source": "./"`, composants à la racine, tests dans `tests/`.
 
 ## Composants
 

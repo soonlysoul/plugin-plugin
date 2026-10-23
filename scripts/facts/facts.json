@@ -344,7 +344,7 @@
     "status": "confirmé"
   },
   {
-    "id": "plugin-nixos-description-limit-1024",
+    "id": "skill-description-limit-1024-unsourced",
     "statement": "La description d'un skill doit rester sous 1 024 caractères.",
     "claude_version": null,
     "date": "2026-10-19",
@@ -810,7 +810,7 @@
     "claude_version": "2.1.296",
     "date": "2026-10-19",
     "source": "plugin-plugin, PROGRESS.md phase 1",
-    "recheck": "claude --plugin-dir build/ref/plugin-flutter plugin details plugin-flutter",
+    "recheck": "claude --plugin-dir . plugin details plugin-plugin, à la racine de plugin-plugin",
     "status": "confirmé"
   },
   {
@@ -838,16 +838,16 @@
     "claude_version": "2.1.296",
     "date": "2026-10-19",
     "source": "plugin-plugin, PROGRESS.md phase 1",
-    "recheck": "claude --plugin-dir build/ref/plugin-flutter plugin details plugin-flutter",
+    "recheck": "claude --plugin-dir . plugin details plugin-plugin, à la racine de plugin-plugin",
     "status": "confirmé"
   },
   {
-    "id": "flutter-forge-guard-rm-rf",
+    "id": "account-guard-rm-rf",
     "statement": "Le garde de l'ancien flutter-forge, installé pour le compte, refuse rm -rf hors build/ dans toutes les sessions.",
     "claude_version": "2.1.296",
     "date": "2026-10-19",
     "source": "plugin-plugin, PROGRESS.md phase 1 ; PRD",
-    "recheck": "claude plugin list | grep flutter-forge",
+    "recheck": "dans une session, rm -rf sur un dossier neuf hors de build/ : refusé par un garde de plugin installé pour le compte",
     "status": "confirmé"
   },
   {
@@ -1158,7 +1158,7 @@
     "claude_version": "2.1.296",
     "date": "2026-10-20",
     "source": "plugin-plugin, phase 14 (réécriture de plugin-nixos)",
-    "recheck": "claude --plugin-dir <clone de plugin-nixos> plugin details plugin-nixos",
+    "recheck": "claude --plugin-dir <plugin d'essai au-delà de 1 000 tokens permanents> plugin details <nom>",
     "status": "confirmé"
   },
   {

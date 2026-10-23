@@ -2,15 +2,15 @@
 
 2026-10-20 · Soon · PRD : [PRD.md](PRD.md) · Plan : [PLAN.md](PLAN.md)
 
-**Statut : APPROUVÉ** le 2026-10-20 (« je valide »).
+**Statut : APPROUVÉ** le 2026-10-23 (« oui »).
 
-Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0. Les décisions qui le fondent — principes, modèle de plugin, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan, approuvé le 2026-10-19 ; elles ne sont pas recopiées ici.
+Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0, révisé le 2026-10-23 par la phase 19. Les décisions qui le fondent — principes, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan ; elles ne sont pas recopiées ici. Le modèle de plugin a sa seule source dans [MODEL.md](MODEL.md) (décision i).
 
 Claude Code **2.1.295 ou plus** requis (forme exec des hooks, `onFailure`). Version vérifiée : 2.1.296.
 
 ## Vue d'ensemble
 
-plugin-plugin construit des plugins Claude Code au modèle de plugin-flutter. Il ne garde aucun état dans `~/.claude` ni dans sa propre racine installée : tout ce qu'il sait d'un plugin cible est dans le dépôt de ce plugin, sous `.plugin-plugin/`, et dans git.
+plugin-plugin construit des plugins Claude Code au modèle écrit dans [MODEL.md](MODEL.md), chaque règle avec sa raison et le contrôle de `check` qui la vérifie ; aucun plugin existant n'en est la référence ni le banc d'essai. Il ne garde aucun état dans `~/.claude` ni dans sa propre racine installée : tout ce qu'il sait d'un plugin cible est dans le dépôt de ce plugin, sous `.plugin-plugin/`, et dans git.
 
 Trois couches, chacune à sa place :
 
@@ -42,14 +42,14 @@ plugin-plugin/
 ├── templates/               PRD.md et ARCHITECTURE.md d'un cadrage
 ├── evals/<skill>/<cas>/     suites d'évaluation des skills, écrites et vérifiées
 ├── tests/                   suite déterministe (voir « Tests »)
-└── docs/                    PRD, PLAN, et les quatre documents d'usage
+└── docs/                    PRD, PLAN, MODEL (le modèle de plugin), et les quatre documents d'usage
 ```
 
 `scripts/` est la seule extension du modèle (décision a du plan) : un outil appelé par plusieurs skills et par les hooks.
 
 ## Composants
 
-Coût en contexte permanent : **824 tokens** (seuil 1 000), mesuré par `claude plugin details` dans `tests/run-all.sh`.
+Coût en contexte permanent : **887 tokens** (seuil 1 000), mesuré par `claude plugin details` dans `tests/run-all.sh`.
 
 ### Skills
 
@@ -122,11 +122,10 @@ Les journaux disent ce qui s'est passé ; ils ne décident de rien. Ce qui est f
 
 | Dossier | Ce qu'il couvre |
 | --- | --- |
-| `tests/static/` | manifestes, en-têtes, chemins cités, faits, cadrage, reprise, `check`, évaluations, le harnais lui-même |
+| `tests/static/` | manifestes, en-têtes, chemins cités, faits, cadrage, reprise, `check`, évaluations, le harnais lui-même ; le modèle (`test_model` : chaque catégorie de `check` a sa règle dans MODEL.md, chaque règle sa raison) et l'indépendance (`test_independence` : rien ne nomme ni ne lit un autre plugin de Soon) |
 | `tests/hooks/` | chaque hook sur des entrées simulées |
-| `tests/integration/` | les sous-commandes de bout en bout dans des dossiers jetables : création, ajouts, répétition et publication contre des dépôts nus et des doublures de `gh`, `claude` et `git push` ; `check`, reconstruction et réécriture sur les copies de lecture de `build/ref/` |
+| `tests/integration/` | les sous-commandes de bout en bout dans des dossiers jetables : création, ajouts, répétition et publication contre des dépôts nus et des doublures de `gh`, `claude` et `git push` ; l'ajout à un plugin que plugin-plugin n'a pas créé et la reconstruction, sur le plugin d'essai de `tests/helpers/foreign.sh` ; `check` sur plugin-plugin lui-même |
 | `tests/project/` | le hook Stop de ce projet (`.claude/hooks/verify-tests.sh`) |
-| `tests/rewrite/` | la réécriture de plugin-nixos, lancée par `test_rewrite_nixos` |
 
 `tests/headers.sh` et `tests/mcp.sh` portent les règles d'en-tête et de serveur MCP en source unique : la suite de plugin-plugin s'en sert, et elles sont recopiées dans chaque plugin créé.
 

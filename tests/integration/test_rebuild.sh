@@ -2,24 +2,20 @@
 # pp.sh rebuild: an existing plugin rebuilt in a folder of its own — the scaffolding plugin-plugin
 # produces, its content imported as is from the original's last commit — passes its own suite and
 # the strict validation, with no gap between the scaffolding and the original's; the original
-# never changes (US-19). Runs on plugin-flutter's read copy (build/ref/, PP_REF_DIR elsewhere);
-# skipped without it.
+# never changes (US-19, criterion 2). Runs on plugin-essai, written by tests/helpers/foreign.sh
+# with a harness of its own (decision i).
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
+# shellcheck source=../helpers/foreign.sh
+source "$PLUGIN_ROOT/tests/helpers/foreign.sh"
 SUITE=test_rebuild
 PP="$PLUGIN_ROOT/scripts/pp.sh"
-REF=${PP_REF_DIR:-$PLUGIN_ROOT/build/ref}
-
-if [[ ! -d $REF/plugin-flutter/.git ]]; then
-  skip "reconstruction de plugin-flutter" "copie de lecture absente de $REF/plugin-flutter"
-  finish
-  exit
-fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 export GIT_CEILING_DIRECTORIES=$work
-ORIGINAL="$REF/plugin-flutter"
+ORIGINAL="$work/plugin-essai"
+foreign_plugin "$ORIGINAL" && pass "plugin d'essai écrit, un commit" || fail "plugin d'essai écrit, un commit"
 # The files the scaffolding owns; every other tracked file of the original is its content.
 OWNED=".claude-plugin/plugin.json .claude-plugin/marketplace.json LICENSE .gitignore tests/lib.sh tests/run-all.sh"
 
@@ -47,7 +43,7 @@ run_pp rebuild "$work" "$work/r2"
 
 echo "# reconstruction"
 before=$(state "$ORIGINAL")
-dest="$work/rebuild/plugin-flutter"
+dest="$work/rebuild/plugin-essai"
 run_pp rebuild "$ORIGINAL" "$dest"
 [[ $PP_STATUS == 0 ]] && pass "rebuild : exit 0" || fail "rebuild : exit 0" "exit $PP_STATUS ; $(tail -n 25 <<<"$PP_OUTPUT" | tr '\n' '|')"
 grep -q '^charpente : 0 écart' <<<"$PP_OUTPUT" && pass "aucun écart entre la charpente produite et l'originale" \
@@ -74,7 +70,7 @@ done
 cmp -s <(git -C "$ORIGINAL" show HEAD:LICENSE) "$dest/LICENSE" && pass "LICENSE : la même que l'original" || fail "LICENSE : la même que l'original"
 missing=$(git -C "$ORIGINAL" show HEAD:.gitignore | grep -v '^#' | grep . | grep -vxFf "$dest/.gitignore")
 [[ -f $dest/.gitignore && -z $missing ]] && pass ".gitignore : toutes les lignes de l'original" || fail ".gitignore : toutes les lignes de l'original" "$missing"
-for helper in restricted_path bash_input SCRIPTS; do
+for helper in run_hook expect_blocked bash_input SCRIPTS; do
   (source "$dest/tests/lib.sh" >/dev/null 2>&1 && { declare -F "$helper" >/dev/null || [[ -v $helper ]]; }) \
     && pass "tests/lib.sh définit $helper, dont se servent les tests de l'original" \
     || fail "tests/lib.sh définit $helper, dont se servent les tests de l'original"
