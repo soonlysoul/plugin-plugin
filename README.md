@@ -2,7 +2,7 @@
 
 Plugin Claude Code qui construit des plugins Claude Code à un modèle qui lui est propre, écrit règle par règle dans [docs/MODEL.md](docs/MODEL.md) : cadrage, création d'un plugin dédié et vert, composants ajoutés en TDD (skills avec leur évaluation, agents, hooks, déclaration d'un serveur MCP), publication dans la marketplace `soon` sous accord explicite, ré-audit après une mise à jour de Claude Code, reprise depuis le disque.
 
-Version **0.1.2**. Le périmètre et l'ordre de construction sont fixés par [docs/PRD.md](docs/PRD.md) et [docs/PLAN.md](docs/PLAN.md) ; le modèle de plugin, par [docs/MODEL.md](docs/MODEL.md) ; la construction, par [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ; l'avancement, par [PROGRESS.md](PROGRESS.md). Installation, usage, sécurité et dépannage : [docs/](docs/INSTALLATION.md). Claude Code **2.1.295 ou plus** requis (forme exec des hooks).
+Version **0.1.3**. Le périmètre et l'ordre de construction sont fixés par [docs/PRD.md](docs/PRD.md) et [docs/PLAN.md](docs/PLAN.md) ; le modèle de plugin, par [docs/MODEL.md](docs/MODEL.md) ; la construction, par [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ; l'avancement, par [PROGRESS.md](PROGRESS.md). Installation, usage, sécurité et dépannage : [docs/](docs/INSTALLATION.md). Claude Code **2.1.295 ou plus** requis (forme exec des hooks).
 
 | Composant | Rôle |
 | --- | --- |

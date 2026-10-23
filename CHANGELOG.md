@@ -2,7 +2,7 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
-## [à venir] — en cours
+## [0.1.3] — 2026-10-24
 
 ### Modifié
 
@@ -20,6 +20,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; ve
 ### Retiré
 
 - La réécriture de plugin-nixos (`tests/rewrite/`, `test_rewrite_nixos`) et les tests sur les copies de lecture de `build/ref/` (`test_check_real`) ; la réécriture a été publiée en plugin-nixos 0.2.0.
+
+Coût en contexte permanent : ~887 tokens — release ~130, create ~100, check ~140, resume ~110, add ~180, frame ~130, reaudit ~100.
 
 ## [0.1.2] — 2026-10-20
 

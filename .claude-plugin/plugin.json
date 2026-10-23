@@ -1,6 +1,6 @@
 {
   "name": "plugin-plugin",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Frame, scaffold, test and publish Claude Code plugins to a documented model of its own: TDD components, evals, release, re-audit.",
   "author": {
     "name": "Soon"
