@@ -2,11 +2,13 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
-## [à venir] — en cours
+## [0.1.5] — 2026-10-25
 
 ### Corrigé
 
 - `consent-capture` prenait une notification de Claude Code pour une réponse : la fin d'une tâche de fond, soumise elle aussi par `UserPromptSubmit`, retirait l'annonce en attente comme un refus. Un message qui commence par `<task-notification>` n'est plus une réponse : ni accord ni retrait, l'annonce attend toujours le « oui » tapé, dans la limite des trente minutes. Relevé pendant la publication de 0.1.4.
+
+Coût en contexte permanent : ~887 tokens — release ~130, create ~100, check ~140, resume ~110, add ~180, frame ~130, reaudit ~100.
 
 ## [0.1.4] — 2026-10-25
 
