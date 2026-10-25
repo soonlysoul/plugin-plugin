@@ -1136,7 +1136,7 @@
   },
   {
     "id": "user-prompt-submit-fires-on-notifications",
-    "statement": "UserPromptSubmit se déclenche aussi pour un message que Claude Code injecte lui-même — la notification de fin d'une tâche de fond, dans l'extension VSCode — ; prompt est alors le texte injecté (<task-notification>…), et rien dans l'entrée ne le distingue d'un message tapé. consent-capture n'y voit donc jamais un « oui » : l'annonce en attente est retirée.",
+    "statement": "UserPromptSubmit se déclenche aussi pour un message que Claude Code injecte lui-même — la notification de fin d'une tâche de fond, dans l'extension VSCode — ; prompt est alors le texte injecté (<task-notification>…), et rien dans l'entrée ne le distingue d'un message tapé. consent-capture la reconnaît à ce début : jamais un « oui », ni une réponse, l'annonce en attente reste (choix de Soon, 2026-10-25 ; avant, elle était retirée).",
     "claude_version": "2.1.296",
     "date": "2026-10-20",
     "source": "plugin-plugin, sonde vivante de phase 12 : hook UserPromptSubmit de .claude/settings.local.json, déclenché par une notification de tâche de fond (build/probes/)",

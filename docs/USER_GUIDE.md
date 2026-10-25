@@ -64,7 +64,7 @@ Ne se lance que sur votre demande explicite, `/plugin-plugin:release <dossier>`.
 
    La version s'écrit aussi dans le README du plugin.
 3. **Rien à publier, des descriptions en retard** : la répétition propose un alignement seul, sans version, ni CHANGELOG, ni étiquette.
-4. **La publication**, à votre demande, avance étape par étape. Chaque étape est annoncée avec ses commandes ; tapez **« oui »**, littéralement, pour la lancer. Toute autre réponse la retire, et une annonce sans réponse pendant trente minutes aussi.
+4. **La publication**, à votre demande, avance étape par étape. Chaque étape est annoncée avec ses commandes ; tapez **« oui »**, littéralement, pour la lancer. Toute autre réponse la retire, et une annonce sans réponse pendant trente minutes aussi. Une notification de Claude Code, comme la fin d'une tâche de fond, n'est pas une réponse : l'annonce attend toujours la vôtre.
 5. La marketplace `soon` ne change que par une PR, pour un ajout comme pour un alignement. **La fusion est à vous.**
 6. À la fin : la commande d'installation ou de mise à jour ; après un alignement, `claude plugin marketplace update soon`, une fois la PR fusionnée.
 

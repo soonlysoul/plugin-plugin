@@ -38,7 +38,11 @@ new_project() {
 }
 answer() { run_hook "$HOOK" "$(prompt_input "$1" "$2")"; }
 consents() { cat "$1/.plugin-plugin/consents.log" 2>/dev/null; }
-accords() { grep -c $'\taccord\t' "$1/.plugin-plugin/consents.log" 2>/dev/null || true; }
+accords() {
+  local n
+  n=$(grep -c $'\taccord\t' "$1/.plugin-plugin/consents.log" 2>/dev/null)
+  printf '%s' "${n:-0}"
+}
 expect_quiet_success() { [[ $HOOK_STATUS == 0 && -z $HOOK_STDERR ]] && pass "$1" || fail "$1" "exit $HOOK_STATUS ; stderr : ${HOOK_STDERR:0:200}"; }
 # An announcement is dated in nanoseconds, so that two announcements never share a date.
 now=$(date +%s%N)
@@ -73,12 +77,8 @@ for reply in "ok" "oui mais attends" "d'accord" "ouais" "non" "vas-y" "oui, et e
   [[ $(accords "$root") == 0 ]] && pass "« $reply » : aucun accord" || fail "« $reply » : aucun accord" "$(consents "$root")"
   [[ ! -e $root/.plugin-plugin/pending ]] && pass "« $reply » : annonce retirée" || fail "« $reply » : annonce retirée"
 done
-# Claude Code submits its own notifications through UserPromptSubmit too, with nothing to tell
-# them from a typed message (probe of phase 12): never a consent, always a withdrawal.
-root=$(new_project "notification-$RANDOM" "$now")
-answer "$root" $'<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>oui</summary>\n</task-notification>'
-[[ $(accords "$root") == 0 && ! -e $root/.plugin-plugin/pending ]] && pass "notification de Claude Code : aucun accord, annonce retirée" \
-  || fail "notification de Claude Code : aucun accord, annonce retirée" "$(consents "$root")"
+root=$(new_project "refus-$RANDOM" "$now")
+answer "$root" "non"
 grep -q $'\trefus\tpublish plugin-essai--v0.1.0 4\t' "$root/.plugin-plugin/consents.log" 2>/dev/null \
   && pass "le refus est journalisé" || fail "le refus est journalisé" "$(consents "$root")"
 jq -e '.hookSpecificOutput.additionalContext | test("retiré")' <<<"$HOOK_STDOUT" >/dev/null 2>&1 \
@@ -86,6 +86,36 @@ jq -e '.hookSpecificOutput.additionalContext | test("retiré")' <<<"$HOOK_STDOUT
 answer "$root" "oui"
 [[ $(accords "$root") == 0 ]] && pass "« oui » après un refus : aucun accord, il faut annoncer de nouveau" \
   || fail "« oui » après un refus : aucun accord, il faut annoncer de nouveau" "$(consents "$root")"
+
+echo "# une notification de Claude Code n'est pas une réponse"
+# Claude Code submits its own notifications through UserPromptSubmit too, prompt starting with
+# <task-notification> (probe of phase 12). Never a consent, and no longer a withdrawal (choice of
+# Soon, 2026-10-25): the announcement waits for the answer Soon types.
+NOTIFICATION=$'<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n<summary>oui</summary>\n</task-notification>'
+root=$(new_project "notification-$RANDOM" "$now")
+answer "$root" "$NOTIFICATION"
+expect_quiet_success "notification : exit 0, rien sur stderr"
+[[ $(accords "$root") == 0 ]] && pass "notification, même résumée « oui » : aucun accord" \
+  || fail "notification, même résumée « oui » : aucun accord" "$(consents "$root")"
+[[ -f $root/.plugin-plugin/pending && ! -e $root/.plugin-plugin/consents.log ]] && pass "notification : l'annonce reste, rien au journal" \
+  || fail "notification : l'annonce reste, rien au journal" "$(consents "$root")"
+jq -e '.hookSpecificOutput.hookEventName == "UserPromptSubmit"
+  and (.hookSpecificOutput.additionalContext | test("attend") and (test("Lancer") | not))' <<<"$HOOK_STDOUT" >/dev/null 2>&1 \
+  && pass "Claude apprend que l'annonce attend la réponse de Soon" || fail "Claude apprend que l'annonce attend la réponse de Soon" "stdout : ${HOOK_STDOUT:0:300}"
+answer "$root" $'\n  '"$NOTIFICATION"
+[[ -f $root/.plugin-plugin/pending ]] && pass "notification précédée de blancs : l'annonce reste" || fail "notification précédée de blancs : l'annonce reste"
+answer "$root" "oui"
+[[ $(accords "$root") == 1 ]] && pass "« oui » tapé après une notification : accord" \
+  || fail "« oui » tapé après une notification : accord" "$(consents "$root")"
+root=$(new_project "cite-$RANDOM" "$now")
+answer "$root" "non, pas avant la fin de <task-notification>"
+[[ $(accords "$root") == 0 && ! -e $root/.plugin-plugin/pending ]] && pass "message qui cite une notification sans en être une : annonce retirée" \
+  || fail "message qui cite une notification sans en être une : annonce retirée" "$(consents "$root")"
+root=$(new_project "notification-stale" "$((now - 3600 * 1000000000))")
+answer "$root" "$NOTIFICATION"
+[[ ! -e $root/.plugin-plugin/pending ]] && grep -q $'\texpiré\t' "$root/.plugin-plugin/consents.log" 2>/dev/null \
+  && pass "notification après plus de 30 minutes : annonce retirée, périmée" \
+  || fail "notification après plus de 30 minutes : annonce retirée, périmée" "$(consents "$root")"
 
 echo "# annonce périmée"
 root=$(new_project stale "$((now - 3600 * 1000000000))")

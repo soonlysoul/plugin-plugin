@@ -3,7 +3,9 @@
 # The message Soon types right after a step announced by pp.sh publish or pp.sh mount is the only
 # consent to it. A literal « oui » is written to .plugin-plugin/consents.log for the announcement in
 # .plugin-plugin/pending, which gesture-guard then lets through once; any other message withdraws
-# the announcement; one left unanswered for 30 minutes is withdrawn. Claude is told which.
+# the announcement; one left unanswered for 30 minutes is withdrawn. Claude is told which. A
+# notification Claude Code submits itself (<task-notification>…) is no answer: the announcement
+# still waits.
 # Inert outside a managed project and without an announcement: installed for the account, the hook
 # sees every message of every session.
 # Fail-open: it always exits 0; hooks.json sets "onFailure": "continue".
@@ -26,6 +28,8 @@ if (($(date +%s%N) - PENDING_DATE > CONSENT_MAX_AGE_NS)); then
   rm -f "$state/pending"
   answer expiré
   tell "l'annonce « $PENDING_ID » est restée plus de 30 minutes sans réponse ; elle est retirée sans accord. Ne pas lancer le geste : l'annoncer de nouveau."
+elif [[ ${prompt#"${prompt%%[![:space:]]*}"} == '<task-notification>'* ]]; then
+  tell "une notification de Claude Code n'est pas une réponse : l'annonce « $PENDING_ID » attend toujours celle de Soon. Ne pas lancer le geste avant son « oui »."
 elif answer_is_yes "$prompt"; then
   consented "$project" || answer accord "« oui »"
   tell "« oui » capté pour « $PENDING_ID ». Lancer exactement cette commande, une seule fois : $PENDING_COMMAND"

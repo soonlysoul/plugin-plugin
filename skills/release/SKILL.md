@@ -52,7 +52,7 @@ The session must be open in the plugin's folder: the « oui » is captured there
 
 1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" publish <folder>`, with the `--bump` agreed at step 3 if any. It rehearses again, freezes the plan in `.plugin-plugin/publication.json` and announces the first step. A publication in progress resumes from what is really done, without redoing anything.
 2. Show the announcement verbatim — the gestures, the line `commande : …` — and stop. Do not answer for Soon; run nothing.
-3. Soon's next message is « oui », and the hook confirms it: run exactly the `commande : …` line, once, and show its output with the exit code. It ends with the next announcement: back to 2. Any other answer withdraws the announcement: run nothing, and announce again only if Soon asks.
+3. Soon's next message is « oui », and the hook confirms it: run exactly the `commande : …` line, once, and show its output with the exit code. It ends with the next announcement: back to 2. Any other answer withdraws the announcement: run nothing, and announce again only if Soon asks. A notification of Claude Code (`<task-notification>…`) is no answer: the hook says the announcement still waits; run nothing and keep waiting for Soon.
 4. `échoué` or `refusé` with a `reprise : …` line: show the report — the gesture, what is done, what remains, that line — and stop. Resume only when Soon asks, by running that line, which announces the step again. Without a `reprise : …` line: quote the reason and stop, as in step 2.
 5. `publication terminée` or `alignement terminé`: give the commands Soon runs on each device. The PR of the marketplace is merged by Soon, never by Claude.
 
