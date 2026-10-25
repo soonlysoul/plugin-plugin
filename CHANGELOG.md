@@ -2,12 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
-## [à venir] — en cours
+## [0.1.4] — 2026-10-25
 
 ### Corrigé
 
 - `gesture-guard` prenait une lecture GraphQL pour un geste : tout champ de `gh api` (`-f`, `-F`, `--input`) faisait un geste, ce qui est juste en REST, où un champ passe la requête en POST, mais faux pour `gh api graphql`, toujours en POST. Pour cet endpoint, seule une mutation est un geste : le mot-clé `mutation` dans la requête — en ligne, dans un fichier (`-F query=@…`, relatif au dossier de l'appel) ou dans `--input` —, ou une requête illisible (fichier absent, entrée standard, valeur construite par le shell, aucune requête). Le geste se nomme « gh api POST graphql (mutation) », plus « GET ». Relevé en construisant plugin-github-scout.
 - Le squelette fail-closed de `add-hook` bloquait hors de son contexte : il vérifiait jq et l'entrée avant tout test de contexte, si bien qu'un hook installé pour le compte bloquait chaque appel de chaque session dès que jq manquait ou qu'une entrée était illisible. Il va en deux temps : le contexte, en builtins seuls, sous une marque `# CONTEXT:` qui laisse le hook inerte tant qu'elle n'est pas remplacée ; puis la décision, fail-closed. Son test prouve le contrat des deux côtés du contexte, et `tests/lib.sh` gagne `expect_ask` pour un hook qui demande confirmation. Les hooks déjà générés ne changent pas. Relevé en construisant plugin-github-scout.
+
+Coût en contexte permanent : ~887 tokens — release ~130, create ~100, check ~140, resume ~110, add ~180, frame ~130, reaudit ~100.
 
 ## [0.1.3] — 2026-10-24
 
