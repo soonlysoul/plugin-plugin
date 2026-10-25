@@ -71,6 +71,44 @@ for cmd in "git status" "git log --oneline" "gh api repos/soonlysoul/plugin-essa
   expect_silent_allow "lecture : « $cmd » passe"
 done
 
+echo "# gh api graphql : seule une mutation est un geste"
+reset_state
+for dir in "$P" "$U"; do
+  printf 'query($owner: String!, $name: String!) {\n  repository(owner: $owner, name: $name) { stargazerCount }\n}\n' >"$dir/q.graphql"
+done
+printf 'mutation($id: ID!) {\n  addStar(input: {starrableId: $id}) { clientMutationId }\n}\n' >"$P/m.graphql"
+printf '{"query": "mutation { addStar(input: {starrableId: \\"R_1\\"}) { clientMutationId } }"}\n' >"$P/m.json"
+printf '{"query": "query { viewer { login } }"}\n' >"$P/q.json"
+MUTATION="gh api graphql -f query='mutation { addStar(input: {starrableId: \"R_1\"}) { clientMutationId } }'"
+for cmd in "gh api graphql -f query='query { viewer { login } }'" \
+  "gh api graphql -F query=@q.graphql -f owner=cli -f name=cli" \
+  "gh api graphql --raw-field query='query(\$n: Int!) { viewer { repositories(first: \$n) { totalCount } } }' -F n=10" \
+  "gh api graphql --input q.json" "gh api -F query=@q.graphql graphql" "cd skills/demo && gh api graphql -F query=@../../q.graphql"; do
+  guard "$P" "$cmd"
+  expect_silent_allow "lecture GraphQL : « $cmd » passe"
+done
+guard "$P/skills/demo" "gh api graphql -F query=@../../q.graphql -F first=10"
+expect_silent_allow "lecture GraphQL, fichier relatif au dossier de l'appel : passe"
+guard "$P" "$MUTATION"
+expect_reason "mutation en ligne : bloquée, nommée POST et mutation" "gh api POST graphql \(mutation\)"
+for cmd in "gh api graphql -F query=@m.graphql -f id=R_1" "gh api graphql --input m.json" "gh api graphql -F query=@absent.graphql" \
+  "gh api graphql --input -" "gh api graphql -F query=@-" "gh api graphql -f owner=cli -f name=cli" \
+  "gh api graphql -f query=\"\$(cat q.graphql)\""; do
+  guard "$P" "$cmd"
+  expect_reason "mutation ou requête illisible : « $cmd » bloqué" "POST graphql \(mutation\)"
+done
+guard "$P/skills/demo" "gh api graphql -F query=@q.graphql"
+expect_reason "fichier absent du dossier de l'appel : bloqué" "sans accord"
+guard "$P" "gh api repos/soonlysoul/plugin-essai -f a=b"
+expect_reason "REST avec un champ : toujours un geste" "sans accord"
+guard "$P" "gh api repos/soonlysoul/plugin-essai"
+expect_silent_allow "REST sans champ : passe toujours"
+guard "$U" "gh api graphql -F query=@q.graphql -f owner=cli -f name=cli"
+expect_silent_allow "lecture GraphQL hors contexte : inerte"
+guard "$U" "$MUTATION"
+expect_silent_allow "mutation hors contexte : inerte"
+rm -f "$P/q.graphql" "$P/m.graphql" "$P/m.json" "$P/q.json" "$U/q.graphql"
+
 echo "# geste sans accord"
 reset_state
 guard "$P" "git push origin main"

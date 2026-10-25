@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # gesture-guard — PreToolUse hook for Bash, Edit and Write.
 # In a managed plugin repository (a .plugin-plugin/ at or above it) or a clone of the marketplace
-# soon, a GitHub gesture — git push, a gh command that writes, claude plugin tag --push, a step run
-# by pp.sh --run — goes through only when it is the command announced in .plugin-plugin/pending of
-# the session's project, and consents.log holds the « oui » consent-capture captured for that
-# announcement; the announcement is then consumed, so the command passes once. Destructive gestures
-# are refused even so: deleting a repository, a forced push, rewriting history, a push on main of
-# the marketplace, a merge. The announcement and the journal of consents are never written by a
-# tool. The consent is read from disk: the guard depends on no other hook.
+# soon, a GitHub gesture — git push, a gh command that writes (by gh api graphql, a mutation),
+# claude plugin tag --push, a step run by pp.sh --run — goes through only when it is the command
+# announced in .plugin-plugin/pending of the session's project, and consents.log holds the « oui »
+# consent-capture captured for that announcement; the announcement is then consumed, so the command
+# passes once. Destructive gestures are refused even so: deleting a repository, a forced push,
+# rewriting history, a push on main of the marketplace, a merge. The announcement and the journal of
+# consents are never written by a tool. The consent is read from disk: the guard depends on no other
+# hook.
 # Inert anywhere else, even without jq: installed for the account, it sees every Bash call and
 # every write of every session. Not proof against a determined bypass (a script that pushes), it
 # stops the gesture typed by mistake.
@@ -85,6 +86,44 @@ git_push() {
   done
 }
 
+# query_file <file> <dir>: the text of a request file, <file> relative to <dir>; fails on stdin
+# and on a file that cannot be read.
+query_file() {
+  local file=${1#[\"\']}
+  [[ -n $file && $file != - ]] || return 1
+  [[ $file == /* ]] || file="$2/$file"
+  [[ -f $file && -r $file ]] && cat -- "$file" 2>/dev/null
+}
+
+# graphql_mutation <dir> <option> <value>...: true when the request of a gh api graphql call may
+# be a mutation — the keyword anywhere in its text, or a request that cannot be read: stdin, a
+# missing file, a value built by the shell, no query at all. Its other fields do not count.
+graphql_mutation() {
+  local dir=$1 option value text found=0
+  shift
+  while (($# > 1)); do
+    option=$1 value=$2
+    shift 2
+    if [[ $option == --input ]]; then
+      text=$(query_file "${value/#\~/$HOME}" "$dir") || return 0
+    elif [[ $value != query=* ]]; then
+      continue
+    elif [[ $option == -F || $option == --field ]] && [[ $value == query=@* ]]; then
+      text=$(query_file "${value#query=@}" "$dir") || return 0
+    else
+      # Inline: the split above cuts its text at the first parenthesis, so the keyword is looked
+      # for in the whole command.
+      value=${value#query=}
+      value=${value#[\"\']}
+      [[ -n $value && $value != [\$\`]* ]] || return 0
+      text=$command
+    fi
+    found=1
+    [[ $text == *mutation* ]] && return 0
+  done
+  ((!found))
+}
+
 # segment <dir> <tokens...>: one simple command, run from <dir>. Sets CURDIR after a cd.
 segment() {
   local dir=$1 word i
@@ -133,12 +172,15 @@ segment() {
         "pr merge") note_destructive "fusion (gh pr merge) : la PR de la marketplace se fusionne par Soon" ;;
       esac
       if [[ $group == api ]]; then
+        local -a sources=()
         for ((j = i + 2; j < ${#t[@]}; j++)); do
           arg=${t[j]}
           case $arg in
             -X | --method) method=${t[j + 1]:-}; j=$((j + 1)) ;;
             -X* | --method=*) method=${arg#-X}; method=${method#--method=} ;;
-            -f | -F | --field | --raw-field | --input | -f* | -F* | --field=* | --raw-field=* | --input=*) fields=1 ;;
+            -f | -F | --field | --raw-field | --input) fields=1; sources+=("$arg" "${t[j + 1]:-}"); j=$((j + 1)) ;;
+            --field=* | --raw-field=* | --input=*) fields=1; sources+=("${arg%%=*}" "${arg#*=}") ;;
+            -f* | -F*) fields=1; sources+=("${arg:0:2}" "${arg:2}") ;;
             -*) ;;
             *) [[ -n $endpoint ]] || endpoint=$arg ;;
           esac
@@ -146,7 +188,12 @@ segment() {
         method=${method^^}
         [[ $method == DELETE ]] && note_destructive "suppression par gh api (-X DELETE $endpoint)"
         [[ $endpoint == */merge && $method != GET ]] && note_destructive "fusion par gh api ($endpoint)"
-        [[ $method != GET || $fields == 1 ]] && note_gesture "gh api $method $endpoint"
+        # GraphQL always goes by POST, a read too: there, only a mutation is a gesture.
+        if [[ $endpoint == graphql ]]; then
+          graphql_mutation "$dir" ${sources[@]+"${sources[@]}"} && note_gesture "gh api POST graphql (mutation)"
+        elif [[ $method != GET || $fields == 1 ]]; then
+          note_gesture "gh api $method $endpoint"
+        fi
       elif [[ $group =~ ^(repo|pr|issue|release|secret|variable|label|workflow|gist|ruleset|project)$ \
         && $action =~ ^(create|delete|edit|rename|archive|unarchive|fork|sync|merge|close|reopen|comment|review|ready|upload|set|run|transfer|lock|unlock|pin|unpin|develop)$ ]]; then
         note_gesture "gh $group $action"

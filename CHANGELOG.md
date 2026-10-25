@@ -2,6 +2,12 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
+## [à venir] — en cours
+
+### Corrigé
+
+- `gesture-guard` prenait une lecture GraphQL pour un geste : tout champ de `gh api` (`-f`, `-F`, `--input`) faisait un geste, ce qui est juste en REST, où un champ passe la requête en POST, mais faux pour `gh api graphql`, toujours en POST. Pour cet endpoint, seule une mutation est un geste : le mot-clé `mutation` dans la requête — en ligne, dans un fichier (`-F query=@…`, relatif au dossier de l'appel) ou dans `--input` —, ou une requête illisible (fichier absent, entrée standard, valeur construite par le shell, aucune requête). Le geste se nomme « gh api POST graphql (mutation) », plus « GET ». Relevé en construisant plugin-github-scout.
+
 ## [0.1.3] — 2026-10-24
 
 ### Modifié
