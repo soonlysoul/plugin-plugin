@@ -1,11 +1,11 @@
 # PROGRESS — plugin-plugin v0.1
 
-Dernière mise à jour : 2026-10-23
+Dernière mise à jour : 2026-10-24
 Reprise : lire ce fichier, puis `git log --oneline` ; le plan fait foi (`docs/PLAN.md`, APPROUVÉ).
 
 ## État courant
 
-Branche `main`, publiée ; `feat/v0.1.0` reste en local sur `c103f67`, l'avant-publication. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phases 6 à 15 terminées.** Le passage réel de la phase 6, payant, est celui du skill du témoin de la phase 15 (choix de Soon) ; les phases 7 à 12 n'en dépendaient pas. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Phase 15 : le témoin `plugin-changelog` — un skill, un hook, un agent — construit par plugin-plugin du cadrage à la répétition de publication, 26 interventions de Soon, toutes demandées ; il a révélé deux écarts de plugin-plugin, corrigés. Phase 16 terminée : relecture des skills faite, ses 22 constats critiques et majeurs corrigés, trois défauts de `pp.sh` corrigés (rouge puis vert), documents d'usage et architecture posés, `check` à zéro écart sur plugin-plugin, plan et architecture approuvés (« Je valide »), étiquette locale `plugin-plugin--v0.1.0` sur `fec6a94`. **plugin-plugin 0.1.1 publié par lui-même** le 2026-10-20 : onze gestes, chacun sur un « oui », étiquette `plugin-plugin--v0.1.1` sur GitHub, PR #1 de la marketplace fusionnée par Soon, `claude plugin list` montre `plugin-plugin@soon` 0.1.1. **v0.1 livrée : les seize phases du plan sont terminées.** Coût permanent 880 tokens. **Phase 17, hors plan, terminée** : plugin-nixos réécrit par plugin-plugin, publié en 0.2.0 le 2026-10-20 à la place de l'original (étiquette `plugin-nixos--v0.2.0`), installé sur ce poste avec plugin-flutter 0.3.0 ; le correctif `c43d870` de `pp.sh` reste local, et la copie installée de plugin-plugin est 0.1.1. **Phase 18 en cours** : `release` tient descriptions et documents sur le `plugin.json` ; **plugin-plugin 0.1.2 publié** le 2026-10-20 (étiquette `plugin-plugin--v0.1.2`, description du dépôt posée, PR #2 de la marketplace fusionnée par Soon le 2026-10-21, 0.1.2 installé sur ce poste) ; **plugin-nixos aligné** le 2026-10-21 sans version (PR #3 fusionnée) ; l'alignement de plugin-flutter sort du plan le 2026-10-23 (décision i), un usage de plugin-plugin à la main de Soon. **Phase 19 en cours**, sur la branche `feat/own-model` : le modèle devient propre à plugin-plugin (`docs/MODEL.md`), plus aucun test ne lit un autre plugin ; PRD, PLAN, MODEL.md et architecture approuvés le 2026-10-23, suite verte ; reste le commit, puis une publication de plugin-plugin quand Soon la demande.
+Branche `main`, publiée ; `feat/v0.1.0` reste en local sur `c103f67`, l'avant-publication. **Phases 1 à 5 terminées** : plugin-plugin 0.1.0 chargeable, base de faits de 105 faits, ré-audit à zéro sur 2.1.296, cadrage (`frame`), garde de statut des documents, création d'un plugin vert (`create`), reprise depuis le disque (`resume`, rappel du point de reprise), suite déterministe verte, coût permanent 571 tokens. **Phases 6 à 15 terminées.** Le passage réel de la phase 6, payant, est celui du skill du témoin de la phase 15 (choix de Soon) ; les phases 7 à 12 n'en dépendaient pas. La phase 10 a été menée sans attendre le passage réel de la phase 6, dont elle ne se sert pas (choix de Soon, le 2026-10-20) : `check` liste les écarts d'un plugin au modèle, et `add` ajoute à plugin-flutter sans toucher à son métier. Phase 13 : plugin-flutter reconstruit dans `build/rebuild/` par `pp.sh rebuild`, sans écart de charpente, sa suite à 100 %. Phase 14 : plugin-nixos réécrit au modèle dans `build/rewrite/` par `tests/rewrite/plugin-nixos.sh`, un test de plugin-plugin — suite portée verte, chacun de ses 351 cas d'origine gardé, `check` à zéro écart ; au-delà du budget de contexte, la suite d'un plugin produit alerte au lieu d'échouer (choix de Soon). Phase 15 : le témoin `plugin-changelog` — un skill, un hook, un agent — construit par plugin-plugin du cadrage à la répétition de publication, 26 interventions de Soon, toutes demandées ; il a révélé deux écarts de plugin-plugin, corrigés. Phase 16 terminée : relecture des skills faite, ses 22 constats critiques et majeurs corrigés, trois défauts de `pp.sh` corrigés (rouge puis vert), documents d'usage et architecture posés, `check` à zéro écart sur plugin-plugin, plan et architecture approuvés (« Je valide »), étiquette locale `plugin-plugin--v0.1.0` sur `fec6a94`. **plugin-plugin 0.1.1 publié par lui-même** le 2026-10-20 : onze gestes, chacun sur un « oui », étiquette `plugin-plugin--v0.1.1` sur GitHub, PR #1 de la marketplace fusionnée par Soon, `claude plugin list` montre `plugin-plugin@soon` 0.1.1. **v0.1 livrée : les seize phases du plan sont terminées.** Coût permanent 880 tokens. **Phase 17, hors plan, terminée** : plugin-nixos réécrit par plugin-plugin, publié en 0.2.0 le 2026-10-20 à la place de l'original (étiquette `plugin-nixos--v0.2.0`), installé sur ce poste avec plugin-flutter 0.3.0 ; le correctif `c43d870` de `pp.sh` reste local, et la copie installée de plugin-plugin est 0.1.1. **Phase 18 en cours** : `release` tient descriptions et documents sur le `plugin.json` ; **plugin-plugin 0.1.2 publié** le 2026-10-20 (étiquette `plugin-plugin--v0.1.2`, description du dépôt posée, PR #2 de la marketplace fusionnée par Soon le 2026-10-21, 0.1.2 installé sur ce poste) ; **plugin-nixos aligné** le 2026-10-21 sans version (PR #3 fusionnée) ; l'alignement de plugin-flutter sort du plan le 2026-10-23 (décision i), un usage de plugin-plugin à la main de Soon. **Phase 19 terminée** : le modèle est propre à plugin-plugin (`docs/MODEL.md`), plus aucun test ne lit un autre plugin ; commit `eade62d`, sur `main` ; **plugin-plugin 0.1.3 publié** le 2026-10-24 (`7cfe71a`, étiquette `plugin-plugin--v0.1.3`, douze gestes « fait, exit 0 » au journal `.plugin-plugin/gestures.log`, PR de marketplace ouverte au geste 12). **Phase 20 en cours** : deux défauts de plugin-plugin relevés en construisant plugin-github-scout — une lecture `gh api graphql` prise pour un geste, un squelette fail-closed qui bloque hors de son contexte —, corrigés rouge puis vert, non commités.
 
 **Écart relevé en phase 9** — la décision c veut la suite d'évaluation de chaque skill de plugin-plugin, écrite et vérifiée phase après phase. `evals/` couvre `reaudit`, `frame`, `create`, `resume` et, depuis la phase 11, `release` ; pas `add`, ajouté en phase 6 et étendu en phases 7 à 9. Ses cas doivent venir de demandes concrètes. **Décision de Soon, le 2026-10-20** : ils viennent de la phase 15 — les demandes tapées pour ajouter le skill, l'agent et le hook du témoin font les cas positifs ; un ou deux négatifs proposés, validés par Soon. **Fermé en phase 15** : `evals/add/`, cinq cas, conforme à `check-evals`, non lancé (choix de Soon).
 
@@ -1045,7 +1045,7 @@ Le 2026-10-21, par Soon, dans une session ouverte dans `../plugin-nixos`, avec p
 
 Vérifié par `gh` : la description du dépôt, l'entrée de la marketplace et la ligne du README égalent le `plugin.json` de plugin-nixos, sa commande d'installation présente une fois ; la ligne de plugin-plugin reste égale à son `plugin.json`. Aucun commit, aucune étiquette dans plugin-nixos : `main` reste sur `4c42f1e`, la dernière étiquette `plugin-nixos--v0.2.0` (US-37).
 
-## Phase 19 — Un modèle propre à plugin-plugin — en cours
+## Phase 19 — Un modèle propre à plugin-plugin — terminée
 
 Demande de Soon, le 2026-10-23, en cadrant un plugin qui crée des serveurs MCP (`../plugin-mcp`, cadrage en pause à sa question 1) : « avoir un modèle généraliste et ne plus utiliser le modèle d'un plugin déjà existant » ; puis « tranche au mieux, mais n'utilise pas de plugin déjà créé autre que plugin, car ils sont sujets à être modifiés dans le temps ». Décision déléguée, consignée dans `.plugin-plugin/decisions.md` : un modèle propre à plugin-plugin — mêmes règles, écrites dans `docs/MODEL.md` avec leur raison, exclusions gardées — plutôt qu'un modèle élargi à tout ce que Claude Code accepte.
 
@@ -1057,7 +1057,7 @@ Demande de Soon, le 2026-10-23, en cadrant un plugin qui crée des serveurs MCP 
 - [x] `test_check_real` remplacé par `test_check_self` : `check` sur plugin-plugin lui-même, zéro écart, rien de modifié. `tests/rewrite/plugin-nixos.sh` et `test_rewrite_nixos` retirés.
 - [x] Doublures de `gh` et de la marketplace : `plugin-alpha`, `plugin-beta`, `alpha-forge` au lieu des vrais noms. Base de faits : deux identifiants renommés, trois façons de revérifier reprises sur plugin-plugin ou un plugin d'essai, une quatrième (le garde du compte) décrite sans nommer de plugin ; sources et énoncés gardés, c'est l'historique.
 - [x] `docs/MODEL.md` approuvé par Soon le 2026-10-23 (« Je valide »), `docs/ARCHITECTURE.md` réapprouvé le même jour (« oui ») : `pp.sh approve`, exit 0, empreintes dans `.plugin-plugin/approvals.log`.
-- [ ] Commit sur `feat/own-model`, sur un « oui ».
+- [x] Commit `eade62d` sur `feat/own-model`, porté sur `main` ; publié en 0.1.3 le 2026-10-24 (`7cfe71a`).
 
 ### Rouge puis vert
 
@@ -1084,3 +1084,57 @@ Demande de Soon, le 2026-10-23, en cadrant un plugin qui crée des serveurs MCP 
 | `rebuild` garde le `tests/lib.sh` de l'original | `test_rebuild` | 1 | 7 échecs, dont « tests/lib.sh : celui de plugin-plugin » et la suite de la reconstruction |
 
 Le garde `guard-destructive` de plugin-flutter, installé pour le compte, a refusé un `rm -rf` d'un dossier de travail hors de `build/` pendant la phase : non contourné, un dossier neuf a été pris (fait `account-guard-rm-rf`, revu).
+
+## Phase 20 — Deux défauts relevés en construisant plugin-github-scout — en cours
+
+Demande de Soon, le 2026-10-24 : deux défauts de plugin-plugin, relevés en construisant `../plugin-github-scout` (non touché, lu seulement), chacun corrigé en TDD strict.
+
+- [x] `gesture-guard` : une lecture `gh api graphql` n'est plus un geste ; seule une mutation l'est, ou une requête illisible.
+- [x] `pp.sh add-hook` : squelette fail-closed en deux temps — contexte en builtins seuls sous la marque `# CONTEXT:`, puis décision fail-closed ; test généré en deux temps ; `expect_ask` dans `tests/lib.sh` ; `skills/add/reference/hook.md`, étapes 3 à 5.
+- [x] Les hooks déjà générés dans les autres plugins ne sont pas touchés : seul `cmd_add_hook` appelle le gabarit, et les empreintes sha256 des `hooks/`, `tests/hooks/` et `tests/lib.sh` des huit autres dépôts de `../` (41 fichiers) sont identiques avant et après.
+- [x] CHANGELOG : les deux corrections sous « Corrigé », section « à venir — en cours ».
+- [ ] Deux commits, un par correction, sur un « oui ».
+
+### Défaut 1 — une lecture GraphQL prise pour un geste
+
+Constaté : dans un dépôt géré, `gh api graphql -F query=@q.graphql -f owner=cli -f name=cli` était bloqué, « geste GitHub sans accord (gh api GET graphql) ». Toute option `-f`, `-F`, `--field`, `--raw-field` ou `--input` faisait un geste : juste en REST, où un champ passe la requête en POST ; faux pour `graphql`, que `gh` envoie toujours en POST, lecture comprise. Le 2026-10-24, le `gesture-guard` 0.1.3 installé sur ce poste a bloqué l'écriture de ce paragraphe par un heredoc qui citait cette commande, au libellé « gh api GET graphql » ; corrigé, il le bloquerait encore, par prudence (fichier absent du dossier de l'appel, `mutation` dans le texte) : écrit par l'outil Edit.
+
+Corrigé : pour l'endpoint `graphql`, seule une mutation est un geste, nommé « gh api POST graphql (mutation) ». La requête vient de `-f`/`--raw-field`/`-F query=<texte>`, de `-F query=@<fichier>` (relatif au dossier de l'appel, après un `cd` aussi) ou de `--input <fichier>` ; le mot-clé `mutation` n'importe où dans son texte en fait une mutation. Une requête illisible en est une, par prudence : fichier absent, `--input -`, `query=@-`, valeur construite par le shell (`"$(cat q.graphql)"`, `$Q`), aucune requête. Les autres champs ne comptent pas. Le découpage du hook coupe le texte d'une requête en ligne à sa première parenthèse : le mot-clé y est cherché dans toute la commande, et un `mutation` ailleurs dans la commande bloque aussi. Les valeurs de `-f`, `-F` et `--input` sont désormais lues comme telles : `gh api -F query=@q.graphql graphql` trouve son endpoint ; en REST, seul change l'endpoint nommé quand un champ le précède, et une fusion par `gh api … -X PUT …/merge` est alors refusée comme les autres. REST, gestes destructeurs, inertie hors contexte, blocage dans le contexte : inchangés.
+
+### Défaut 2 — le squelette fail-closed bloque hors de son contexte
+
+Constaté : le squelette fail-closed de `add-hook` vérifiait jq et la lisibilité de l'entrée avant tout test de contexte. Installé pour le compte, un tel hook bloquait chaque appel de chaque session dès que jq manquait ou qu'une entrée était illisible, contre l'avertissement que `pp.sh` affiche lui-même.
+
+Corrigé : le squelette va en deux temps. 1. Le contexte, en builtins bash seuls : la marque `# CONTEXT:` et la ligne sous elle, que l'auteur remplace ; jusque-là, seule une entrée qui nomme `__CONTEXT__` est dans le contexte, et le hook reste inerte ; une erreur ou une entrée hors contexte sort en 0. 2. La décision, fail-closed : jq et l'entrée vérifiés comme avant, puis `# RULE:`. Le test généré prouve le contrat des deux côtés, sur deux entrées `inside` et `outside` que l'auteur remplace : dans le contexte, entrée illisible et jq absent bloqués ; hors de lui, les mêmes passent en silence (PATH vide). Il n'appelle que les aides de tout harnais du modèle, avec un `quiet` local. `tests/lib.sh` gagne `expect_ask` : exit 0, stderr vide, `hookSpecificOutput.permissionDecision == "ask"` avec une raison. Le squelette fail-open ne change pas. Exemple suivi : `quarantine-guard` de plugin-github-scout et son test.
+
+### Rouge puis vert
+
+| Étape | Commande | Code | Résultat |
+| --- | --- | --- | --- |
+| ROUGE | `bash tests/hooks/test_gesture_guard.sh` | 1 | 68 réussis, 15 échoués : sept lectures GraphQL bloquées, « geste GitHub sans accord (gh api GET graphql) » ; huit blocages nommés « GET » au lieu de « POST graphql (mutation) ». Les cas REST et hors contexte passent déjà. |
+| VERT | `bash tests/hooks/test_gesture_guard.sh` | 0 | 83 réussis |
+| ROUGE | `bash tests/integration/test_add_hook.sh` | 1 | 34 réussis, 6 échoués : marque `# CONTEXT:` absente ; hors contexte, entrée illisible et jq absent bloqués (exit 2, « entrée illisible », « jq introuvable ») ; contrat du test généré d'un seul côté (0 cas sur 4, deux fois) ; « expect_ask : commande introuvable » |
+| ROUGE | `bash tests/integration/test_add_existing.sh` | 1 | 19 réussis, 1 échoué : sous le harnais d'un plugin étranger, contrat du test généré d'un seul côté (0 cas sur 4) |
+| VERT | `bash tests/integration/test_add_hook.sh` | 0 | 40 réussis |
+| VERT | `bash tests/integration/test_add_existing.sh` | 0 | 20 réussis |
+| VERT | `bash tests/run-all.sh` | 0 | réussies 33, échouées 0, sautées 1 (`agents` absent, comme avant), bloquées 0, alertes 0 ; 1 313 cas ; coût permanent 887 tokens (seuil 1 000) |
+
+### Les tests discriminent
+
+`PLUGIN_UNDER_TEST=<copie faussée>`, cinq copies dans `build/mutants/p20/` :
+
+| Copie faussée | Test | Code | Échec |
+| --- | --- | --- | --- |
+| requête en ligne jamais lue | `test_gesture_guard` | 1 | « mutation en ligne : bloquée, nommée POST et mutation » |
+| fichier de requête relatif au dossier de la session, pas de l'appel | `test_gesture_guard` | 1 | « cd skills/demo && gh api graphql -F query=@../../q.graphql » passe |
+| requête illisible laissée passer | `test_gesture_guard` | 1 | « gh api graphql --input - » bloqué |
+| contexte testé après jq et l'entrée, l'ordre d'avant | `test_add_hook` | 1 | 6 échecs, dont la marque avant jq et les deux cas hors contexte |
+| `expect_ask` absent de `tests/lib.sh` | `test_add_hook` | 1 | « expect_ask, dans le harnais du plugin créé » |
+
+Le garde `guard-destructive` de plugin-flutter a refusé un `rm -rf "$M"` de précaution en préparant les copies : non contourné ; le dossier n'existait pas, il a été créé sans rien supprimer.
+
+### Relevé, non traité
+
+- `/plugin-plugin:add` ne couvre pas un script de `scripts/` : plugin-github-scout écrit `scripts/ghs.sh` à la main.
+- `test_paths` exige qu'un script de `scripts/` soit cité par `${CLAUDE_PLUGIN_ROOT}/…` dans un `SKILL.md`, un agent, `hooks.json` ou une déclaration MCP : la suite d'un plugin reste rouge tant que le skill qui appelle le script n'existe pas.
+- `docs/MODEL.md` (R7) décrit un garde fail-closed par « exit 2 sur toute erreur interne » ; le squelette ne bloque plus que dans son contexte, comme le veut R8. Formulation à revoir par Soon, MODEL.md étant approuvé.

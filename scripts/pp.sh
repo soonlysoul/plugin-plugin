@@ -986,7 +986,9 @@ HOOK_EVENTS=" PreToolUse PostToolUse UserPromptSubmit Stop SubagentStop SessionS
 SCOPE_WARNING="avertissement : installé pour le compte, ce hook s'appliquera à toutes les sessions, dans tous les projets ; il doit rester inerte hors de son contexte."
 
 # hook_script <name> <event> <matcher> <mode>: the skeleton, whose input contract is already
-# written and whose rule is not.
+# written and whose rule is not. A fail-closed one goes in two stages: its context, tested with
+# builtins only, outside of which it lets everything through, even on an error; then its decision,
+# where an error blocks. Its context is not written either: until it is, it is inert.
 hook_script() {
   local name=$1 event=$2 matcher=$3 mode=$4
   printf '#!/usr/bin/env bash\n'
@@ -994,10 +996,16 @@ hook_script() {
   printf '# TODO: what it checks, and the context outside of which it stays silent. Installed for the\n'
   printf '# account, it runs in every session; it assumes no order among the hooks of an event.\n'
   if [[ $mode == fail-closed ]]; then
-    printf '# Fail-closed: exit 2 with the reason on stderr blocks; an internal error blocks too (jq\n'
-    printf '# missing, unreadable input); hooks.json sets "onFailure": "block".\n\n'
-    printf 'command -v jq >/dev/null 2>&1 || { echo "%s : jq introuvable ; blocage par précaution." >&2; exit 2; }\n' "$name"
+    printf '# Fail-closed in its context: exit 2 with the reason on stderr blocks; an internal error\n'
+    printf '# blocks too (jq missing, unreadable input); hooks.json sets "onFailure": "block". Outside\n'
+    printf '# its context it stays silent, even on an error.\n\n'
+    printf '# 1. Context, with bash builtins only, neither jq nor any other command: an error or an input\n'
+    printf '# outside the context lets the call through.\n'
     printf "IFS= read -r -d '' input || true\n"
+    printf '# CONTEXT: not written yet; until it is, an input is in context only when it names __CONTEXT__.\n'
+    printf '[[ $input == *__CONTEXT__* ]] || exit 0\n\n'
+    printf '# 2. Decision: from here on, an internal error blocks.\n'
+    printf 'command -v jq >/dev/null 2>&1 || { echo "%s : jq introuvable ; blocage par précaution." >&2; exit 2; }\n' "$name"
     printf "jq -e 'type == \"object\"' >/dev/null 2>&1 <<<\"\$input\" || { echo \"%s : entrée illisible ; blocage par précaution.\" >&2; exit 2; }\n" "$name"
   else
     if [[ $event == Stop || $event == SubagentStop ]]; then
@@ -1015,27 +1023,41 @@ hook_script() {
   printf '\n# RULE: the rule is not written yet.\nexit 0\n'
 }
 
-# hook_test <name> <mode>: the simulated-input test, its contract cases green on the skeleton,
-# and a placeholder that fails until the rule's own cases replace it. It calls only what every
-# harness of the model has (pass, fail, run_hook, expect_status, expect_blocked, finish): jq is
-# taken away by an empty PATH, the skeleton calling nothing before it.
+# hook_test <name> <mode> <event>: the simulated-input test, its contract cases green on the
+# skeleton, and a placeholder that fails until the rule's own cases replace it. A fail-closed
+# hook's contract holds on both sides of its context: in it, an unreadable input or no jq blocks;
+# outside it, the same pass in silence. It calls only what every harness of the model has (pass,
+# fail, run_hook, expect_status, expect_blocked, finish, HOOK_STATUS, HOOK_STDERR): jq is taken
+# away by an empty PATH, the skeleton calling nothing before it.
 hook_test() {
-  local name=$1 mode=$2
+  local name=$1 mode=$2 event=$3
   printf '#!/usr/bin/env bash\n'
   printf '# %s: simulated inputs, no session.\n' "$name"
   printf '# shellcheck source=../lib.sh\nsource "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"\n'
   printf 'SUITE=test_%s\nHOOK="$PLUGIN_ROOT/hooks/scripts/%s.sh"\n\n' "${name//-/_}" "$name"
-  printf 'echo "# contrat du squelette"\n'
   if [[ $mode == fail-closed ]]; then
-    printf "run_hook \"\$HOOK\" 'pas du json'\nexpect_blocked \"squelette : entrée illisible bloquée\"\n"
-    printf "no_jq=\$(mktemp -d)\nrun_hook \"\$HOOK\" '{}' PATH=\"\$no_jq\"\nrm -rf \"\$no_jq\"\nexpect_blocked \"squelette : jq absent bloqué\"\n\n"
+    printf '# An input in the context of the hook and one outside it. Until # CONTEXT: is written in the\n'
+    printf '# script, an input is in context when it names __CONTEXT__: replace both by inputs of its own.\n'
+    printf "inside='{\"session_id\": \"test\", \"cwd\": \"/work/__CONTEXT__\", \"hook_event_name\": \"%s\"}'\n" "$event"
+    printf "outside='{\"session_id\": \"test\", \"cwd\": \"/work/proj\", \"hook_event_name\": \"%s\"}'\n" "$event"
+    printf '# quiet <label>: exit 0, nothing on stderr nor on stdout.\n'
+    printf 'quiet() {\n'
+    printf '  if [[ $HOOK_STATUS == 0 && -z ${HOOK_STDERR-} && -z ${HOOK_STDOUT-} ]]; then pass "$1"; else fail "$1" "exit $HOOK_STATUS ; ${HOOK_STDERR-}"; fi\n'
+    printf '}\nno_jq=$(mktemp -d)\n\n'
+    printf 'echo "# contrat du squelette, dans son contexte"\n'
+    printf 'run_hook "$HOOK" "pas du json $inside"\nexpect_blocked "squelette, dans son contexte : entrée illisible bloquée"\n'
+    printf 'run_hook "$HOOK" "$inside" PATH="$no_jq"\nexpect_blocked "squelette, dans son contexte : jq absent bloqué"\n\n'
+    printf 'echo "# contrat du squelette, hors contexte : en silence, même en erreur"\n'
+    printf 'run_hook "$HOOK" "pas du json $outside"\nquiet "squelette, hors contexte : entrée illisible, en silence"\n'
+    printf 'run_hook "$HOOK" "$outside" PATH="$no_jq"\nquiet "squelette, hors contexte : jq absent, en silence"\nrm -rf "$no_jq"\n\n'
   else
+    printf 'echo "# contrat du squelette"\n'
     printf "run_hook \"\$HOOK\" 'pas du json'\nexpect_status \"squelette : entrée illisible, exit 0\" 0\n"
     printf "no_jq=\$(mktemp -d)\nrun_hook \"\$HOOK\" '{}' PATH=\"\$no_jq\"\nrm -rf \"\$no_jq\"\nexpect_status \"squelette : jq absent, exit 0\" 0\n\n"
   fi
   printf 'echo "# règle"\n'
-  printf '# Replace the rule_placeholder call by the rule'"'"'s simulated inputs: what it blocks or reports,\n'
-  printf '# what it lets through, and an input outside its context, where it stays silent.\n'
+  printf '# Replace the rule_placeholder call by the rule'"'"'s simulated inputs: what it blocks, asks to\n'
+  printf '# confirm or reports, what it lets through, and an input outside its context, where it stays silent.\n'
   printf 'rule_placeholder() { fail "règle de %s : à écrire" "remplacer rule_placeholder par les entrées simulées de la règle"; }\n' "$name"
   printf 'rule_placeholder\n\nfinish\n'
 }
@@ -1088,7 +1110,7 @@ cmd_add_hook() {
   fi
   mkdir -p "$plugin/hooks/scripts" "$plugin/tests/hooks"
   hook_script "$name" "$event" "$matcher" "$mode" >"$plugin/$script"
-  hook_test "$name" "$mode" >"$plugin/$test"
+  hook_test "$name" "$mode" "$event" >"$plugin/$test"
   wire_hook "$plugin" "$script" "$event" "$matcher" "$mode" "$timeout"
   note_hook "$plugin" "$name" "$event" "$matcher" "$mode"
   printf 'écrit : %s, %s, hooks/hooks.json, docs/INSTALLATION.md\n' "$script" "$test"

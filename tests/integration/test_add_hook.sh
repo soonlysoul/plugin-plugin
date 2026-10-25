@@ -75,13 +75,24 @@ if command -v shellcheck >/dev/null 2>&1; then
 else
   skip "squelette : shellcheck -S warning" "shellcheck absent"
 fi
+# Two stages: the context, with builtins only, lets everything outside it through, even on an
+# error; the decision, fail-closed. Until # CONTEXT: is written, an input naming __CONTEXT__ is in it.
+context_line=$(grep -n '^# CONTEXT: ' "$script" | head -n 1 | cut -d: -f1)
+jq_line=$(grep -n 'command -v jq' "$script" | head -n 1 | cut -d: -f1)
+[[ -n $context_line && -n $jq_line ]] && ((context_line < jq_line)) && pass "squelette fail-closed : la marque # CONTEXT: précède jq et l'entrée" \
+  || fail "squelette fail-closed : la marque # CONTEXT: précède jq et l'entrée" "CONTEXT ligne ${context_line:-absente}, jq ligne ${jq_line:-absente}"
+no_path=$(mktemp -d)
+run_hook "$script" 'pas du json __CONTEXT__'
+[[ $HOOK_STATUS == 2 && -n $HOOK_STDERR ]] && pass "squelette fail-closed, dans son contexte : entrée illisible bloquée, raison sur stderr" \
+  || fail "squelette fail-closed, dans son contexte : entrée illisible bloquée, raison sur stderr" "exit $HOOK_STATUS"
+run_hook "$script" '{"cwd": "/work/__CONTEXT__"}' PATH="$no_path"
+[[ $HOOK_STATUS == 2 && -n $HOOK_STDERR ]] && pass "squelette fail-closed, dans son contexte : jq absent bloqué" \
+  || fail "squelette fail-closed, dans son contexte : jq absent bloqué" "exit $HOOK_STATUS"
 run_hook "$script" 'pas du json'
-[[ $HOOK_STATUS == 2 && -n $HOOK_STDERR ]] && pass "squelette fail-closed : entrée illisible bloquée, raison sur stderr" \
-  || fail "squelette fail-closed : entrée illisible bloquée, raison sur stderr" "exit $HOOK_STATUS"
-no_jq=$(path_without jq)
-run_hook "$script" '{}' PATH="$no_jq"
-rm -rf "$no_jq"
-[[ $HOOK_STATUS == 2 && -n $HOOK_STDERR ]] && pass "squelette fail-closed : jq absent bloqué" || fail "squelette fail-closed : jq absent bloqué" "exit $HOOK_STATUS"
+expect_silent_allow "squelette fail-closed, hors contexte : entrée illisible, en silence"
+run_hook "$script" '{"cwd": "/work/proj"}' PATH="$no_path"
+expect_silent_allow "squelette fail-closed, hors contexte : ni jq ni aucune commande, en silence"
+rm -rf "$no_path"
 run_pp add-hook "$plugin" --name garde-rm --event PreToolUse --matcher Bash --mode fail-closed
 expect_pp "hook déjà présent : refusé" 1
 
@@ -91,15 +102,45 @@ suite_status=$?
 [[ $suite_status == 1 ]] && pass "suite du plugin : rouge (exit 1)" || fail "suite du plugin : rouge (exit 1)" "exit $suite_status"
 grep -qE "ÉCHEC +règle de garde-rm : à écrire" <<<"$suite_output" && pass "rouge pour la bonne raison : la règle n'est pas écrite" \
   || fail "rouge pour la bonne raison : la règle n'est pas écrite" "$(grep -E 'ÉCHEC' <<<"$suite_output" | head -3 | tr '\n' '|')"
-grep -qE '^  ok +.*squelette' <<<"$suite_output" || grep -qE 'test_garde_rm : [0-9]+ réussis' <<<"$suite_output" \
-  && pass "le contrat du squelette passe déjà" || fail "le contrat du squelette passe déjà"
-# What add then has Claude do: the rule and its simulated inputs, replacing the placeholders.
-sed -i 's|^# RULE: the rule is not written yet\.$|command=$(jq -r ".tool_input.command // empty" <<<"$input")\nif [[ $command == *"rm -rf /"* ]]; then echo "garde-rm : rm -rf / refusé." >\&2; exit 2; fi|' "$script"
-sed -i 's|^rule_placeholder$|run_hook "$HOOK" "$(jq -nc '"'"'{tool_name: "Bash", tool_input: {command: "rm -rf /"}}'"'"')"\nexpect_blocked "règle de garde-rm : rm -rf / bloqué"\nrun_hook "$HOOK" "$(jq -nc '"'"'{tool_name: "Bash", tool_input: {command: "ls"}}'"'"')"\nexpect_silent_allow "règle de garde-rm : ls autorisé"|' "$test_file"
+contract=$(grep -cE '^  ok +squelette, (dans son|hors) contexte : ' <<<"$suite_output")
+[[ $contract == 4 ]] && pass "le contrat du squelette passe déjà, dans son contexte et hors de lui" \
+  || fail "le contrat du squelette passe déjà, dans son contexte et hors de lui" "$contract cas sur 4 ; $(grep -E 'squelette' <<<"$suite_output" | tr '\n' '|')"
+# What add then has Claude do: the context and the rule, and their simulated inputs in place of
+# the placeholders.
+cat >"$work/context.sh" <<'EOF'
+[[ $input == *'"command"'*rm* ]] || exit 0
+EOF
+cat >"$work/rule.sh" <<'EOF'
+command=$(jq -r '.tool_input.command // empty' <<<"$input")
+if [[ $command == *"rm -rf /" ]]; then echo "garde-rm : rm -rf / refusé." >&2; exit 2; fi
+if [[ $command == *"rm -rf "* ]]; then
+  jq -nc '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: "garde-rm : rm -rf, à confirmer."}}'
+fi
+EOF
+cat >"$work/cases.sh" <<'EOF'
+run_hook "$HOOK" "$(jq -nc '{tool_name: "Bash", tool_input: {command: "rm -rf /"}}')"
+expect_blocked "règle de garde-rm : rm -rf / bloqué"
+run_hook "$HOOK" "$(jq -nc '{tool_name: "Bash", tool_input: {command: "rm -rf build"}}')"
+expect_ask "règle de garde-rm : rm -rf build, confirmation demandée"
+run_hook "$HOOK" "$(jq -nc '{tool_name: "Bash", tool_input: {command: "rm notes.txt"}}')"
+expect_silent_allow "règle de garde-rm : rm d'un fichier autorisé"
+run_hook "$HOOK" "$(jq -nc '{tool_name: "Bash", tool_input: {command: "ls"}}')"
+expect_silent_allow "règle de garde-rm : ls, hors contexte"
+EOF
+sed -i -e "/^# CONTEXT: /{r $work/context.sh" -e 'N;d}' -e "/^# RULE: the rule is not written yet\.\$/{r $work/rule.sh" -e 'd}' "$script"
+sed -i -e "/^rule_placeholder\$/{r $work/cases.sh" -e 'd}' \
+  -e "s|^inside=.*|inside='{\"tool_name\": \"Bash\", \"tool_input\": {\"command\": \"rm -rf build\"}}'|" \
+  -e "s|^outside=.*|outside='{\"tool_name\": \"Bash\", \"tool_input\": {\"command\": \"ls\"}}'|" "$test_file"
 suite_output=$(cd "$work" && bash "$plugin/tests/run-all.sh" 2>&1)
 suite_status=$?
-[[ $suite_status == 0 ]] && pass "règle écrite : suite du plugin verte (exit 0)" \
-  || fail "règle écrite : suite du plugin verte (exit 0)" "exit $suite_status ; $(grep -E 'ÉCHEC' <<<"$suite_output" | head -3 | tr '\n' '|')"
+[[ $suite_status == 0 ]] && pass "contexte et règle écrits : suite du plugin verte (exit 0)" \
+  || fail "contexte et règle écrits : suite du plugin verte (exit 0)" "exit $suite_status ; $(grep -E 'ÉCHEC' <<<"$suite_output" | head -3 | tr '\n' '|')"
+grep -qE '^  ok +règle de garde-rm : rm -rf build, confirmation demandée$' <<<"$suite_output" \
+  && pass "expect_ask, dans le harnais du plugin créé : la demande de confirmation se prouve" \
+  || fail "expect_ask, dans le harnais du plugin créé : la demande de confirmation se prouve" "$(grep -E 'expect_ask|confirmation' <<<"$suite_output" | head -3 | tr '\n' '|')"
+contract=$(grep -cE '^  ok +squelette, (dans son|hors) contexte : ' <<<"$suite_output")
+[[ $contract == 4 ]] && pass "contexte écrit : le contrat tient sur les entrées de l'auteur" \
+  || fail "contexte écrit : le contrat tient sur les entrées de l'auteur" "$contract cas sur 4"
 
 echo "# hooks fail-open et Stop"
 run_pp add-hook "$plugin" --name note-edit --event PostToolUse --matcher 'Edit|Write' --mode fail-open

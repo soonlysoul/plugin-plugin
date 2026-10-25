@@ -85,4 +85,18 @@ agent_output=$(cd "$pf" && bash tests/static/test_agent_doc_reader.sh 2>&1)
 [[ $? == 0 ]] && pass "le test de l'agent passe sous le harnais du plugin" \
   || fail "le test de l'agent passe sous le harnais du plugin" "$(tr '\n' '|' <<<"$agent_output" | head -c 400)"
 
+echo "# un garde fail-closed : son contrat en deux temps, sous le harnais du plugin"
+pg="$work/plugin-essai-garde"
+foreign_plugin "$pg"
+run_pp add-hook "$pg" --name garde-essai --event PreToolUse --matcher Bash --mode fail-closed
+[[ $PP_STATUS == 0 ]] && pass "add-hook fail-closed : exit 0" || fail "add-hook fail-closed : exit 0" "$(tr '\n' '|' <<<"$PP_OUTPUT")"
+hook_output=$(cd "$pg" && bash tests/hooks/test_garde_essai.sh 2>&1)
+hook_status=$?
+contract=$(grep -cE '^  PASS +squelette, (dans son|hors) contexte : ' <<<"$hook_output")
+[[ $hook_status == 1 && $contract == 4 ]] && grep -qE '^  FAIL +règle de garde-essai : à écrire' <<<"$hook_output" \
+  && pass "contrat vert dans son contexte et hors de lui, seule la règle échoue" \
+  || fail "contrat vert dans son contexte et hors de lui, seule la règle échoue" "exit $hook_status, $contract cas sur 4 ; $(tr '\n' '|' <<<"$hook_output" | head -c 400)"
+grep -qiE 'introuvable|not found' <<<"$hook_output" && fail "le test généré n'appelle que les aides du harnais du plugin" \
+  "$(grep -iE 'introuvable|not found' <<<"$hook_output" | head -n 2)" || pass "le test généré n'appelle que les aides du harnais du plugin"
+
 finish

@@ -56,6 +56,18 @@ expect_silent_allow() {
   fi
 }
 
+# expect_ask <label>: exit 0, nothing on stderr, a PreToolUse "ask" decision with its reason —
+# the answer of a hook that asks for confirmation.
+expect_ask() {
+  if [[ $HOOK_STATUS == 0 && -z $HOOK_STDERR ]] && jq -e '.hookSpecificOutput
+      | .hookEventName == "PreToolUse" and .permissionDecision == "ask"
+        and (.permissionDecisionReason | type == "string" and length > 0)' >/dev/null 2>&1 <<<"$HOOK_STDOUT"; then
+    pass "$1"
+  else
+    fail "$1" "attendu exit 0 et une décision ask, obtenu exit $HOOK_STATUS ; stdout : ${HOOK_STDOUT:0:200} ; stderr : ${HOOK_STDERR:0:200}"
+  fi
+}
+
 # bash_input <command> [tool] [cwd]: PreToolUse input for a shell tool.
 bash_input() {
   jq -nc --arg c "$1" --arg t "${2:-Bash}" --arg d "${3:-/work/proj}" \
