@@ -1093,7 +1093,7 @@ Demande de Soon, le 2026-10-24 : deux défauts de plugin-plugin, relevés en con
 - [x] `pp.sh add-hook` : squelette fail-closed en deux temps — contexte en builtins seuls sous la marque `# CONTEXT:`, puis décision fail-closed ; test généré en deux temps ; `expect_ask` dans `tests/lib.sh` ; `skills/add/reference/hook.md`, étapes 3 à 5.
 - [x] Les hooks déjà générés dans les autres plugins ne sont pas touchés : seul `cmd_add_hook` appelle le gabarit, et les empreintes sha256 des `hooks/`, `tests/hooks/` et `tests/lib.sh` des huit autres dépôts de `../` (41 fichiers) sont identiques avant et après.
 - [x] CHANGELOG : les deux corrections sous « Corrigé », section « à venir — en cours ».
-- [ ] Deux commits, un par correction, sur un « oui ».
+- [x] Deux commits, un par correction, sur un « oui » de Soon le 2026-10-25, branche `fix/retours-github-scout` : `6c69f6b` (`gesture-guard`), `028849c` (squelette de `add-hook`). Ni push ni publication.
 
 ### Défaut 1 — une lecture GraphQL prise pour un geste
 
