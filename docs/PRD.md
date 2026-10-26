@@ -2,7 +2,7 @@
 
 2026-10-19 · Soon
 
-**Statut : APPROUVÉ** le 2026-10-23 (« oui »).
+**Statut : APPROUVÉ** le 2026-10-26 (« oui »).
 
 Approuvé le 2026-10-19, après le renommage du plugin, d'abord nommé
 plugin-agent, en plugin-plugin. Approbations antérieures du même jour : « oui »,
@@ -23,6 +23,12 @@ d'essai, car ces plugins changent avec le temps (US-38, critère 2). Décision
 déléguée du même jour, révisable : les règles restent celles du modèle
 approuvé, les exclusions aussi, chacune avec sa raison propre ; les tests
 s'appuient sur des plugins d'essai construits par la suite elle-même.
+
+Amendé le 2026-10-26, à la demande de Soon, sur un constat de la construction
+de plugin-github-scout : `add` ajoute un script de `scripts/` avec son test ;
+un script en construction, déclaré avec le composant qui le citera, laisse la
+suite de son plugin verte, et une publication refuse un script que rien
+n'appelle (US-8, US-39).
 
 ## Problème
 
@@ -60,8 +66,9 @@ plugin-plugin permet à Soon de :
 - **créer** un plugin dédié, nommé `plugin-<domaine>`, dans son propre dépôt,
   qui passe la validation stricte et sa propre suite de tests dès sa création ;
 - **ajouter un composant** — skill, agent, hook, déclaration d'un serveur MCP
-  existant — en voyant son test échouer avant qu'il passe ; pour un skill, ce
-  test est un cas d'évaluation comparé à une exécution sans le plugin ;
+  existant, script de `scripts/` — en voyant son test échouer avant qu'il
+  passe ; pour un skill, ce test est un cas d'évaluation comparé à une
+  exécution sans le plugin ;
 - **faire évoluer ses plugins existants** qui suivent le modèle, sans toucher à
   leur contenu métier ;
 - **publier** : créer le dépôt GitHub, ouvrir la PR qui ajoute le plugin à la
@@ -115,9 +122,10 @@ condition qu'elle soit motivée et révisable.
 
 ### Composants
 
-- **US-8** — En tant que Soon, je veux ajouter un skill, un agent, un hook ou la
-  déclaration d'un serveur MCP en voyant son test échouer pour la bonne raison
-  avant qu'il passe, afin de suivre mon cycle rouge/vert.
+- **US-8** — En tant que Soon, je veux ajouter un skill, un agent, un hook, la
+  déclaration d'un serveur MCP ou un script de `scripts/` en voyant son test
+  échouer pour la bonne raison avant qu'il passe, afin de suivre mon cycle
+  rouge/vert.
 - **US-9** — En tant que Soon, je veux que le test d'un skill soit un cas
   d'évaluation comparé à une exécution sans le plugin, et qu'un cas déjà réussi
   sans le plugin soit refusé, afin de prouver que le skill apporte quelque chose.
@@ -141,6 +149,11 @@ condition qu'elle soit motivée et révisable.
 - **US-16** — En tant que Soon, je veux qu'une demande de composant hors
   périmètre soit refusée avec la raison et le déclencheur qui la rouvrirait, afin
   de ne pas grossir un plugin sans besoin.
+- **US-39** — En tant que Soon, je veux construire et tester un script avant le
+  composant qui l'appellera, en nommant cet appelant, sans que la suite du
+  plugin reste rouge jusque-là, et qu'une publication refuse un script que rien
+  n'appelle, afin de ne pas apprendre à ignorer un rouge ni publier un fichier
+  qui ne sert à rien.
 
 ### Plugins existants
 

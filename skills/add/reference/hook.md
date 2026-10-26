@@ -6,7 +6,7 @@ Steps for the checkpoint: `Règle et contexte|Avertissement|Squelette|Rouge|Règ
 
 Ask, one question at a time: what the hook enforces — a deterministic check; one that needs judgment is a skill, not a hook —; the event and, for a tool event, the exact tools it watches (`Bash|Monitor`, `Edit|Write`); the mode; the context outside of which it stays silent (a file type, a folder such as `.plugin-plugin/`, an agent).
 
-- **fail-closed**: blocks on any doubt — exit 2 on an internal error, `onFailure: block`. Only `PreToolUse` and `UserPromptSubmit` can block.
+- **fail-closed**: in its context, blocks on any doubt — exit 2 on its rule and on an internal error, `onFailure: block`; outside it, tested first with bash builtins only, it exits 0, even on an error. Only `PreToolUse` and `UserPromptSubmit` can block.
 - **fail-open**: never in the way — exit 0 on any problem, `onFailure: continue`; `Stop` takes no `onFailure`.
 
 ## 2. Warn before writing

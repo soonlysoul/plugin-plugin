@@ -2,9 +2,9 @@
 
 2026-10-20 · Soon · PRD : [PRD.md](PRD.md) · Plan : [PLAN.md](PLAN.md)
 
-**Statut : APPROUVÉ** le 2026-10-23 (« oui »).
+**Statut : APPROUVÉ** le 2026-10-26 (« oui »).
 
-Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0, révisé le 2026-10-23 par la phase 19. Les décisions qui le fondent — principes, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan ; elles ne sont pas recopiées ici. Le modèle de plugin a sa seule source dans [MODEL.md](MODEL.md) (décision i).
+Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0, révisé le 2026-10-23 par la phase 19 et le 2026-10-26 par la phase 22. Les décisions qui le fondent — principes, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan ; elles ne sont pas recopiées ici. Le modèle de plugin a sa seule source dans [MODEL.md](MODEL.md) (décision i).
 
 Claude Code **2.1.295 ou plus** requis (forme exec des hooks, `onFailure`). Version vérifiée : 2.1.296.
 
@@ -45,7 +45,7 @@ plugin-plugin/
 └── docs/                    PRD, PLAN, MODEL (le modèle de plugin), et les quatre documents d'usage
 ```
 
-`scripts/` est la seule extension du modèle (décision a du plan) : un outil appelé par plusieurs skills et par les hooks.
+`scripts/` est la seule extension du modèle (décision a du plan) : un outil qu'appellent les composants — skills, agents, hooks, lanceur d'un serveur MCP. Ici, `pp.sh`, appelé par les skills, et `lib/`, que `pp.sh` et les hooks chargent.
 
 ## Composants
 
@@ -57,7 +57,7 @@ Coût en contexte permanent : **887 tokens** (seuil 1 000), mesuré par `claude 
 | --- | --- | --- | --- |
 | `frame` | sur demande ou par le modèle | `pp.sh init-state`, `check-name`, `delegate`, `approve`, `status`, `checkpoint` | US-1 à US-4 |
 | `create` | sur demande ou par le modèle | `pp.sh status`, `create`, `checkpoint` | US-5 à US-7 |
-| `add` | sur demande ou par le modèle | `pp.sh check`, `check-name`, `out-of-scope`, `checkpoint` ; par composant (`reference/`) `check-skill`, `check-evals`, `eval-plan`, `eval-run`, `add-hook`, `add-agent`, `check-agent`, `add-mcp` | US-8 à US-17 |
+| `add` | sur demande ou par le modèle | `pp.sh check`, `check-name`, `out-of-scope`, `checkpoint` ; par composant (`reference/`) `check-skill`, `check-evals`, `eval-plan`, `eval-run`, `add-hook`, `add-agent`, `check-agent`, `add-mcp`, `add-script` | US-8 à US-17, US-39 |
 | `check` | sur demande ou par le modèle | `pp.sh check` | US-18 |
 | `resume` | sur demande ou par le modèle | `pp.sh resume` | US-34 |
 | `release` | **seulement sur demande** (`disable-model-invocation`) | `pp.sh release`, `publish`, `mount` ; `release-write` (version du `plugin.json`, du CHANGELOG et du README, description de la marketplace locale) et `marketplace-entry` (entrée et ligne du README de la marketplace, ajoutées ou alignées par `--update`) sont des gestes du plan annoncé ; sans rien à publier, un alignement des descriptions seul (décision h) | US-20 à US-29, US-35 à US-37 |

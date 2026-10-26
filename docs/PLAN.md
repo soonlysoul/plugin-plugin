@@ -4,7 +4,7 @@
 > plugin-flutter v0.1.2 jusqu'au 2026-10-23 · Design : sans objet, aucune interface.
 > Mesures de référence : Claude Code 2.1.296, 2026-10-19.
 
-**Statut : APPROUVÉ** le 2026-10-23 (« oui »).
+**Statut : APPROUVÉ** le 2026-10-26 (« oui »).
 
 Approuvé le 2026-10-19, par Soon (« oui juste change le nom par plugin-plugin »), renommage
 compris. Toute modification d'un document approuvé le repasse en revue.
@@ -13,6 +13,9 @@ Amendé le 2026-10-20, avec le PRD (US-35 à US-37, critère 10) : décision h e
 
 Amendé le 2026-10-23, avec le PRD (US-38, critères 2 et 10) : décision i, fin de la phase 18,
 phase 19.
+
+Amendé le 2026-10-26, avec le PRD (US-8, US-39) et `docs/MODEL.md` (R6, R7, R9, R12, R14) :
+décision a, phase 22.
 
 Errata de la clôture (phase 16, 2026-10-20), corrigés en une fois dans le texte :
 
@@ -58,8 +61,10 @@ Valables pour toutes les phases. Une phase s'y réfère ; aucune ne les rouvre.
   - range ses composants à la racine : `skills/`, `agents/`, `hooks/hooks.json` et
     `hooks/scripts/`, `templates/` ; ses tests dans `tests/` (statiques, hooks, scénarios).
 - **Une seule extension du modèle** (décision a) : `scripts/` à la racine pour un outil appelé
-  par plusieurs skills, cité par `${CLAUDE_PLUGIN_ROOT}` et soumis aux mêmes tests de chemins que
-  `hooks/scripts/`. plugin-flutter n'en a pas besoin ; plugin-plugin et plugin-nixos si.
+  par les composants — un ou plusieurs skills, un agent, un script de hook, la déclaration d'un
+  serveur MCP —, cité par `${CLAUDE_PLUGIN_ROOT}` et soumis aux mêmes tests de chemins que
+  `hooks/scripts/` ; `add` l'ajoute avec son test depuis la phase 22. plugin-flutter n'en a pas
+  besoin ; plugin-plugin et plugin-nixos si.
 - **Langues** : code, identifiants et fichiers du plugin en anglais par défaut (choix au cadrage,
   plugin par plugin) ; messages et documents en français.
 - **Hooks** :
@@ -870,6 +875,65 @@ retirée ; `rebuild` reste, éprouvé sur un plugin d'essai.
 `bash tests/run-all.sh` avec `PP_REF_DIR` pointé sur un dossier vide : sa sortie, sans aucun
 « sauté » faute de copie ; la sortie du test d'indépendance en échec avant le changement, puis
 qui passe.
+
+### Bloquée par
+
+Rien.
+
+---
+
+## Phase 22 : Un script de `scripts/` ajouté par `add` ; un garde borné à son contexte
+
+**User stories** : US-8 (script), US-39, US-17, US-23. **Critères de succès** : 4, 1, 9.
+
+Les phases 20 et 21, deux corrections demandées par Soon hors plan, sont consignées dans
+PROGRESS.md.
+
+### Ce qu'on livre
+
+`add` couvre un cinquième genre, le script de `scripts/`. `pp.sh add-script` écrit un squelette
+qui refuse tout appel par son usage, marqué de l'appelant qui le citera, et son test : un
+contrat vert sur le squelette, une marque de remplacement rouge jusqu'à ce que les cas du script
+l'aient remplacée. Un script que rien ne cite encore est sauté par la suite du plugin s'il nomme
+son appelant, et refusé à la publication. La règle R7 dit ce que fait le squelette de
+`add-hook` depuis 0.1.4 : un garde fail-closed ne bloque que dans son contexte.
+
+### Critères d'acceptation
+
+- [ ] `pp.sh add-script <dossier> --name <nom> --caller <fichier>` écrit `scripts/<nom>.sh` —
+      `#!/usr/bin/env bash`, en-tête à compléter, marque `# CALLER: <fichier>`, `die` et `need`,
+      un aiguillage qui refuse tout appel par son usage sur stderr, exit 1 — et
+      `tests/static/test_script_<nom>.sh`, chaque `-` du nom changé en `_` ; rien d'autre
+      (US-8).
+- [ ] Refus, sans rien écrire : dossier hors modèle, nom hors kebab-case, script ou test déjà
+      présent, appelant autre que `skills/<skill>/SKILL.md`, `agents/<agent>.md`,
+      `hooks/scripts/<hook>.sh` ou `.mcp.json`.
+- [ ] Le test généré lance le script par `bash` et n'appelle que `pass`, `fail`, `finish` et
+      `PLUGIN_ROOT`. Sur le squelette, son contrat passe — un appel inconnu sort en 1, sa raison
+      sur stderr, rien sur stdout — et sa marque `case_placeholder` échoue ; des cas écrits
+      échouent sur le refus du squelette, puis passent avec le code (critère 4).
+- [ ] `test_paths` : un script de `scripts/` cité par un skill, un agent, un script de
+      `hooks/scripts/`, `hooks.json` ou `.mcp.json` réussit ; non cité et marqué, il est sauté,
+      l'appelant nommé ; non cité sans marque, il échoue (US-39).
+- [ ] `add-script` avertit quand la copie de `tests/static/test_paths.sh` du plugin ne connaît pas
+      la marque : sa suite restera rouge jusqu'à ce que l'appelant cite le script (US-39).
+- [ ] La répétition de `release` refuse un plugin dont un script de `scripts/` n'est cité par
+      rien, marqué ou non ; rien n'est envoyé (US-39, US-23).
+- [ ] `check` ne relève pas un script en construction ; `add` peut ajouter son appelant.
+- [ ] Sur le plugin d'essai qui n'a pas été créé par plugin-plugin, le test d'un script ajouté
+      tourne sous son harnais, et le diff ne touche que le script et son test (US-17).
+- [ ] Le skill `add` (étape 2, `reference/script.md`, renvoi depuis `reference/mcp.md`) et
+      `reference/hook.md` (un garde fail-closed ne bloque que dans son contexte) disent les deux
+      règles.
+- [ ] Les plugins déjà créés ne changent pas : empreintes des dossiers voisins identiques avant
+      et après.
+- [ ] Coût permanent de plugin-plugin sous 1 000 tokens (critère 9).
+
+### Preuve
+
+`bash tests/run-all.sh`. Les sorties de `test_add_script`, `test_add_existing`, `test_paths` et
+`test_release`, en échec avant le changement puis qui passent ; chaque test faussé sur une copie
+dans `build/mutants/p22/`.
 
 ### Bloquée par
 

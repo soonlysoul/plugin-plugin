@@ -2,7 +2,7 @@
 
 2026-10-23 · Soon
 
-**Statut : APPROUVÉ** le 2026-10-23 (« Je valide »).
+**Statut : APPROUVÉ** le 2026-10-26 (« oui »).
 
 Ce document est la seule source du modèle de plugin de plugin-plugin (décision i du plan,
 US-38). `check` en vérifie les règles, `create` et `rebuild` en produisent la charpente, `add` y
@@ -17,6 +17,12 @@ une règle sans contrôle ni raison, et un fait cité absent de la base.
 
 Jusqu'au 2026-10-23, le modèle était un plugin existant (plan, décision i) ; ses règles sont
 reprises ici telles quelles, chacune justifiée pour elle-même.
+
+Amendé le 2026-10-26, à la demande de Soon, sur deux constats de la construction d'un plugin :
+un script de `scripts/` s'ajoute par `add`, avec son test, et se construit avant le composant
+qui l'appelle sans faire rougir la suite, mais ne se publie pas sans lui (R6, R9, R12, R14) ; un
+garde fail-closed ne bloque que dans son contexte, comme le squelette de `add-hook` depuis
+plugin-plugin 0.1.4 (R7).
 
 ## Règles
 
@@ -82,8 +88,9 @@ entrée pour la version du manifeste, un PROGRESS, un ARCHITECTURE (à la racine
 
 À la racine, seuls `skills/`, `agents/`, `hooks/`, `scripts/`, `templates/`, `tests/`, `docs/`,
 `evals/`, les fichiers de R5 et les entrées cachées (`.claude-plugin/`, `.mcp.json`,
-`.gitignore`…). `scripts/` accueille un outil appelé par plusieurs skills et par les hooks
-(décision a du plan).
+`.gitignore`…). `scripts/` accueille un outil qu'appellent les composants — un ou plusieurs
+skills, un agent, un script de hook, ou la déclaration d'un serveur MCP dont il est le lanceur
+(R13) — (décision a du plan).
 
 - **Contrôle** : `[arborescence]`
 - **Raison** : une installation copie tout le dossier du plugin ; un dossier qui ne sert à aucun
@@ -94,17 +101,28 @@ entrée pour la version du manifeste, un PROGRESS, un ARCHITECTURE (à la racine
 
 `hooks/` ne contient que `hooks.json`, `agent-scope.json` et `scripts/`. Chaque hook est en forme
 exec : `"type": "command"`, `"command": "bash"`, le script seul dans `args`, cité par
-`${CLAUDE_PLUGIN_ROOT}`, `timeout` déclaré. `onFailure` vaut `block` pour un garde fail-closed
-(exit 2 sur toute erreur interne, en-tête `# Fail-closed`), `continue` pour un hook fail-open
-(exit 0, en-tête `# Fail-open`), et manque sur Stop et SubagentStop. Chaque script de
-`hooks/scripts/` existe et est câblé dans `hooks.json`.
+`${CLAUDE_PLUGIN_ROOT}`, `timeout` déclaré. Un garde fail-closed, en-tête `# Fail-closed`, a
+`onFailure: block` : il teste d'abord son contexte, avec les seuls builtins de bash, et hors de
+lui sort en 0, même sur une erreur (R8) ; dans son contexte, il bloque par exit 2, sur sa règle
+comme sur une erreur interne (jq absent, entrée illisible). Un hook fail-open, en-tête
+`# Fail-open`, a `onFailure: continue` et sort toujours en 0. Sur Stop et SubagentStop,
+`onFailure` manque. Chaque script de `hooks/scripts/` existe et est câblé dans `hooks.json`.
 
-- **Contrôle** : `[arborescence des hooks]`, `[forme des hooks]`, `[hooks]`
+- **Contrôle** : `[arborescence des hooks]`, `[forme des hooks]`, `[hooks]` — forme exec,
+  `timeout`, `onFailure` déclaré hors Stop et SubagentStop et accordé à l'en-tête du script :
+  `# Fail-closed` exige `block`, `# Fail-open` exige `continue`. `check` ne lit pas le
+  comportement de part et d'autre du contexte : le test du hook sur entrées simulées le prouve
+  (R14), et celui qu'écrit `add-hook` le prouve d'office des deux côtés.
 - **Raison** : la forme exec se passe de shell, de guillemets et de bit exécutable. Sans
   `onFailure: block`, un garde qui plante, introuvable ou trop lent laisse passer ; un exit 1 ne
-  bloque pas. Le validateur n'inspecte pas les scripts : le contrôle le fait.
+  bloque pas. `onFailure` s'applique là où le script n'a plus la main — introuvable, tué, hors
+  délai —, donc dans toutes les sessions : le contexte se teste en premier et vite, sans
+  dépendre d'aucune commande. Installé pour le compte, un garde qui bloquerait sur une erreur
+  hors de son contexte bloquerait toutes les sessions. Le validateur n'inspecte pas les
+  scripts : le contrôle le fait.
 - **Faits** : `hook-exec-form`, `hook-onfailure-block`, `hook-exit-1-not-blocking`,
-  `hook-block-exit-2`, `validator-ignores-hooks`, `hooks-envelope`, `stop-no-matcher`
+  `hook-block-exit-2`, `validator-ignores-hooks`, `hooks-envelope`, `stop-no-matcher`,
+  `hooks-scope-all-sessions`
 
 ### R8 — La portée des hooks
 
@@ -121,11 +139,15 @@ Un hook reste inerte hors de son contexte et ne dépend d'aucun autre : les hook
 
 Chaque script shell — sous `scripts/`, `hooks/scripts/` ou leur `lib/`, ou un outil sans
 extension de `scripts/` — passe `bash -n` et commence par `#!/usr/bin/env bash`, sauf une
-bibliothèque de `lib/`. Variables entre guillemets, raison d'un refus sur stderr.
+bibliothèque de `lib/`. Variables entre guillemets, raison d'un refus sur stderr. Un script de
+`scripts/` que `add` ajoute part d'un squelette à cette forme, qui refuse un appel inconnu par
+son usage sur stderr, exit 1 ; le premier cas de son test vérifie ce refus, ou celui qui le
+remplace (R14).
 
-- **Contrôle** : `[scripts]`
+- **Contrôle** : `[scripts]` ; pour un script ajouté par `add`, le premier cas de son test.
 - **Raison** : NixOS n'a pas de `/bin/bash` ; un script qui ne se lit pas casse son hook sans
-  bruit.
+  bruit. L'appelant d'un script lit son code de sortie : un refus en 1, sa raison sur stderr,
+  ne se confond pas avec un résultat.
 - **Faits** : `nixos-no-bin-bash`
 
 ### R10 — Les skills
@@ -161,13 +183,24 @@ ou lance Bash est tenu par un garde de portée : un hook PreToolUse qui lit `age
 ### R12 — Les chemins
 
 Tout chemin cité par `${CLAUDE_PLUGIN_ROOT}/…` dans un skill, un agent ou `.mcp.json` existe ;
-chaque fichier de `templates/` et d'un dossier de skill est cité. Aucun interpréteur à chemin
-fixe, aucun chemin personnel (`/home/…`, `/Users/…`) ni du store.
+chaque fichier de `templates/` et d'un dossier de skill est cité. Chaque script de `scripts/`,
+hors de `lib/`, est cité par `${CLAUDE_PLUGIN_ROOT}/…` dans un skill, un agent, `hooks.json`,
+un script de `hooks/scripts/` ou `.mcp.json`. Tant que rien ne le cite, il est en
+construction : il porte la marque `# CALLER: <fichier>`, qui nomme le composant qui le citera ;
+la suite de son plugin le dit sauté, et `release` le refuse. Aucun interpréteur à chemin fixe,
+aucun chemin personnel (`/home/…`, `/Users/…`) ni du store.
 
-- **Contrôle** : `[chemins]`
+- **Contrôle** : `[chemins]` ; la citation d'un script, par `tests/static/test_paths.sh` dans la
+  suite du plugin — cité, réussi ; marqué, sauté, l'appelant nommé ; ni l'un ni l'autre, échec —
+  et par la répétition de `release`, qui refuse un script que rien ne cite. `check` ne la relève
+  pas : `add` exige un plugin sans écart, et doit pouvoir ajouter l'appelant d'un script en
+  construction.
 - **Raison** : la racine d'un plugin installé change à chaque mise à jour et d'un poste à
-  l'autre ; seul `${CLAUDE_PLUGIN_ROOT}` la désigne, et seul SKILL.md est substitué. Un fichier
-  jamais cité ne sert à rien.
+  l'autre ; seul `${CLAUDE_PLUGIN_ROOT}` la désigne, et seul SKILL.md est substitué. Un hook la
+  reçoit aussi dans son environnement : l'outil qu'il appelle depuis son script y est cité. Un
+  fichier jamais cité ne sert à rien, et ne se publie pas. Un script se construit et se teste
+  avant que son appelant le cite : un rouge attendu pendant toute sa construction s'apprend à
+  ignorer et cache une vraie régression ; la marque déclare l'attente sans la cacher.
 - **Faits** : `plugin-root-changes-on-update`, `plugin-root-var-skills`, `plugin-root-var-hooks`,
   `annexes-not-substituted`
 
@@ -189,13 +222,18 @@ plugin-plugin déclare un serveur existant ; il n'en écrit pas le code (exclusi
 
 `tests/run-all.sh`, qui sort en 0, 1 ou 2 ; `tests/lib.sh` ; au moins un test dans
 `tests/static/` ; aucun `tests/test_*.sh` hors de `tests/static/` et `tests/hooks/` ; chaque
-script de `hooks/scripts/` a son test sur entrées simulées, `tests/hooks/test_<nom>.sh`. La suite
-est déterministe — bash et jq, sans réseau, sans session, sans quota — et lance la validation
-stricte.
+script de `hooks/scripts/` a son test sur entrées simulées, `tests/hooks/test_<nom>.sh`. Un
+script de `scripts/` ajouté par `add` a le sien, `tests/static/test_script_<nom>.sh`, qui le
+lance par `bash`, sur des doublures. La suite est déterministe — bash et jq, sans réseau, sans
+session, sans quota — et lance la validation stricte.
 
-- **Contrôle** : `[harnais]`
+- **Contrôle** : `[harnais]` ; le test d'un script s'écrit avec lui, par `add` : `check` ne
+  l'exige pas d'un script écrit autrement, qui se teste à sa façon (`pp.sh`, par plusieurs
+  suites).
 - **Raison** : un composant se prouve rouge puis vert sans consommer de quota (convention de
   Soon) ; le validateur ne voit ni un en-tête d'agent cassé ni un script de hook absent.
+  `tests/static/` est le dossier que lance tout harnais du modèle, que plugin-plugin l'ait créé
+  ou non.
 - **Faits** : `validate-exit-codes`, `validator-ignores-hooks`,
   `validator-accepts-broken-agent-frontmatter`
 
