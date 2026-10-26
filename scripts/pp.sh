@@ -1435,6 +1435,103 @@ cmd_add_mcp() {
   printf "rappel : un skill qui dépend du serveur %s a besoin d'une doublure dans evals/mocks/%s/ pour être évalué ; sans elle, le serveur n'est pas démarré pendant une évaluation.\n" "$name" "$name"
 }
 
+# Scripts: a tool of scripts/, which a component cites by ${CLAUDE_PLUGIN_ROOT}/…; until one does,
+# its # CALLER: mark names that component, the plugin's test_paths skips it and a release refuses
+# it (MODEL.md, R12).
+CALLER_FORM='^(skills/[^/]+/SKILL\.md|agents/[^/]+\.md|hooks/scripts/[^/]+\.sh|\.mcp\.json)$'
+
+# script_skeleton <name> <caller>: the script, whose header and subcommands are not written, which
+# refuses every call by its usage.
+script_skeleton() {
+  printf '#!/usr/bin/env bash\n'
+  printf '# %s.sh — TODO: what it does, for the component that calls it.\n' "$1"
+  printf '#   %s.sh <subcommand> <arguments>   TODO: each subcommand, what it reads, what it writes\n' "$1"
+  printf '# Exit codes: 0 done; 1 refused, or failed, the reason on stderr; 2 a prerequisite missing.\n'
+  printf '# CALLER: %s\n' "$2"
+  printf '# The component that will cite this script. Until it does, the suite skips the script as under\n'
+  printf '# construction and a release refuses it; once it does, this mark no longer counts.\n\n'
+  printf "die() { printf '%s.sh : %%s\\\\n' \"\$1\" >&2; exit \"\${2:-1}\"; }\n" "$1"
+  printf 'need() { command -v "$1" >/dev/null 2>&1 || die "bloqué : $1 introuvable." 2; }\n'
+  printf 'usage() { die "usage : %s.sh TODO"; }\n\n' "$1"
+  printf '# TODO: one branch per subcommand, its work in a function above.\n'
+  printf 'case ${1:-} in\n  *) usage ;;\nesac\n'
+}
+
+# script_test <name>: the script's test, its contract green on the skeleton, and a placeholder that
+# fails until the script's own cases replace it. It calls only what every harness of the model has
+# (pass, fail, finish, PLUGIN_ROOT), and runs the script with bash, as its callers do.
+script_test() {
+  printf '#!/usr/bin/env bash\n'
+  printf '# scripts/%s.sh: run with bash, as its callers run it, without a session.\n' "$1"
+  printf '# shellcheck source=../lib.sh\nsource "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"\n'
+  printf 'SUITE=test_script_%s\nSCRIPT="$PLUGIN_ROOT/scripts/%s.sh"\n\n' "${1//-/_}" "$1"
+  printf '# run_script <args...>: STATUS, STDOUT and STDERR of the script run by bash; SCRIPT_ENV holds\n'
+  printf '# assignments for the run — a PATH with doubles of the commands it calls, a fixed clock.\n'
+  printf 'SCRIPT_ENV=()\nrun_script() {\n  local out err\n  out=$(mktemp) err=$(mktemp)\n'
+  printf '  env ${SCRIPT_ENV[@]+"${SCRIPT_ENV[@]}"} "$BASH" "$SCRIPT" "$@" >"$out" 2>"$err"\n'
+  printf '  STATUS=$?\n  STDOUT=$(<"$out") STDERR=$(<"$err")\n  rm -f "$out" "$err"\n}\n\n'
+  printf 'echo "# contrat du squelette"\n'
+  printf '# A refusal exits 1, its reason on stderr (MODEL.md, R9). A script that takes no subcommand, such\n'
+  printf '# as the launcher of an MCP server, replaces this case by its own refusal.\n'
+  printf 'run_script __inconnu__\n'
+  printf 'if [[ $STATUS == 1 && -n $STDERR && -z $STDOUT ]]; then pass "appel inconnu : refusé, exit 1, raison sur stderr"\n'
+  printf 'else fail "appel inconnu : refusé, exit 1, raison sur stderr" "exit $STATUS ; stdout : ${STDOUT:0:200} ; stderr : ${STDERR:0:200}"; fi\n\n'
+  printf 'echo "# cas"\n'
+  printf '# Replace the case_placeholder call by the calls of the script and what each must give: its exit\n'
+  printf '# code, its output, the files it writes; doubles of the commands it runs go in SCRIPT_ENV.\n'
+  printf 'case_placeholder() { fail "cas de %s : à écrire" "remplacer case_placeholder par les appels du script et ce qu'"'"'ils rendent"; }\n' "$1"
+  printf 'case_placeholder\n\nfinish\n'
+}
+
+cmd_add_script() {
+  local plugin=${1:-} name="" caller=""
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --name) name=${2:-}; shift 2 ;;
+      --caller) caller=${2:-}; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  [[ -n $plugin && -n $name && -n $caller ]] \
+    || die "usage : pp.sh add-script PLUGIN --name NOM --caller skills/SKILL/SKILL.md|agents/AGENT.md|hooks/scripts/HOOK.sh|.mcp.json"
+  need jq
+  [[ -f $plugin/.claude-plugin/plugin.json ]] || die "refusé : $plugin n'est pas un plugin du modèle (.claude-plugin/plugin.json absent)."
+  require_model "$plugin"
+  [[ $name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || die "refusé : « $name » n'est pas en kebab-case."
+  [[ $caller =~ $CALLER_FORM ]] \
+    || die "refusé : appelant « $caller » : le composant qui citera le script, skills/<skill>/SKILL.md, agents/<agent>.md, hooks/scripts/<hook>.sh ou .mcp.json."
+  local script="scripts/$name.sh" test="tests/static/test_script_${name//-/_}.sh"
+  [[ ! -e $plugin/$script ]] || die "refusé : le script $script existe déjà."
+  [[ ! -e $plugin/$test ]] || die "refusé : le test $test existe déjà."
+
+  if [[ -f $plugin/tests/static/test_paths.sh ]] && ! grep -qF '# CALLER:' "$plugin/tests/static/test_paths.sh"; then
+    printf "avertissement : la copie de tests/static/test_paths.sh de ce plugin ne connaît pas la marque # CALLER: ; sa suite restera rouge jusqu'à ce que %s cite \${CLAUDE_PLUGIN_ROOT}/%s.\n" "$caller" "$script"
+  fi
+  mkdir -p "$plugin/scripts" "$plugin/tests/static"
+  script_skeleton "$name" "$caller" >"$plugin/$script"
+  script_test "$name" >"$plugin/$test"
+  printf 'écrit : %s, %s\n' "$script" "$test"
+}
+
+# uncited_scripts <dir>: each script of scripts/ — a .sh, or a tool without extension — that no
+# component cites by ${CLAUDE_PLUGIN_ROOT}/…, one per line, with the caller its # CALLER: mark names.
+uncited_scripts() {
+  local dir=$1 file rel caller
+  local -a citers
+  shopt -s nullglob
+  citers=("$dir"/skills/*/SKILL.md "$dir"/agents/*.md "$dir"/hooks/hooks.json "$dir"/hooks/scripts/*.sh "$dir"/.mcp.json)
+  for file in "$dir"/scripts/*; do
+    [[ -f $file ]] || continue
+    [[ $file == *.sh ]] || { [[ ${file##*/} != *.* && $(head -c 2 "$file") == '#!' ]] || continue; }
+    rel=${file#"$dir"/}
+    grep -qF "\${CLAUDE_PLUGIN_ROOT}/$rel" "${citers[@]}" /dev/null 2>/dev/null && continue
+    caller=$(sed -n 's/^# CALLER: *//p' "$file" | head -n 1)
+    printf '%s%s\n' "$rel" "${caller:+ (appelant annoncé : $caller)}"
+  done
+  shopt -u nullglob
+}
+
 # Out of scope (PRD, « Hors périmètre ») : each refusal names its reason and what would reopen it.
 cmd_out_of_scope() {
   local cli="rouvert au premier plugin qui a besoin d'un système sans ligne de commande, ou d'un channel"
@@ -1777,6 +1874,10 @@ cmd_release() {
   [[ $branch == main ]] || die "refusé : on publie depuis main ; branche courante : $branch."
   dirty=$(git -C "$dir" --no-optional-locks status --porcelain --untracked-files=all | cut -c4- | sed 's/^.* -> //')
   [[ -z $dirty ]] || die "refusé : changements non enregistrés : $(head -n 5 <<<"$dirty" | paste -sd, - | sed 's/,/, /g')$( (($(grep -c . <<<"$dirty") > 5)) && echo ", …") ; les commiter d'abord. Rien n'a été envoyé."
+  # A script of scripts/ ships only with the component that cites it (MODEL.md, R12).
+  local uncited
+  uncited=$(uncited_scripts "$dir")
+  [[ -z $uncited ]] || die "refusé : script en construction, que rien ne cite : $(paste -sd';' - <<<"$uncited" | sed 's/;/ ; /g') ; un script ne se publie pas sans le composant qui l'appelle. Rien n'a été envoyé."
   local expected="https://github.com/$OWNER/$name.git"
   origin=$(git -C "$dir" config --get remote.origin.url 2>/dev/null)
   case $origin in
@@ -2438,11 +2539,12 @@ case ${1:-} in
   add-hook) shift; cmd_add_hook "$@" ;;
   add-agent) shift; cmd_add_agent "$@" ;;
   add-mcp) shift; cmd_add_mcp "$@" ;;
+  add-script) shift; cmd_add_script "$@" ;;
   out-of-scope) shift; cmd_out_of_scope "$@" ;;
   release) shift; cmd_release "$@" ;;
   release-write) shift; cmd_release_write "$@" ;;
   marketplace-entry) shift; cmd_marketplace_entry "$@" ;;
   publish) shift; cmd_publish "$@" ;;
   mount) shift; cmd_mount "$@" ;;
-  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | check | delegate | approve | status | create | rebuild | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | out-of-scope | release | release-write | marketplace-entry | publish | mount" ;;
+  *) die "usage : pp.sh reaudit | snapshot | diff-snapshots | init-state | check-name | check | delegate | approve | status | create | rebuild | checkpoint | resume | check-skill | check-agent | check-evals | eval-plan | eval-run | eval-verdict | add-hook | add-agent | add-mcp | add-script | out-of-scope | release | release-write | marketplace-entry | publish | mount" ;;
 esac

@@ -99,4 +99,28 @@ contract=$(grep -cE '^  PASS +squelette, (dans son|hors) contexte : ' <<<"$hook_
 grep -qiE 'introuvable|not found' <<<"$hook_output" && fail "le test généré n'appelle que les aides du harnais du plugin" \
   "$(grep -iE 'introuvable|not found' <<<"$hook_output" | head -n 2)" || pass "le test généré n'appelle que les aides du harnais du plugin"
 
+echo "# un script, sous le harnais du plugin"
+ps="$work/plugin-essai-script"
+foreign_plugin "$ps"
+run_pp add-script "$ps" --name essai-outil --caller skills/essai-note/SKILL.md
+[[ $PP_STATUS == 0 ]] && pass "add-script : exit 0" || fail "add-script : exit 0" "$(tr '\n' '|' <<<"$PP_OUTPUT")"
+grep -q '^avertissement' <<<"$PP_OUTPUT" && fail "sans copie de test_paths, aucun avertissement" "$(grep '^avertissement' <<<"$PP_OUTPUT")" \
+  || pass "sans copie de test_paths, aucun avertissement"
+changed=$(git -C "$ps" status --porcelain --untracked-files=all | LC_ALL=C sort)
+expected=$(printf '%s\n' '?? scripts/essai-outil.sh' '?? tests/static/test_script_essai_outil.sh' | LC_ALL=C sort)
+[[ $changed == "$expected" ]] && pass "le diff ne touche que le script et son test" \
+  || fail "le diff ne touche que le script et son test" "$(tr '\n' '|' <<<"$changed")"
+suite "$ps"
+[[ $FAILED == tests/static/test_script_essai_outil.sh ]] && pass "suite d'origine à 100 % ; seul le test du script échoue, cas non écrits" \
+  || fail "suite d'origine à 100 % ; seul le test du script échoue, cas non écrits" "échouées : $(tr '\n' ' ' <<<"$FAILED")"
+grep -qE '^  PASS +appel inconnu : refusé, exit 1, raison sur stderr$' <<<"$SUITE_OUTPUT" \
+  && grep -qE '^  FAIL +cas de essai-outil : à écrire' <<<"$SUITE_OUTPUT" \
+  && pass "sous le harnais du plugin : contrat vert, seule la marque échoue" \
+  || fail "sous le harnais du plugin : contrat vert, seule la marque échoue" "$(grep -A4 'test_script_essai_outil' <<<"$SUITE_OUTPUT" | tr '\n' '|' | head -c 400)"
+grep -qiE 'introuvable|not found' <<<"$SUITE_OUTPUT" && fail "le test du script n'appelle que les aides du harnais du plugin" \
+  "$(grep -iE 'introuvable|not found' <<<"$SUITE_OUTPUT" | head -n 2)" || pass "le test du script n'appelle que les aides du harnais du plugin"
+run_pp check "$ps"
+[[ $PP_STATUS == 0 ]] && pass "check : un script en construction n'est pas un écart" \
+  || fail "check : un script en construction n'est pas un écart" "$(tr '\n' '|' <<<"$PP_OUTPUT")"
+
 finish

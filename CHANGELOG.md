@@ -2,6 +2,18 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
+## [à venir] — en cours
+
+### Ajouté
+
+- `/plugin-plugin:add` ajoute un script de `scripts/` (US-8, US-39). `pp.sh add-script <dossier> --name <nom> --caller <composant>` écrit un squelette qui refuse tout appel par son usage, sous la marque `# CALLER:` du composant qui le citera, et son test, `tests/static/test_script_<nom>.sh` : un contrat vert sur le squelette, des cas à écrire, rouges sur lui puis verts avec le code. Il avertit quand la copie de `test_paths` du plugin ne connaît pas la marque. Relevé en construisant plugin-github-scout.
+
+### Modifié
+
+- `test_paths` : un script de `scripts/` que rien ne cite encore est sauté, et non plus en échec, quand sa marque `# CALLER:` nomme son appelant ; sans marque, il échoue comme avant. La citation depuis un script de `hooks/scripts/` compte désormais. Les plugins déjà créés gardent leur copie, plus stricte.
+- `release` refuse un plugin dont un script de `scripts/` n'est cité par rien, marqué ou non : un script ne se publie pas sans le composant qui l'appelle.
+- `docs/MODEL.md`, R7 : un garde fail-closed teste d'abord son contexte, en builtins seuls, et hors de lui sort en 0, même sur une erreur ; dans son contexte, il bloque sur sa règle comme sur une erreur interne — ce que fait le squelette de `add-hook` depuis 0.1.4. R6, R9, R12 et R14 disent la place, la forme, la citation et le test d'un script.
+
 ## [0.1.5] — 2026-10-25
 
 ### Corrigé

@@ -255,6 +255,27 @@ finish
 EOF
 commit "$p" "test: toujours rouge"
 refused "suite rouge" "$p" 1 "refusé : la suite du plugin n'est pas verte \(exit 1\)"
+# A script of scripts/ ships only with the component that cites it (MODEL.md, R12; US-39).
+# outil <dir> [mark]: scripts/outil.sh, with a # CALLER: mark when one is given, committed.
+outil() {
+  local mark=""
+  trial "$1" && mkdir -p "$1/scripts" || return 1
+  [[ -z ${2:-} ]] || mark="# CALLER: $2"$'\n'
+  printf '#!/usr/bin/env bash\n# outil: prints its name.\n%secho outil\n' "$mark" >"$1/scripts/outil.sh"
+  commit "$1" "feat: scripts/outil.sh"
+}
+p=$(copy building)
+outil "$p" skills/demo/SKILL.md
+refused "script en construction, marqué" "$p" 1 \
+  'refusé : script en construction, que rien ne cite : scripts/outil\.sh \(appelant annoncé : skills/demo/SKILL\.md\) ; un script ne se publie pas sans le composant qui l.appelle\. Rien n.a été envoyé\.'
+p=$(copy orphan)
+outil "$p"
+refused "script que rien ne cite, sans marque" "$p" 1 'refusé : script en construction, que rien ne cite : scripts/outil\.sh ;'
+p=$(copy cited)
+trial "$p" && printf '\nRun `bash "${CLAUDE_PLUGIN_ROOT}/scripts/outil.sh"`.\n' >>"$p/skills/demo/SKILL.md"
+outil "$p"
+run_release "$p"
+expect_exit "script cité par un skill : la répétition passe" 0
 mkdir -p "$work/nested/$NAME"
 git -C "$work/nested" init -q -b main
 git -C "$base" archive HEAD | tar -x -C "$work/nested/$NAME"

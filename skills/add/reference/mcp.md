@@ -8,7 +8,7 @@ The server already exists: this procedure declares it, it never writes its code 
 
 Ask, one question at a time: the server's name, in kebab-case; local or remote.
 
-- **Local**: the launcher, a bash script of the plugin, `scripts/<name>.sh`, that the declaration runs with `bash` from the plugin's root. It starts a server already on the machine, and says on stderr what is missing when it is not there; it never installs anything (`npm install`, `npx`, `pip install`, `uvx`…). If the launcher does not exist yet, write it first, with `#!/usr/bin/env bash`. Then its arguments, and the names of the variables it reads from the user's environment.
+- **Local**: the launcher, a bash script of the plugin, `scripts/<name>.sh`, that the declaration runs with `bash` from the plugin's root. It starts a server already on the machine, and says on stderr what is missing when it is not there; it never installs anything (`npm install`, `npx`, `pip install`, `uvx`…). If the launcher does not exist yet, add it first as a script of this skill — `reference/script.md`, its caller `.mcp.json` —, then come back here. Then its arguments, and the names of the variables it reads from the user's environment.
 - **Remote**: its address, in HTTPS or WSS only; the headers it needs, each secret one as `${VAR}`.
 
 A value the user keeps to themselves — a token, a key, a path of their own — is never written: it is named, `${NAME}`, and the user sets it in their environment.

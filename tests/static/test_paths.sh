@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Paths: every ${CLAUDE_PLUGIN_ROOT}/… cited by a skill, an agent or .mcp.json exists; scripts
 # under scripts/ and hooks/scripts/, tools without extension included, are bash scripts that
-# parse; MCP servers follow tests/mcp.sh; no /bin/bash, no personal or store path anywhere in the
-# components.
+# parse, each cited by a component — or, for one of scripts/, under construction while its
+# # CALLER: mark names the component that will; MCP servers follow tests/mcp.sh; no /bin/bash, no
+# personal or store path anywhere in the components.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_paths
@@ -127,10 +128,22 @@ for script in ${scripts[@]+"${scripts[@]}"}; do
       || fail "$rel : #!/usr/bin/env bash" "$(head -n 1 "$script")" ;;
   esac
 done
+# A tool of scripts/ is also cited from a hook's script. Until a component cites it, its # CALLER:
+# mark declares it under construction and names that component: skipped, not failed (MODEL.md, R12).
+hook_scripts=("$PLUGIN_ROOT"/hooks/scripts/*.sh)
 for script in "$PLUGIN_ROOT"/scripts/*.sh ${tools[@]+"${tools[@]}"} "$PLUGIN_ROOT"/hooks/scripts/*.sh; do
-  name=${script##*/}
-  grep -qF "\${CLAUDE_PLUGIN_ROOT}/${script#"$PLUGIN_ROOT"/}" "${substituted[@]}" "$PLUGIN_ROOT"/hooks/hooks.json ${mcp[@]+"${mcp[@]}"} /dev/null \
-    && pass "$name est cité par \${CLAUDE_PLUGIN_ROOT}" || fail "$name est cité par \${CLAUDE_PLUGIN_ROOT}"
+  rel=${script#"$PLUGIN_ROOT"/} name=${script##*/}
+  citers=("${substituted[@]}" "$PLUGIN_ROOT"/hooks/hooks.json ${mcp[@]+"${mcp[@]}"})
+  [[ $rel == hooks/* ]] || citers+=(${hook_scripts[@]+"${hook_scripts[@]}"})
+  caller=""
+  [[ $rel == hooks/* ]] || caller=$(sed -n 's/^# CALLER: *//p' "$script" | head -n 1)
+  if grep -qF "\${CLAUDE_PLUGIN_ROOT}/$rel" "${citers[@]}" /dev/null; then
+    pass "$name est cité par \${CLAUDE_PLUGIN_ROOT}"
+  elif [[ -n $caller ]]; then
+    skip "$name est cité par \${CLAUDE_PLUGIN_ROOT}" "en construction : $caller ne le cite pas encore"
+  else
+    fail "$name est cité par \${CLAUDE_PLUGIN_ROOT}"
+  fi
 done
 
 # The fact base describes these paths, it does not use them: scripts/facts/ is left out.

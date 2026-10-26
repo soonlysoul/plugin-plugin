@@ -1,6 +1,6 @@
 ---
 name: add
-description: "Add a component to a plugin of the model — skill with its eval suite, hook on simulated inputs, agent with declared tools, existing MCP server — its test seen failing before it passes; an out-of-scope one is refused. Use when Soon wants a new component in such a plugin; not for framing or creating one. « ajoute un agent à plugin-… », « ajoute un hook à plugin-… »."
+description: "Add a component to a plugin of the model — skill with its eval suite, hook on simulated inputs, agent with declared tools, existing MCP server, script of scripts/ — its test seen failing before it passes; an out-of-scope one is refused. Use when Soon wants a new component in such a plugin; not for framing or creating one. « ajoute un agent à plugin-… », « ajoute un hook à plugin-… », « ajoute un script à plugin-… »."
 argument-hint: "[dossier du plugin] [type] [nom]"
 when_to_use: "In a plugin created by /plugin-plugin:create, or in any plugin at the model of docs/MODEL.md."
 ---
@@ -27,6 +27,7 @@ A folder without `.plugin-plugin/` holds a plugin plugin-plugin did not create: 
 - **Hook**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/hook.md` and follow it.
 - **Agent**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/agent.md` and follow it.
 - **MCP server**: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/mcp.md` and follow it.
+- **Script** of `scripts/`: read `${CLAUDE_PLUGIN_ROOT}/skills/add/reference/script.md` and follow it.
 
 ## Step 3 — Close
 

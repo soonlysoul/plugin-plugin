@@ -15,7 +15,7 @@ plugin-plugin construit des plugins Claude Code à son propre modèle, écrit r�
 | --- | --- | --- |
 | 1. Cadrer | `/plugin-plugin:frame` | Décrire le besoin, répondre aux questions (ou déléguer une décision), approuver le PRD puis l'architecture |
 | 2. Créer | `/plugin-plugin:create` | Rien : le nom est vérifié sur GitHub, la charpente posée, git initialisé, la suite du plugin lancée, verte |
-| 3. Ajouter | `/plugin-plugin:add` | Demander un composant : skill, agent, hook, déclaration d'un serveur MCP |
+| 3. Ajouter | `/plugin-plugin:add` | Demander un composant : skill, agent, hook, déclaration d'un serveur MCP, script |
 | 4. Contrôler | `/plugin-plugin:check` | Lire les écarts au modèle, s'il y en a |
 | 5. Publier | `/plugin-plugin:release` | Lire la répétition, puis dire « oui » à chaque étape de la publication |
 
@@ -37,6 +37,7 @@ plugin-plugin construit des plugins Claude Code à son propre modèle, écrit r�
 - **Hook** : vous êtes averti qu'un hook d'un plugin installé pour le compte s'applique à toutes les sessions, puis il est testé sur des entrées simulées, sans session.
 - **Agent** : ses outils sont déclarés un par un, jamais `Agent` ; un garde de portée le tient à ses dossiers d'écriture et à sa liste de commandes.
 - **Serveur MCP** : un serveur existant est déclaré, sans rien installer ni écrire de secret ; vos valeurs s'écrivent `${VAR}`.
+- **Script** de `scripts/` : vous nommez le composant qui l'appellera — skill, agent, hook ou déclaration MCP —, même s'il n'existe pas encore. Le script se construit et se teste d'abord ; d'ici là, la suite du plugin le dit « en construction », sans rougir, et une publication le refuse tant que rien ne le cite.
 
 Un composant hors périmètre — code d'un serveur MCP, channel, serveur de langage, style de sortie, commande classique, option de plugin, dépendance entre plugins — est refusé, avec sa raison et ce qui le rouvrirait.
 
