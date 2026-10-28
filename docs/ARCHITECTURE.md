@@ -2,9 +2,9 @@
 
 2026-10-20 · Soon · PRD : [PRD.md](PRD.md) · Plan : [PLAN.md](PLAN.md)
 
-**Statut : APPROUVÉ** le 2026-10-26 (« oui »).
+**Statut : APPROUVÉ** le 2026-10-28 (« oui »).
 
-Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0, révisé le 2026-10-23 par la phase 19 et le 2026-10-26 par la phase 22. Les décisions qui le fondent — principes, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan ; elles ne sont pas recopiées ici. Le modèle de plugin a sa seule source dans [MODEL.md](MODEL.md) (décision i).
+Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0, révisé le 2026-10-23 par la phase 19, le 2026-10-26 par la phase 22 et le 2026-10-28 par la phase 23. Les décisions qui le fondent — principes, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan ; elles ne sont pas recopiées ici. Le modèle de plugin a sa seule source dans [MODEL.md](MODEL.md) (décision i).
 
 Claude Code **2.1.295 ou plus** requis (forme exec des hooks, `onFailure`). Version vérifiée : 2.1.296.
 
@@ -49,7 +49,7 @@ plugin-plugin/
 
 ## Composants
 
-Coût en contexte permanent : **887 tokens** (seuil 1 000), mesuré par `claude plugin details` dans `tests/run-all.sh`.
+Coût en contexte permanent : **909 tokens** (seuil 1 000), mesuré par `claude plugin details` dans `tests/run-all.sh`.
 
 ### Skills
 
@@ -74,7 +74,7 @@ Les quatre sont présents dans **toutes** les sessions une fois le plugin instal
 | `doc-status-guard` | PostToolUse, `Edit\|Write` | fail-open, `onFailure: continue` | sur un `docs/<NOM>.md` à côté d'un `.plugin-plugin/`, dont le statut dit APPROUVÉ |
 | `checkpoint-reminder` | Stop | fail-open (exit 0 toujours) | avec un `.plugin-plugin/checkpoint.md` plus ancien que le dernier commit ou qu'un fichier modifié |
 | `consent-capture` | UserPromptSubmit | fail-open, `onFailure: continue` | avec une annonce en attente dans `.plugin-plugin/pending` |
-| `gesture-guard` | PreToolUse, `Bash\|Edit\|Write` | **fail-closed**, `onFailure: block` | dans un dépôt géré (un `.plugin-plugin/` à sa racine ou au-dessus) ou une copie de la marketplace `soon` |
+| `gesture-guard` | PreToolUse, `Bash\|Edit\|Write` | **fail-closed**, `onFailure: block` | dans un dépôt géré (un `.plugin-plugin/` à sa racine ou au-dessus) ou une copie de la marketplace `soon`, où la session est ouverte ou que la commande atteint (`cd`, `git -C`, chemin de `claude plugin tag`) ; où que soit la session, sur l'écriture du journal des accords, une étape `pp.sh --run` ou une commande `gh` qui nomme `soonlysoul/claude-plugins`. Ce contexte se teste d'abord, en builtins seuls : hors de lui, tout passe, même sans jq ou sur une entrée illisible |
 
 `consent-capture` et `gesture-guard` ne se parlent pas : l'accord passe par le disque (`consents.log`), car les hooks d'un même événement tournent en parallèle, dans un ordre quelconque.
 
