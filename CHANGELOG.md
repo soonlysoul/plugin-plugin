@@ -14,6 +14,10 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; ve
 - `release` refuse un plugin dont un script de `scripts/` n'est cité par rien, marqué ou non : un script ne se publie pas sans le composant qui l'appelle.
 - `docs/MODEL.md`, R7 : un garde fail-closed teste d'abord son contexte, en builtins seuls, et hors de lui sort en 0, même sur une erreur ; dans son contexte, il bloque sur sa règle comme sur une erreur interne — ce que fait le squelette de `add-hook` depuis 0.1.4. R6, R9, R12 et R14 disent la place, la forme, la citation et le test d'un script.
 
+### Corrigé
+
+- `gesture-guard` tient désormais R7 : sans jq, il bloquait le moindre `git push` ou `gh …` de toutes les sessions, gérées ou non, et tout texte écrit qui en parlait. Il teste d'abord son contexte, en builtins seuls : le dossier de la session ou celui où la commande va (`cd`, `git -C`, chemin de `claude plugin tag`), quand c'est un dépôt géré ou une copie de la marketplace `soon` ; où que soit la session, l'écriture du journal des accords, une étape `pp.sh --run`, une commande `gh` qui nomme `soonlysoul/claude-plugins`. Hors de ce contexte, il laisse passer, même sans jq ou sur une entrée illisible, et un `cwd` illisible n'est pas un contexte ; dans le contexte, il décide comme avant. Relevé en phase 22.
+
 ## [0.1.5] — 2026-10-25
 
 ### Corrigé

@@ -9,36 +9,36 @@
 # rewriting history, a push on main of the marketplace, a merge. The announcement and the journal of
 # consents are never written by a tool. The consent is read from disk: the guard depends on no other
 # hook.
-# Inert anywhere else, even without jq: installed for the account, it sees every Bash call and
-# every write of every session. Not proof against a determined bypass (a script that pushes), it
-# stops the gesture typed by mistake.
-# Fail-closed: exit 2 blocks with the reason on stderr; hooks.json sets "onFailure": "block".
+# Its context: the session's folder, or one the command goes to (cd, git -C, the path of claude
+# plugin tag), when it is such a repository; and, wherever the session is, a write to the journal
+# of consents, a step of pp.sh run with --run, a gh command naming the marketplace on GitHub.
+# Installed for the account, it sees every Bash call and every write of every session: outside its
+# context it is inert, even without jq or on an unreadable input. Not proof against a determined
+# bypass (a script that pushes), it stops the gesture typed by mistake.
+# Fail-closed in its context: exit 2 blocks with the reason on stderr, on its rule as on an internal
+# error (jq missing, unreadable input); hooks.json sets "onFailure": "block".
 
 IFS= read -r -d '' input || true
+# 1. Context, with bash builtins only: outside it, even on an error, the call goes through.
 # Fast path: nothing that could be a gesture or touch the journal of consents.
-grep -qE 'push|gh[[:space:]]|pp\.sh|\.plugin-plugin/|filter-(branch|repo)|plugin[[:space:]]+tag' <<<"$input" || exit 0
-block() { printf 'gesture-guard : %s\n' "$1" >&2; exit 2; }
-command -v jq >/dev/null 2>&1 || block "jq absent : ce geste ne peut pas être vérifié ; bloqué par prudence."
+GESTURE_WORDS='push|gh[[:space:]]|pp\.sh|\.plugin-plugin/|filter-(branch|repo)|plugin[[:space:]]+tag'
+[[ $input =~ $GESTURE_WORDS ]] || exit 0
 # shellcheck source=../../scripts/lib/consent.sh
-source "${BASH_SOURCE[0]%/*}/../../scripts/lib/consent.sh" 2>/dev/null || block "scripts/lib/consent.sh illisible ; bloqué par prudence."
-tool=$(jq -r '.tool_name // empty | strings' <<<"$input" 2>/dev/null) || block "entrée illisible ; bloquée par prudence."
-cwd=$(jq -r '.cwd // empty | strings' <<<"$input")
+source "${BASH_SOURCE[0]%/*}/../../scripts/lib/consent.sh" 2>/dev/null || exit 0
 JOURNAL='\.plugin-plugin/(pending|consents\.log)'
+JOURNAL_WRITE='>|(^|[^[:alnum:]_-])(tee|rm|mv|cp|touch|truncate|dd|ln|install|chmod)([^[:alnum:]_-]|$)|sed[^|;&]*[[:space:]]-i'
 JOURNAL_REASON="l'annonce (.plugin-plugin/pending) ne s'écrit que par pp.sh, le journal des accords (.plugin-plugin/consents.log) que par le hook consent-capture ; jamais par un outil."
 
-case $tool in
-  Edit | Write | MultiEdit | NotebookEdit)
-    file=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty | strings' <<<"$input")
-    [[ $file =~ /$JOURNAL$ ]] && block "$file : $JOURNAL_REASON"
-    exit 0
-    ;;
-  Bash) ;;
-  *) exit 0 ;;
-esac
-command=$(jq -r '.tool_input.command // empty | strings' <<<"$input")
-if [[ $command =~ $JOURNAL ]] && grep -qE '>|(^|[^[:alnum:]_-])(tee|rm|mv|cp|touch|truncate|dd|ln|install|chmod)([^[:alnum:]_-]|$)|sed[^|;&]*[[:space:]]-i' <<<"$command"; then
-  block "$JOURNAL_REASON"
-fi
+# json_string <name> <key>: <name> set to the string value of "<key>" in the input, its escapes
+# decoded, by bash alone; false when the input gives it no string. A quote inside a JSON string is
+# always escaped: "<key>" followed by a colon can only be a key.
+json_string() {
+  local re="\"$2\"[[:space:]]*:[[:space:]]*\"((\\\\[\"\\\\/bfnrtu]|[^\"\\\\])*)\"" value
+  [[ $input =~ $re ]] || return 1
+  value=${BASH_REMATCH[1]//\\\"/\"}
+  value=${value//\\\//\/}
+  printf -v "$1" '%b' "$value"
+}
 
 # resolve <dir> <base>: <dir> made absolute against <base>.
 resolve() {
@@ -46,15 +46,20 @@ resolve() {
   [[ $dir == /* ]] || dir="$2/$dir"
   (cd "$dir" 2>/dev/null && pwd -P) || printf '%s' "$dir"
 }
-# marketplace <dir>: true inside a clone of the marketplace soon.
+# marketplace <dir>: true inside a clone of the marketplace soon — the nearest folder at or above
+# <dir> that holds .git, as git finds it, has a .claude-plugin/marketplace.json named soon.
 marketplace() {
-  local top
-  top=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) || return 1
-  jq -e '.name == "soon"' "$top/.claude-plugin/marketplace.json" >/dev/null 2>&1
+  local dir=$1 text
+  [[ $dir == /* ]] || return 1
+  while [[ ! -e $dir/.git ]]; do
+    [[ -n $dir ]] || return 1
+    dir=${dir%/*}
+  done
+  IFS= read -r -d '' text 2>/dev/null <"$dir/.claude-plugin/marketplace.json"
+  [[ $text =~ \"name\"[[:space:]]*:[[:space:]]*\"soon\" ]]
 }
 in_context() { managed_project "$1" >/dev/null || marketplace "$1"; }
 
-gesture="" destructive="" context=0
 note_gesture() { gesture=${gesture:-$1}; }
 note_destructive() { destructive=${destructive:-$1}; }
 
@@ -75,7 +80,8 @@ git_push() {
     esac
   done
   in_context "$dir" && context=1
-  marketplace "$dir" || return 0
+  # The branch is read by git: in the decision only.
+  [[ $stage == decision ]] && marketplace "$dir" || return 0
   branch=$(git -C "$dir" symbolic-ref --short HEAD 2>/dev/null)
   ((${#refspecs[@]})) || refspecs=("$branch")
   for arg in "${refspecs[@]}"; do
@@ -167,6 +173,8 @@ segment() {
       local group=${t[i + 1]:-} action=${t[i + 2]:-} arg method=GET fields=0 endpoint=""
       [[ " ${t[*]} " == *soonlysoul/claude-plugins* ]] && context=1
       in_context "$dir" && context=1
+      # A request file is read by cat: what the command does, in the decision only.
+      [[ $stage == decision ]] || return 0
       case "$group $action" in
         "repo delete") note_destructive "suppression de dépôt (gh repo delete)" ;;
         "pr merge") note_destructive "fusion (gh pr merge) : la PR de la marketplace se fusionne par Soon" ;;
@@ -217,21 +225,69 @@ segment() {
   esac
 }
 
-# Simple commands, split on the shell's separators and substitutions; quotes peeled off each word.
-CURDIR=$(resolve "${cwd:-.}" /)
-in_context "$CURDIR" && context_cwd=1 || context_cwd=0
-split=$command
-for separator in '&&' '||' ';' '|' '&' '$(' '`' '(' ')' $'\n'; do split=${split//"$separator"/$'\x1e'}; done
-IFS=$'\x1e' read -r -d '' -a segments <<<"$split" || true
-for part in "${segments[@]}"; do
-  read -r -a words <<<"$part" || true
-  ((${#words[@]})) || continue
-  for k in "${!words[@]}"; do
-    words[k]=${words[k]#[\"\'\{]}
-    words[k]=${words[k]%[\"\'\}]}
+# walk: the command, run from cwd, split into simple commands on the shell's separators and
+# substitutions, quotes peeled off each word; sets gesture, destructive, context — the gesture
+# reaches the context — and context_cwd — the session is in it. Both stages walk it the same way.
+walk() {
+  local split=$command separator part k
+  local -a segments words
+  gesture="" destructive="" context=0
+  CURDIR=$(resolve "${cwd:-.}" /)
+  in_context "$CURDIR" && context_cwd=1 || context_cwd=0
+  for separator in '&&' '||' ';' '|' '&' '$(' '`' '(' ')' $'\n'; do split=${split//"$separator"/$'\x1e'}; done
+  IFS=$'\x1e' read -r -d '' -a segments <<<"$split" || true
+  for part in "${segments[@]}"; do
+    read -r -a words <<<"$part" || true
+    ((${#words[@]})) || continue
+    for k in "${!words[@]}"; do
+      words[k]=${words[k]#[\"\'\{]}
+      words[k]=${words[k]%[\"\'\}]}
+    done
+    segment "$CURDIR" "${words[@]}"
   done
-  segment "$CURDIR" "${words[@]}"
-done
+}
+
+stage=context
+json_string tool tool_name || exit 0
+case $tool in
+  Edit | Write | MultiEdit | NotebookEdit)
+    json_string file file_path || json_string file notebook_path || exit 0
+    [[ $file =~ /$JOURNAL$ ]] || exit 0
+    ;;
+  Bash)
+    # An unreadable cwd is no context; the command may still name one.
+    json_string cwd cwd && [[ $cwd == /* ]] || cwd=""
+    json_string command command || command=""
+    if ! [[ $command =~ $JOURNAL && $command =~ $JOURNAL_WRITE ]]; then
+      walk
+      ((context_cwd)) || ((context)) || exit 0
+    fi
+    ;;
+  *) exit 0 ;;
+esac
+
+# 2. Decision, in the context: from here on, an internal error blocks.
+stage=decision
+block() { printf 'gesture-guard : %s\n' "$1" >&2; exit 2; }
+command -v jq >/dev/null 2>&1 || block "jq absent : ce geste ne peut pas être vérifié ; bloqué par prudence."
+tool=$(jq -r '.tool_name // empty | strings' <<<"$input" 2>/dev/null) || block "entrée illisible ; bloquée par prudence."
+cwd=$(jq -r '.cwd // empty | strings' <<<"$input")
+
+case $tool in
+  Edit | Write | MultiEdit | NotebookEdit)
+    file=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty | strings' <<<"$input")
+    [[ $file =~ /$JOURNAL$ ]] && block "$file : $JOURNAL_REASON"
+    exit 0
+    ;;
+  Bash) ;;
+  *) exit 0 ;;
+esac
+command=$(jq -r '.tool_input.command // empty | strings' <<<"$input")
+if [[ $command =~ $JOURNAL ]] && grep -qE "$JOURNAL_WRITE" <<<"$command"; then
+  block "$JOURNAL_REASON"
+fi
+
+walk
 ((context_cwd)) || ((context)) || exit 0
 [[ -n $gesture || -n $destructive ]] || exit 0
 [[ -z $destructive ]] || block "geste destructif refusé : $destructive. plugin-plugin ne supprime aucun dépôt, ne force aucun push, ne réécrit aucun historique publié, ne retire aucun plugin et ne fusionne rien."

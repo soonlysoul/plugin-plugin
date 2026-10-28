@@ -4,6 +4,8 @@
 # .plugin-plugin/pending and consents.log holds the « oui » captured for that announcement — once.
 # Destructive gestures are refused even then. The journal of consents is never written by a tool.
 # Inert anywhere else, and without depending on any other hook: the consent is read from disk.
+# Its context is tested first, with bash builtins only (R7): outside it, a call goes through even
+# without jq, without any command at all, or on an unreadable input; in it, those block.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_gesture_guard
@@ -27,6 +29,9 @@ mkdir -p "$P/.claude-plugin" "$P/.plugin-plugin" "$P/skills/demo" "$F/.claude-pl
 echo '{"name": "plugin-essai"}' >"$P/.claude-plugin/plugin.json"
 echo '{"name": "plugin-autre"}' >"$F/.claude-plugin/plugin.json"
 echo '{"name": "soon", "owner": {"name": "Soon"}, "plugins": []}' >"$M/.claude-plugin/marketplace.json"
+# Q, a managed plugin whose path the JSON input has to escape: the context reads it without jq.
+Q="$work/plugin à \"part\" \\x"
+mkdir -p "$Q/.plugin-plugin"
 
 RUN="bash /opt/pp/scripts/pp.sh publish $P --run 4"
 SHA=2222222222222222222222222222222222222222222222222222222222222222
@@ -37,10 +42,11 @@ bash_input() {
     '{session_id: "test", cwd: $cwd, hook_event_name: "PreToolUse", permission_mode: "default",
       tool_name: "Bash", tool_input: {command: $c}, tool_use_id: "toolu_test"}'
 }
+# file_input <cwd> <tool> <file> [content]
 file_input() {
-  jq -nc --arg cwd "$1" --arg t "$2" --arg f "$3" \
+  jq -nc --arg cwd "$1" --arg t "$2" --arg f "$3" --arg c "${4:-x}" \
     '{session_id: "test", cwd: $cwd, hook_event_name: "PreToolUse", permission_mode: "default",
-      tool_name: $t, tool_input: {file_path: $f, content: "x"}, tool_use_id: "toolu_test"}'
+      tool_name: $t, tool_input: {file_path: $f, content: $c}, tool_use_id: "toolu_test"}'
 }
 guard() { run_hook "$HOOK" "$(bash_input "$1" "$2")"; }
 # announce <command> [epoch]: the announcement pp.sh writes; consent [epoch]: the « oui » the
@@ -63,6 +69,8 @@ guard "$F" "git push origin main"
 expect_silent_allow "plugin non géré par plugin-plugin : inerte"
 guard "$work" "ls -la"
 expect_silent_allow "hors de tout dépôt : inerte"
+guard "$U" "cd build && git push origin main"
+expect_silent_allow "cd vers un dossier sans rapport : inerte"
 
 echo "# lectures dans le contexte"
 for cmd in "git status" "git log --oneline" "gh api repos/soonlysoul/plugin-essai" "gh pr list --repo soonlysoul/claude-plugins" \
@@ -161,6 +169,18 @@ guard "$U" "gh pr create --repo soonlysoul/claude-plugins --base main --head add
 expect_blocked "PR vers la marketplace sans accord, depuis ailleurs : bloquée"
 guard "$U" "bash /opt/pp/scripts/pp.sh publish $P --run 4"
 expect_blocked "commande d'exécution de pp.sh, depuis ailleurs : bloquée"
+guard "$U" "cd ../plugin-essai && git push origin main"
+expect_reason "cd relatif vers le plugin géré, depuis ailleurs : bloqué" "sans accord"
+guard "$work" "cd plugin-essai/skills && cd .. && git push origin main"
+expect_reason "deux cd relatifs enchaînés vers le plugin géré : bloqué" "sans accord"
+guard "$U" "cd \"../plugin-essai\" && git push origin main"
+expect_reason "cd entre guillemets vers le plugin géré : bloqué" "sans accord"
+guard "$U" "git -C ../plugin-essai push origin main"
+expect_reason "git -C relatif vers le plugin géré, depuis ailleurs : bloqué" "sans accord"
+guard "$U" "cd ../claude-plugins && git push origin main"
+expect_reason "cd vers la marketplace, push sur main : refusé" "jamais"
+guard "$Q" "git push origin main"
+expect_reason "plugin géré dont le chemin s'échappe en JSON : bloqué" "aucun geste annoncé"
 
 echo "# gestes destructifs, refusés même accordés"
 for cmd in "git push --force origin main" "git push -f origin main" "git push --force-with-lease origin main" \
@@ -189,6 +209,12 @@ run_hook "$HOOK" "$(file_input "$P" Edit "$P/skills/demo/SKILL.md")"
 expect_silent_allow "Edit sur un fichier du plugin : passe"
 run_hook "$HOOK" "$(file_input "$U" Write "$U/notes.md")"
 expect_silent_allow "Write hors contexte : passe"
+run_hook "$HOOK" "$(file_input "$U" Write "$P/.plugin-plugin/consents.log")"
+expect_reason "Write du journal d'un plugin géré, depuis ailleurs : bloqué" "hook"
+run_hook "$HOOK" "$(file_input "$U" Write "$U/x/.plugin-plugin/pending")"
+expect_reason "Write d'une annonce dans un .plugin-plugin/ qui n'existe pas encore : bloqué" "hook"
+guard "$U" "echo x > ../plugin-essai/.plugin-plugin/pending"
+expect_reason "écriture du journal par Bash, depuis ailleurs : bloquée" "hook"
 for cmd in "printf 'x' >> .plugin-plugin/consents.log" "echo x > $P/.plugin-plugin/pending" "tee -a .plugin-plugin/consents.log </dev/null" \
   "sed -i d .plugin-plugin/consents.log" "rm .plugin-plugin/pending"; do
   guard "$P" "$cmd"
@@ -196,8 +222,18 @@ for cmd in "printf 'x' >> .plugin-plugin/consents.log" "echo x > $P/.plugin-plug
 done
 
 echo "# entrée illisible, jq absent"
+# truncated <cwd>: an input cut before its end, whose cwd and command still read.
+truncated() { printf '{"session_id": "test", "cwd": "%s", "tool_name": "Bash", "tool_input": {"command": "git push origin main"' "$1"; }
+run_hook "$HOOK" "$(truncated "$P")"
+expect_reason "entrée illisible dans un plugin géré, avec un geste : bloquée" "illisible"
+run_hook "$HOOK" "$(truncated "$U")"
+expect_silent_allow "entrée illisible ailleurs, avec un geste : passe"
 run_hook "$HOOK" '{"tool_name": "Bash", "tool_input": {"command": "git push origin main"'
-expect_blocked "entrée illisible qui contient un geste : bloquée"
+expect_silent_allow "cwd illisible, absent d'une entrée tronquée : hors contexte, passe"
+run_hook "$HOOK" '{"cwd": null, "tool_name": "Bash", "tool_input": {"command": "git push origin main"}}'
+expect_silent_allow "cwd illisible, null : hors contexte, passe"
+run_hook "$HOOK" '{"cwd": "plugin-essai", "tool_name": "Bash", "tool_input": {"command": "git push origin main"}}'
+expect_silent_allow "cwd illisible, relatif : hors contexte, passe"
 run_hook "$HOOK" '{"tool_name": "Bash", "tool_input": {"command": "ls"'
 expect_silent_allow "entrée illisible sans geste : passe"
 no_jq=$(path_without jq)
@@ -207,6 +243,42 @@ run_hook "$HOOK" "$(bash_input "$P" "git status")" PATH="$no_jq"
 expect_silent_allow "jq absent, sans geste : passe"
 run_hook "$HOOK" "$(file_input "$U" Write "$U/notes.md")" PATH="$no_jq"
 expect_silent_allow "jq absent, écriture ailleurs : passe"
+run_hook "$HOOK" "$(bash_input "$U" "git push origin main")" PATH="$no_jq"
+expect_silent_allow "jq absent, geste hors contexte : passe"
+run_hook "$HOOK" "$(bash_input "$U" "cd build && git push origin main")" PATH="$no_jq"
+expect_silent_allow "jq absent, cd vers un dossier sans rapport : passe"
+run_hook "$HOOK" "$(file_input "$U" Write "$U/notes.md" "Avant git push, relire.")" PATH="$no_jq"
+expect_silent_allow "jq absent, texte écrit qui parle de git push : passe"
+run_hook "$HOOK" "$(file_input "$P" Write "$P/docs/x.md" "Voir .plugin-plugin/consents.log.")" PATH="$no_jq"
+expect_silent_allow "jq absent, texte écrit dans le plugin géré qui cite le journal : passe"
+run_hook "$HOOK" "$(bash_input "$U" "cat ../plugin-essai/.plugin-plugin/consents.log")" PATH="$no_jq"
+expect_silent_allow "jq absent, lecture du journal : passe"
+run_hook "$HOOK" "$(bash_input "$U" "cd ../plugin-essai && git push origin main")" PATH="$no_jq"
+expect_reason "jq absent, cd vers le plugin géré : bloqué" "jq absent"
+run_hook "$HOOK" "$(file_input "$U" Write "$P/.plugin-plugin/consents.log")" PATH="$no_jq"
+expect_reason "jq absent, écriture du journal depuis ailleurs : bloquée" "jq absent"
 rm -rf "$no_jq"
+
+echo "# sans aucune commande : le contexte se teste en builtins seuls"
+for cmd in "git push origin main" "gh repo delete soonlysoul/x --yes" "cd build && git push origin main" "grep -r push docs"; do
+  run_hook "$HOOK" "$(bash_input "$U" "$cmd")" PATH=
+  expect_silent_allow "PATH vide, hors contexte : « $cmd » passe en silence"
+done
+run_hook "$HOOK" "$(file_input "$U" Write "$U/notes.md" "Avant git push, relire.")" PATH=
+expect_silent_allow "PATH vide, texte écrit hors contexte : passe en silence"
+for cmd in "cd ../plugin-essai && git push origin main" "git -C ../plugin-essai push origin main" \
+  "$RUN" "gh pr create --repo soonlysoul/claude-plugins --base main --head add-x --title x --body y" \
+  "echo x > ../plugin-essai/.plugin-plugin/pending"; do
+  run_hook "$HOOK" "$(bash_input "$U" "$cmd")" PATH=
+  expect_reason "PATH vide, dans le contexte : « $cmd » bloqué" "jq absent"
+done
+run_hook "$HOOK" "$(bash_input "$P" "git push origin main")" PATH=
+expect_reason "PATH vide, session dans le plugin géré : bloqué" "jq absent"
+run_hook "$HOOK" "$(bash_input "$M" "git push origin add-plugin-essai")" PATH=
+expect_reason "PATH vide, session dans la marketplace : bloqué" "jq absent"
+run_hook "$HOOK" "$(bash_input "$Q" "git push origin main")" PATH=
+expect_reason "PATH vide, plugin géré dont le chemin s'échappe en JSON : bloqué" "jq absent"
+run_hook "$HOOK" "$(file_input "$U" Write "$P/.plugin-plugin/pending")" PATH=
+expect_reason "PATH vide, Write du journal depuis ailleurs : bloqué" "jq absent"
 
 finish
