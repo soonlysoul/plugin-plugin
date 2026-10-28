@@ -2,7 +2,7 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
-## [à venir] — en cours
+## [0.1.6] — 2026-10-28
 
 ### Ajouté
 
@@ -17,6 +17,8 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; ve
 ### Corrigé
 
 - `gesture-guard` tient désormais R7 : sans jq, il bloquait le moindre `git push` ou `gh …` de toutes les sessions, gérées ou non, et tout texte écrit qui en parlait. Il teste d'abord son contexte, en builtins seuls : le dossier de la session ou celui où la commande va (`cd`, `git -C`, chemin de `claude plugin tag`), quand c'est un dépôt géré ou une copie de la marketplace `soon` ; où que soit la session, l'écriture du journal des accords, une étape `pp.sh --run`, une commande `gh` qui nomme `soonlysoul/claude-plugins`. Hors de ce contexte, il laisse passer, même sans jq ou sur une entrée illisible, et un `cwd` illisible n'est pas un contexte ; dans le contexte, il décide comme avant. Relevé en phase 22.
+
+Coût en contexte permanent : ~909 tokens — release ~130, create ~100, check ~140, resume ~110, add ~200, frame ~130, reaudit ~100.
 
 ## [0.1.5] — 2026-10-25
 
