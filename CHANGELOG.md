@@ -2,12 +2,14 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
-## [à venir] — en cours
+## [0.1.7] — 2026-10-29
 
 ### Corrigé
 
 - `release`, publication : le contrôle du commit de version pouvait échouer sur un commit présent, et la publication s'arrêtait alors sur « prochain geste : 2 » au lieu de reprendre. `git show HEAD:CHANGELOG.md` alimentait un tuyau vers `grep -q`, qui sort dès la première correspondance : git, qui écrivait encore, mourait de SIGPIPE, et `pipefail` lisait un échec. Le CHANGELOG est désormais lu en entier avant la recherche. Relevé à la publication de 0.1.6 ; sous charge, la forme d'avant échouait 60 fois sur 1 500, la nouvelle aucune.
 - Évaluations, `eval-plan` : un cas qui demande Bash entier, parmi plus d'autorisations Bash qu'un tuyau n'en contient, accordait la liste entière au lieu de Bash seul, pour la même cause. Une boucle remplace le tuyau.
+
+Coût en contexte permanent : ~909 tokens — release ~130, create ~100, check ~140, resume ~110, add ~200, frame ~130, reaudit ~100.
 
 ## [0.1.6] — 2026-10-28
 
