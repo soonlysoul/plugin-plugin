@@ -159,6 +159,12 @@ run_pp eval-plan "$narrow" demo -- PATH="$work/stub:$work/sandbox:$NOSANDBOX"
 expect_pp "Bash restreint par un motif : exit 0" 0
 expect_output "le motif du cas est accordé tel quel" '--allow-tools [^ ]*bash:[^ ]* '
 refuse_output "un cas restreint n'accorde jamais Bash entier" '--allow-tools Bash '
+# Bash entire first, then more narrow grants than a pipe holds: Bash is granted, and it alone.
+many_case=$(with "$POSITIVE" '.name = "demo-many" | .execution.allowed_tools += ["Bash"] + [range(10000) | "Bash(c\(.):*)"]')
+many=$(suite many "$many_case" "$NEGATIVE")
+run_pp eval-plan "$many" demo -- PATH="$work/stub:$work/sandbox:$NOSANDBOX"
+expect_pp "Bash entier parmi 10 000 motifs : exit 0" 0
+expect_output "Bash entier parmi 10 000 motifs : Bash seul accordé" '--allow-tools Bash --output-dir '
 
 echo "# eval-run : rien ne part sans « oui »"
 cat >"$work/green.json" <<'EOF'

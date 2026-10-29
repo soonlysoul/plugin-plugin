@@ -55,7 +55,9 @@ market_main=$(git --git-dir="$GITHUB/claude-plugins.git" rev-parse main)
 # gestures (repo create, repo edit, pr create) done on $GITHUB and logged to $work/gh-gestures.log;
 # STUB_GH_CUT=before|after fails the gesture matching STUB_GH_MATCH before or after doing it, like a
 # network cut. git: push is logged to $work/push.log; STUB_PUSH_CUT=before|after
-# fails the push matching STUB_PUSH_MATCH before or after doing it. claude: the real one.
+# fails the push matching STUB_PUSH_MATCH before or after doing it; STUB_SHOW_SLOW=1 writes
+# git show HEAD:CHANGELOG.md one line at a time, its reader scheduled in between as on a loaded
+# machine, and a write to a closed pipe ends it in 141, like git. claude: the real one.
 real_git=$(command -v git)
 mkdir -p "$work/stub"
 cat >"$work/stub/gh" <<EOF
@@ -142,6 +144,11 @@ for arg in "\$@"; do
     break
   fi
 done
+if [[ -n \${STUB_SHOW_SLOW:-} && "\$*" == *"show HEAD:CHANGELOG.md"* ]]; then
+  out=\$($(printf %q "$real_git") "\$@") || exit
+  while IFS= read -r line; do printf '%s\n' "\$line" || exit 141; sleep 0.1; done <<<"\$out"
+  exit 0
+fi
 exec $(printf %q "$real_git") "\$@"
 EOF
 chmod +x "$work/stub/gh" "$work/stub/git"
@@ -435,7 +442,13 @@ expect_line "mise à jour : 0.2.0" "^publication : $NAME 0\.2\.0 \(étiquette $N
 expect_line "mise à jour : gestes 1 à 4" '^prochaine étape — gestes 1 à 4, dont 1 vers GitHub :$'
 step "$p" "mise à jour, étape 1"
 expect_exit "mise à jour, étape 1 : exit 0" 0
-step "$p" "mise à jour, étape 5"
+# The CHANGELOG read in pieces, its reader scheduled between two of them: what is done stays done.
+pp publish "$p" -- STUB_SHOW_SLOW=1
+expect_line "CHANGELOG lu par morceaux : gestes 1 à 4 reconnus faits" '^fait : gestes 1 à 4$'
+expect_line "CHANGELOG lu par morceaux : seul le push de l'étiquette est annoncé" '^prochaine étape — gestes 5 à 5, dont 1 vers GitHub :$'
+pp publish "$p"
+step "$p" "mise à jour, étape 5, CHANGELOG lu par morceaux" STUB_SHOW_SLOW=1
+expect_exit "mise à jour, étape 5, CHANGELOG lu par morceaux : exit 0" 0
 expect_line "mise à jour terminée" "^publication terminée : $NAME 0\.2\.0, 5 gestes faits$"
 expect_line "mise à jour sur chaque appareil" "^  claude plugin update $NAME@soon$"
 [[ ! -s $work/gh-gestures.log ]] && pass "mise à jour : ni dépôt ni PR" || fail "mise à jour : ni dépôt ni PR" "$(cat "$work/gh-gestures.log")"

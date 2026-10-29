@@ -846,7 +846,11 @@ eval_plan() {
     fi
   done <<<"$files"
   # The operator grant is what the cases declare: Bash(pattern:*) stays narrow, unless a case wants all of Bash.
-  if printf '%s\n' ${bash_grants[@]+"${bash_grants[@]}"} | grep -qx Bash; then bash_grants=(Bash)
+  # A loop, not a pipe into grep -q, which leaves at the first match: past a pipe's worth of
+  # grants, printf died of SIGPIPE and pipefail read « no Bash ».
+  local grant whole=0
+  for grant in ${bash_grants[@]+"${bash_grants[@]}"}; do [[ $grant == Bash ]] && whole=1; done
+  if ((whole)); then bash_grants=(Bash)
   else mapfile -t bash_grants < <(printf '%s\n' ${bash_grants[@]+"${bash_grants[@]}"} | grep . | sort -u); fi
   if ((${#bash_cases[@]})); then
     local missing
@@ -2184,15 +2188,17 @@ market_branch_pushed() {
 # gesture_done <index>: true when the effect of the gesture is already there, read from the
 # plugin, its copy of the marketplace and GitHub.
 gesture_done() {
-  local d=$P_DIR w=$P_WORK heading="^## \[${P_VERSION//./\\.}\] — [0-9]" sha count
+  local d=$P_DIR w=$P_WORK heading="^## \[${P_VERSION//./\\.}\] — [0-9]" sha count changelog
   case ${G_KEY[$1]} in
     write)
       [[ $(jq -r '.version' "$d/.claude-plugin/plugin.json" 2>/dev/null) == "$P_VERSION" ]] && grep -qE "$heading" "$d/CHANGELOG.md" \
         && grep -qF "Version **$P_VERSION**" "$d/README.md"
       ;;
     commit)
+      # Read whole, then searched: fed by a pipe, grep -q leaves at the first match and git, still
+      # writing, dies of SIGPIPE; under pipefail the check failed on a commit that was there.
       [[ $(git -C "$d" show HEAD:.claude-plugin/plugin.json 2>/dev/null | jq -r '.version' 2>/dev/null) == "$P_VERSION" ]] \
-        && git -C "$d" show HEAD:CHANGELOG.md 2>/dev/null | grep -qE "$heading"
+        && changelog=$(git -C "$d" show HEAD:CHANGELOG.md 2>/dev/null) && grep -qE "$heading" <<<"$changelog"
       ;;
     tag) git -C "$d" rev-parse -q --verify "refs/tags/$P_TAG" >/dev/null ;;
     repo) gh api "repos/$OWNER/$P_NAME" >/dev/null 2>&1 ;;
