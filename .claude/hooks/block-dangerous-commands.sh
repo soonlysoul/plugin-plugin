@@ -60,6 +60,12 @@ refuser() {
   exit 2
 }
 
+# Chaque règle lit la commande par une chaîne ici (<<<), jamais par un tube :
+# `grep -q` sort à la première correspondance, et `printf`, qui écrivait encore
+# une commande plus longue qu'un tube, mourait de SIGPIPE ; sous `pipefail`, le
+# test rendait 141, donc faux — un geste en première ligne d'une longue commande
+# passait.
+
 # ─── rm -rf destructeur ───────────────────────────────────────────────────────
 # Vise tout chemin ABSOLU ou partant du home : racine, ~, $HOME, /home, /nix,
 # /etc, /var, /usr. Un chemin relatif (./build, node_modules) passe — c'est la
@@ -69,61 +75,61 @@ refuser() {
 # qu'il peut être anodin. La même intention s'écrit en relatif, et le coût d'un
 # refus injustifié est sans commune mesure avec celui d'un effacement.
 _rmrf='rm[[:space:]]+(-[[:alnum:]]*[rR][[:alnum:]]*f|-[[:alnum:]]*f[[:alnum:]]*[rR]|--recursive[[:space:]]+--force)[[:space:]]+'
-if printf '%s' "$commande" | grep -Eq "${_rmrf}(~|\\\$HOME|/home/|/nix|/etc|/var|/usr|/opt|/srv)"; then
+if grep -Eq "${_rmrf}(~|\\\$HOME|/home/|/nix|/etc|/var|/usr|/opt|/srv)" <<<"$commande"; then
   refuser "suppression récursive dans le home ou dans une arborescence système"
 fi
 # La racine seule, ou « / » suivi d'un joker.
-if printf '%s' "$commande" | grep -Eq "${_rmrf}/([[:space:]]|\*|$)"; then
+if grep -Eq "${_rmrf}/([[:space:]]|\*|$)" <<<"$commande"; then
   refuser "suppression récursive de la racine"
 fi
 
 # ─── sudo non déclaré ─────────────────────────────────────────────────────────
 # Les instructions d'agence : toute commande sudo est PROPOSÉE, jamais exécutée.
-if printf '%s' "$commande" | grep -Eq '(^|[;&|[:space:]])sudo([[:space:]]|$)'; then
+if grep -Eq '(^|[;&|[:space:]])sudo([[:space:]]|$)' <<<"$commande"; then
   refuser "sudo — à proposer à l'utilisateur, jamais à exécuter"
 fi
 
 # ─── force push ───────────────────────────────────────────────────────────────
-if printf '%s' "$commande" | grep -Eq 'git[[:space:]]+push[^|;&]*(--force([[:space:]]|$|=)|[[:space:]]-f([[:space:]]|$))'; then
+if grep -Eq 'git[[:space:]]+push[^|;&]*(--force([[:space:]]|$|=)|[[:space:]]-f([[:space:]]|$))' <<<"$commande"; then
   refuser "git push --force — réécrit l'historique distant"
 fi
 
 # ─── Historique Git réécrit ou travail détruit ────────────────────────────────
-if printf '%s' "$commande" | grep -Eq 'git[[:space:]]+(reset[[:space:]]+--hard[[:space:]]+(origin|upstream)/|clean[[:space:]]+-[[:alnum:]]*[xX]|filter-branch|filter-repo)'; then
+if grep -Eq 'git[[:space:]]+(reset[[:space:]]+--hard[[:space:]]+(origin|upstream)/|clean[[:space:]]+-[[:alnum:]]*[xX]|filter-branch|filter-repo)' <<<"$commande"; then
   refuser "destruction de travail local ou réécriture d'historique"
 fi
 
 # ─── Base de données ──────────────────────────────────────────────────────────
-if printf '%s' "$commande" | grep -Eiq 'DROP[[:space:]]+(DATABASE|SCHEMA|TABLE)|TRUNCATE[[:space:]]+TABLE|DELETE[[:space:]]+FROM[^;]*(WHERE[[:space:]]+1[[:space:]]*=[[:space:]]*1|;|$)'; then
+if grep -Eiq 'DROP[[:space:]]+(DATABASE|SCHEMA|TABLE)|TRUNCATE[[:space:]]+TABLE|DELETE[[:space:]]+FROM[^;]*(WHERE[[:space:]]+1[[:space:]]*=[[:space:]]*1|;|$)' <<<"$commande"; then
   refuser "opération destructrice sur la base de données"
 fi
 
 # ─── Production ───────────────────────────────────────────────────────────────
 # Le déploiement production relève d'une procédure dédiée, jamais d'une
 # session. Le mot « production » suffit à exiger le passage par un humain.
-if printf '%s' "$commande" | grep -Eiq '(deploy|apply|promote|release)[^|;&]*\b(prod|production)\b|\b(prod|production)\b[^|;&]*(deploy|apply|promote)'; then
+if grep -Eiq '(deploy|apply|promote|release)[^|;&]*\b(prod|production)\b|\b(prod|production)\b[^|;&]*(deploy|apply|promote)' <<<"$commande"; then
   refuser "déploiement production — procédure dédiée obligatoire"
 fi
 
 # ─── Destruction d'infrastructure ─────────────────────────────────────────────
-if printf '%s' "$commande" | grep -Eq 'terraform[[:space:]]+destroy|pulumi[[:space:]]+destroy|kubectl[[:space:]]+delete[[:space:]]+(namespace|node|pv)|docker[[:space:]]+(system[[:space:]]+prune|volume[[:space:]]+rm)|nixos-rebuild'; then
+if grep -Eq 'terraform[[:space:]]+destroy|pulumi[[:space:]]+destroy|kubectl[[:space:]]+delete[[:space:]]+(namespace|node|pv)|docker[[:space:]]+(system[[:space:]]+prune|volume[[:space:]]+rm)|nixos-rebuild' <<<"$commande"; then
   refuser "destruction d'infrastructure ou reconstruction système"
 fi
 
 # ─── Clés SSH ─────────────────────────────────────────────────────────────────
-if printf '%s' "$commande" | grep -Eq 'ssh-keygen|ssh-add[[:space:]]+-[dD]|(rm|mv|chmod|>)[^|;&]*\.ssh/'; then
+if grep -Eq 'ssh-keygen|ssh-add[[:space:]]+-[dD]|(rm|mv|chmod|>)[^|;&]*\.ssh/' <<<"$commande"; then
   refuser "modification des clés SSH"
 fi
 
 # ─── Exfiltration de secrets ──────────────────────────────────────────────────
 # Un secret lu puis envoyé sur le réseau, ou affiché dans une sortie conservée.
-if printf '%s' "$commande" | grep -Eq '(cat|less|head|tail|xxd|base64)[^|;&]*(\.env|\.ssh/|credentials|\.pem|\.key|token|secret)' \
-   && printf '%s' "$commande" | grep -Eq '\|[[:space:]]*(curl|wget|nc|ncat|socat|ssh|mail)'; then
+if grep -Eq '(cat|less|head|tail|xxd|base64)[^|;&]*(\.env|\.ssh/|credentials|\.pem|\.key|token|secret)' <<<"$commande" \
+   && grep -Eq '\|[[:space:]]*(curl|wget|nc|ncat|socat|ssh|mail)' <<<"$commande"; then
   refuser "lecture d'un secret redirigée vers le réseau"
 fi
 
 # ─── Installation impérative (instructions NixOS de l'agence) ─────────────────
-if printf '%s' "$commande" | grep -Eq '(npm|pnpm|yarn)[[:space:]]+(install|i|add)[[:space:]]+(-g|--global)|pip[[:space:]]+install|curl[^|;&]*\|[[:space:]]*(ba)?sh|wget[^|;&]*\|[[:space:]]*(ba)?sh'; then
+if grep -Eq '(npm|pnpm|yarn)[[:space:]]+(install|i|add)[[:space:]]+(-g|--global)|pip[[:space:]]+install|curl[^|;&]*\|[[:space:]]*(ba)?sh|wget[^|;&]*\|[[:space:]]*(ba)?sh' <<<"$commande"; then
   refuser "installation impérative — tout passe par Nix sur cette machine"
 fi
 

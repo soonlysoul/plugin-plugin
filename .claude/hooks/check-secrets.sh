@@ -127,8 +127,14 @@ fi
 # Ne se déclenche que sur une vraie valeur : les placeholders, les lectures
 # d'environnement et les chaînes vides passent — sinon .env.example, les tests
 # et la documentation deviendraient inécrivables.
-if printf '%s' "$contenu" | grep -Eiq '(api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|password|passwd|client[_-]?secret|private[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']{12,}["'"'"']'; then
-  if ! printf '%s' "$contenu" | grep -Eiq '(api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|password|passwd|client[_-]?secret|private[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'"'](\$\{?[A-Z_]+\}?|<[^>]+>|x{3,}|\.{3,}|change[_-]?me|your[_-]?|example|placeholder|dummy|fake|test[_-]?only|TODO|REMPLACER)'; then
+#
+# Le contenu entre par une chaîne ici (<<<), jamais par un tube : `grep -q` sort
+# à la première correspondance, et `printf`, qui écrivait encore un contenu plus
+# long qu'un tube, mourait de SIGPIPE ; sous `pipefail`, le test rendait 141,
+# donc faux — un secret en tête d'un long fichier passait. Même cause que dans
+# `vraisemblable`, ci-dessus.
+if grep -Eiq '(api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|password|passwd|client[_-]?secret|private[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"']{12,}["'"'"']' <<<"$contenu"; then
+  if ! grep -Eiq '(api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|password|passwd|client[_-]?secret|private[_-]?key)[[:space:]]*[:=][[:space:]]*["'"'"'](\$\{?[A-Z_]+\}?|<[^>]+>|x{3,}|\.{3,}|change[_-]?me|your[_-]?|example|placeholder|dummy|fake|test[_-]?only|TODO|REMPLACER)' <<<"$contenu"; then
     refuser "affectation d'un secret à une valeur littérale"
   fi
 fi
@@ -151,7 +157,7 @@ fi
 #   "API_KEY":""            → « " » : vide, accepté
 case "$chemin" in
   *CLAUDE.md | *.mcp.json | *manifest.yaml | *manifest.yml)
-    if printf '%s' "$contenu" | grep -Eiq '(token|api[_-]?key|secret|password)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[^[:space:]<$"'"'"']'; then
+    if grep -Eiq '(token|api[_-]?key|secret|password)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[^[:space:]<$"'"'"']' <<<"$contenu"; then
       refuser "ce fichier est explicitement interdit aux secrets"
     fi
     ;;
