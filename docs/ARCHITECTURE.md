@@ -2,7 +2,7 @@
 
 2026-10-20 · Soon · PRD : [PRD.md](PRD.md) · Plan : [PLAN.md](PLAN.md)
 
-**Statut : APPROUVÉ** le 2026-10-28 (« oui »).
+**Statut : APPROUVÉ** le 2026-11-01 (« Oui »).
 
 Ce document décrit plugin-plugin tel qu'il est construit à la clôture de 0.1.0, révisé le 2026-10-23 par la phase 19, le 2026-10-26 par la phase 22 et le 2026-10-28 par la phase 23. Les décisions qui le fondent — principes, tests, évaluations, publication, ré-audit, ce qui est écarté et ce qui le rouvrirait — sont celles de la section « Décisions architecturales » du plan ; elles ne sont pas recopiées ici. Le modèle de plugin a sa seule source dans [MODEL.md](MODEL.md) (décision i).
 
@@ -73,10 +73,12 @@ Les quatre sont présents dans **toutes** les sessions une fois le plugin instal
 | --- | --- | --- | --- |
 | `doc-status-guard` | PostToolUse, `Edit\|Write` | fail-open, `onFailure: continue` | sur un `docs/<NOM>.md` à côté d'un `.plugin-plugin/`, dont le statut dit APPROUVÉ |
 | `checkpoint-reminder` | Stop | fail-open (exit 0 toujours) | avec un `.plugin-plugin/checkpoint.md` plus ancien que le dernier commit ou qu'un fichier modifié |
-| `consent-capture` | UserPromptSubmit | fail-open, `onFailure: continue` | avec une annonce en attente dans `.plugin-plugin/pending` |
-| `gesture-guard` | PreToolUse, `Bash\|Edit\|Write` | **fail-closed**, `onFailure: block` | dans un dépôt géré (un `.plugin-plugin/` à sa racine ou au-dessus) ou une copie de la marketplace `soon`, où la session est ouverte ou que la commande atteint (`cd`, `git -C`, chemin de `claude plugin tag`) ; où que soit la session, sur l'écriture du journal des accords, une étape `pp.sh --run` ou une commande `gh` qui nomme `soonlysoul/claude-plugins`. Ce contexte se teste d'abord, en builtins seuls : hors de lui, tout passe, même sans jq ou sur une entrée illisible |
+| `consent-capture` | UserPromptSubmit ; PostToolUse, `AskUserQuestion` | fail-open, `onFailure: continue` | avec une annonce en attente dans `.plugin-plugin/pending` |
+| `gesture-guard` | PreToolUse, `Bash\|Edit\|Write\|AskUserQuestion` | **fail-closed**, `onFailure: block` | dans un dépôt géré (un `.plugin-plugin/` à sa racine ou au-dessus) ou une copie de la marketplace `soon`, où la session est ouverte ou que la commande atteint (`cd`, `git -C`, chemin de `claude plugin tag`) ; où que soit la session, sur l'écriture du journal des accords, une étape `pp.sh --run` ou une commande `gh` qui nomme `soonlysoul/claude-plugins` ; dans un dépôt géré, sur une question `AskUserQuestion` dont Claude a rempli la réponse (`answers`). Ce contexte se teste d'abord, en builtins seuls : hors de lui, tout passe, même sans jq ou sur une entrée illisible |
 
 `consent-capture` et `gesture-guard` ne se parlent pas : l'accord passe par le disque (`consents.log`), car les hooks d'un même événement tournent en parallèle, dans un ordre quelconque.
+
+Un accord arrive par l'un de deux chemins. Tapé, il passe par UserPromptSubmit. Choisi dans `AskUserQuestion`, il n'y passe pas : `consent-capture` le lit en PostToolUse, dans la réponse à la question que `pp.sh` annonce mot pour mot (`question : …`) ; une autre question, une autre réponse ou une note jointe retire l'annonce. Une question fermée par Échap n'atteint aucun hook : l'annonce attend, jusqu'au prochain message tapé ou trente minutes. `gesture-guard` refuse une question dont Claude a rempli la réponse : seul Soon y répond.
 
 ## L'outil `pp.sh`
 
@@ -99,7 +101,7 @@ Dans le dépôt du plugin cible, jamais ailleurs.
 | `checkpoint.md` | `pp.sh checkpoint` | non | point de reprise : skill, branche, étapes faites et à faire, commandes et codes de sortie |
 | `publication.json` | `pp.sh publish` | non | plan figé d'une publication, prouvé par la répétition |
 | `pending` | `pp.sh publish`, `pp.sh mount` | non | l'étape annoncée, avec ses commandes exactes |
-| `consents.log` | `consent-capture` seul | non | le « oui » tapé, pour une annonce donnée |
+| `consents.log` | `consent-capture` seul | non | le « oui », tapé ou choisi dans `AskUserQuestion`, pour une annonce donnée |
 | `gestures.log` | `pp.sh publish` | non | chaque geste : fait, échoué, refusé, déjà fait, commande qui reprend |
 
 Les journaux disent ce qui s'est passé ; ils ne décident de rien. Ce qui est fait se lit dans les dépôts (version et CHANGELOG à HEAD, étiquettes, dépôt GitHub, PR) : une reprise après une coupure ne refait rien.
@@ -108,9 +110,9 @@ Les journaux disent ce qui s'est passé ; ils ne décident de rien. Ce qui est f
 
 | Accord | Annoncé par | Trace | Gardé par |
 | --- | --- | --- | --- |
-| Document de cadrage | le skill `frame`, en texte | `approvals.log` (citation et empreinte) | `doc-status-guard` : modifié, il repasse en REVUE ; `create` refuse un cadrage non approuvé |
+| Document de cadrage | le skill `frame`, par `AskUserQuestion`, en texte sans l'outil | `approvals.log` (citation et empreinte) | `doc-status-guard` : modifié, il repasse en REVUE ; `create` refuse un cadrage non approuvé |
 | Lancement payant d'une évaluation | `pp.sh eval-plan` : sessions, coût estimé, plafond, compte | `--quote « oui »` passé à `pp.sh eval-run` | `eval-run` ne lance rien sans la citation |
-| Geste GitHub | `pp.sh publish` / `mount` : l'étape et ses commandes | `consents.log`, écrit par `consent-capture` | `gesture-guard` : la commande annoncée passe une fois ; les gestes destructifs jamais |
+| Geste GitHub | `pp.sh publish` / `mount` : l'étape, ses commandes et sa question | `consents.log`, écrit par `consent-capture` | `gesture-guard` : la commande annoncée passe une fois ; les gestes destructifs jamais |
 
 ## Base de faits et ré-audit
 

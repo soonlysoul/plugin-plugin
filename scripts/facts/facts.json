@@ -1205,5 +1205,59 @@
     "source": "gh api repos/soonlysoul/claude-plugins/contents/README.md, 2026-10-20",
     "recheck": "gh api repos/soonlysoul/claude-plugins/contents/README.md -H \"Accept: application/vnd.github.raw+json\"",
     "status": "confirmé"
+  },
+  {
+    "id": "askuserquestion-interactive",
+    "statement": "En session interactive, en ligne de commande comme dans l'extension VS Code, AskUserQuestion est offert, même en mode auto : la boîte de dialogue s'affiche à chaque appel, et l'utilisateur répond par une option ou par un texte tapé dans « Other ».",
+    "claude_version": "2.1.316",
+    "date": "2026-11-01",
+    "source": "phase 25 : sonde build/p25-probe (ligne de commande, permission_mode auto, PermissionRequest à chaque appel) ; session VS Code de la phase",
+    "recheck": "session interactive dans un dossier jetable dont .claude/settings.json consigne PreToolUse, PermissionRequest et PostToolUse sur AskUserQuestion ; demander une question, y répondre",
+    "status": "confirmé"
+  },
+  {
+    "id": "askuserquestion-limits",
+    "statement": "Un appel à AskUserQuestion porte de 1 à 4 questions, chacune de 2 à 4 options (label, description), un header de 12 caractères au plus et multiSelect ; « Other », pour un texte libre, est ajouté d'office.",
+    "claude_version": "2.1.316",
+    "date": "2026-11-01",
+    "source": "schéma de l'outil offert en session, 2.1.316 ; doc agent-sdk/user-input",
+    "recheck": "doc agent-sdk/user-input, section AskUserQuestion ; schéma de l'outil en session",
+    "status": "confirmé"
+  },
+  {
+    "id": "askuserquestion-answer-no-userpromptsubmit",
+    "statement": "Répondre à AskUserQuestion ne déclenche pas UserPromptSubmit : la réponse n'arrive aux hooks qu'en PostToolUse.",
+    "claude_version": "2.1.316",
+    "date": "2026-11-01",
+    "source": "phase 25 : sonde build/p25-probe, deux messages tapés et deux réponses, deux UserPromptSubmit seulement",
+    "recheck": "même sonde que askuserquestion-interactive, UserPromptSubmit consigné aussi",
+    "status": "confirmé"
+  },
+  {
+    "id": "askuserquestion-posttooluse-answers",
+    "statement": "En PostToolUse, tool_response.answers — repris dans tool_input — associe le texte exact de chaque question à la réponse : le libellé de l'option choisie, ou le texte tapé dans « Other », tel quel ; tool_response.annotations porte les notes jointes, vide sans note.",
+    "claude_version": "2.1.316",
+    "date": "2026-11-01",
+    "source": "phase 25 : sonde build/p25-probe, « Oui » choisi puis « oui » tapé dans « Other »",
+    "recheck": "même sonde que askuserquestion-interactive",
+    "status": "confirmé"
+  },
+  {
+    "id": "askuserquestion-escape-no-hook",
+    "statement": "Une question AskUserQuestion fermée par Échap ne déclenche ni PostToolUse ni PostToolUseFailure : Claude reçoit un refus de l'outil, aucun hook ne voit de réponse.",
+    "claude_version": "2.1.316",
+    "date": "2026-11-01",
+    "source": "phase 25 : sonde build/p25-probe, PreToolUse et PermissionRequest puis rien",
+    "recheck": "même sonde que askuserquestion-interactive, PostToolUseFailure consigné aussi",
+    "status": "confirmé"
+  },
+  {
+    "id": "askuserquestion-claude-prefill",
+    "statement": "Claude peut remplir answers dans son propre appel à AskUserQuestion, et PreToolUse le voit ; en session interactive la boîte s'affiche quand même, et la réponse de l'utilisateur remplace la sienne. Un autre hôte — un hook PermissionRequest qui accorde, un hôte du SDK — peut retenir la réponse remplie sans rien afficher.",
+    "claude_version": "2.1.316",
+    "date": "2026-11-01",
+    "source": "phase 25 : sonde build/p25-probe, answers « Oui » rempli par Claude, « Non » choisi et rendu ; doc hooks, updatedInput.answers",
+    "recheck": "même sonde que askuserquestion-interactive : demander à Claude de remplir answers",
+    "status": "confirmé"
   }
 ]

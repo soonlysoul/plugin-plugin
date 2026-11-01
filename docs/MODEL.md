@@ -2,7 +2,7 @@
 
 2026-10-23 · Soon
 
-**Statut : APPROUVÉ** le 2026-10-26 (« oui »).
+**Statut : APPROUVÉ** le 2026-11-01 (« Oui »).
 
 Ce document est la seule source du modèle de plugin de plugin-plugin (décision i du plan,
 US-38). `check` en vérifie les règles, `create` et `rebuild` en produisent la charpente, `add` y
@@ -23,6 +23,10 @@ un script de `scripts/` s'ajoute par `add`, avec son test, et se construit avant
 qui l'appelle sans faire rougir la suite, mais ne se publie pas sans lui (R6, R9, R12, R14) ; un
 garde fail-closed ne bloque que dans son contexte, comme le squelette de `add-hook` depuis
 plugin-plugin 0.1.4 (R7).
+
+Amendé le 2026-11-01, à la demande de Soon : un skill pose ses choix et ses accords par
+`AskUserQuestion` quand l'outil est offert, la recommandation en tête pour un choix, « Non » en
+tête pour un accord ; en texte sinon (R10). Mesures de Claude Code 2.1.316, sonde de la phase 25.
 
 ## Règles
 
@@ -155,15 +159,30 @@ remplace (R14).
 Un `SKILL.md` par dossier de `skills/`. En-tête strict : une ligne `clé: valeur` par clé, refermé
 par `---`, clés connues, jamais `allowed-tools`, `name` égal au dossier, `description` présente ;
 description et `when_to_use` réunis sous 1 536 caractères. SKILL.md sous 500 lignes, détails dans
-`reference/`, aucun `$0` à `$9`. Les questions se posent en texte, puis le skill s'arrête ; un
-point de reprise s'écrit à chaque étape.
+`reference/`, aucun `$0` à `$9` ; un point de reprise s'écrit à chaque étape.
+
+Un choix entre des options connues se pose par `AskUserQuestion`, une question par appel : de 2 à
+4 options, la recommandée en tête, son libellé fini par « (Recommandé) », sa raison dans sa
+description. Un accord aussi — approbation, geste, commit, dépense : « Non » puis « Oui », aucune
+option recommandée, `answers` jamais rempli par Claude ; seul « Oui », choisi ou tapé, sans note
+jointe, vaut accord. Une question ouverte se pose en texte. Sans l'outil — un sous-agent,
+`claude -p` sans hôte de permission —, toute question se pose en texte, puis le skill s'arrête ;
+un « oui » tapé vaut le même accord.
 
 - **Contrôle** : `[skills]`
 - **Raison** : au-delà de 1 536 caractères, la description est tronquée ; le corps reste en
-  contexte après l'invocation ; `allowed-tools` accorde sans restreindre. Sans hôte de permission,
-  `AskUserQuestion` manque : une question en texte marche partout.
+  contexte après l'invocation ; `allowed-tools` accorde sans restreindre. `AskUserQuestion` montre
+  les options et la recommandation sans rien à retaper, et rend la réponse structurée ; elle ne
+  passe pas par UserPromptSubmit, et un garde d'accord la lit en PostToolUse. Sur un accord,
+  Claude ne pousse pas : « Non » en tête. Claude peut remplir `answers` lui-même, et un autre hôte
+  que la session interactive peut retenir cette réponse sans rien afficher. Échap ne laisse
+  aucune trace aux hooks : l'absence de réponse n'est pas un accord. Un sous-agent et `-p` sans
+  hôte n'ont pas l'outil.
 - **Faits** : `skill-fields`, `skill-description-limit-1536`, `skill-body-stays-in-context`,
-  `skill-allowed-tools-grants`, `argument-hint-yaml-list`, `askuserquestion-headless`
+  `skill-allowed-tools-grants`, `argument-hint-yaml-list`, `askuserquestion-headless`,
+  `subagent-no-askuserquestion`, `askuserquestion-interactive`, `askuserquestion-limits`,
+  `askuserquestion-answer-no-userpromptsubmit`, `askuserquestion-posttooluse-answers`,
+  `askuserquestion-escape-no-hook`, `askuserquestion-claude-prefill`
 
 ### R11 — Les agents
 
@@ -308,8 +327,6 @@ ne les écrit pas.
 
 - **Hooks à prompt** : non déterministes, ils coûtent du quota à chaque appel et ne se testent pas
   sans session. Rouverts si un contrôle ne s'exprime pas en script.
-- **`AskUserQuestion` dans un skill** : absent sans hôte de permission ; une question en texte
-  marche partout, et la réponse tapée arrive telle quelle aux gardes d'accord.
 - **`version` dans l'en-tête d'un skill** : ce n'est pas un champ de Claude Code.
 - **Agent valideur** : la conformité se contrôle par script, avec `check`.
 - **Réglages `.claude/<plugin>.local.md`** : les options de plugin sont exclues, et Claude Code
