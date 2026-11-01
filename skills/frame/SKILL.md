@@ -9,6 +9,8 @@ when_to_use: "Before /plugin-plugin:create."
 
 Address the user in French unless they write in another language.
 
+**Questions.** Put a choice among known options in AskUserQuestion, one question per call: two to four options, the recommended one first, its label ending « (Recommandé) », its reason in its description. Put an agreement there too: « Non » then « Oui », none recommended, `answers` never filled in; only « Oui », chosen or typed, with no note, agrees — a note, Escape or any other answer does not. Ask an open question in text. Without AskUserQuestion — a subagent, `claude -p` —, ask every question in text, then stop; a typed « oui » agrees the same.
+
 Nothing of the plugin is written before its PRD and architecture are approved. This skill writes only in the target folder: `docs/PRD.md`, `docs/ARCHITECTURE.md` and `.plugin-plugin/`.
 
 **Checkpoint.** Once the state exists (step 1), run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skill frame --steps "Dossier et état|Interview|Documents en brouillon|Approbations|Passage à create"`. After each step: `… checkpoint <folder> done <n> --command "<command or action>" --exit <code>`; on a blocker: `… checkpoint <folder> block "<reason>"`. A refused `start` means a framing of this folder was interrupted: resume it from its next step, and use `--restart` only when Soon abandons it. The same command failing twice the same way: stop and expose the blocker.
@@ -26,9 +28,9 @@ A previous framing resumes where it stopped, read from the documents (`bash "${C
 
 ## Step 2 — Interview, one question at a time
 
-Ask exactly one question per message, then stop and wait. Each question carries your recommendation and its reason in one or two sentences. Cover, in this order: the need and who has it; what must stay out of scope; the name; the language of identifiers; the components; the success criteria. A need given as argument answers the first question: confirm it instead of asking.
+Ask exactly one question at a time, then stop and wait. Each question carries your recommendation and its reason in one or two sentences: in AskUserQuestion, the first option. The need, what must stay out of scope and the success criteria are open questions, asked in text; the name, the language of identifiers, each component's kind and what it needs are choices. Cover, in this order: the need and who has it; what must stay out of scope; the name; the language of identifiers; the components; the success criteria. A need given as argument answers the first question: confirm it instead of asking.
 
-- **Name**: propose `plugin-<domaine>` and check it with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check-name <name>`. A refusal names the rule broken: propose another name. Whether the name is free on GitHub is checked at creation.
+- **Name**: propose two or three `plugin-<domaine>`, the best first, each checked with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check-name <name>`. A refusal names the rule broken: offer another name in its place. Whether the name is free on GitHub is checked at creation.
 - **Identifiers**: ask the language of skill and agent names; recommend English.
 - **Components**: each one answers a user story. Deterministic checks are hooks or scripts, judgment is a skill, a bounded task is an agent; an existing MCP server can be declared. Settle in the same question what the architecture needs of each — a hook's event and fail-open or fail-closed mode, an agent's tools and write folders — or leave it « à trancher ». Out of the model's scope: MCP server code, channels, output styles, classic commands, plugin options, plugin dependencies, language servers — say so, and say what would reopen them.
 
@@ -40,11 +42,11 @@ Fill `${CLAUDE_PLUGIN_ROOT}/templates/PRD.md` and `${CLAUDE_PLUGIN_ROOT}/templat
 
 ## Step 4 — Approval, document by document
 
-List the items of the PRD still « à trancher »: Soon settles each, or accepts them as they are, explicitly. Present the PRD, then ask for its approval in text, and stop. When Soon answers:
+List the items of the PRD still « à trancher »: Soon settles each, or accepts them as they are, explicitly. Present the PRD, then ask for its approval — « Approuver docs/PRD.md ? », « Non » then « Oui » —, and stop. When Soon answers:
 
-- An approval: run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" approve <folder>/docs/PRD.md --quote '<Soon's message, verbatim>'` — single quotes, each `'` written `'\''`. Only the script decides.
+- An approval: run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" approve <folder>/docs/PRD.md --quote '<the answer chosen, or Soon's message, verbatim>'` — single quotes, each `'` written `'\''`. Only the script decides.
 - The script refuses the message (« ok », « oui mais … »): say that only an explicit approval counts — « oui », « je valide », « j'approuve », « approuvé » — and ask again, changing nothing.
-- A requested change: apply it, leave the status as it is, present the document again; no `approve`.
+- « Non », a note joined to « Oui », or a requested change: apply it, leave the status as it is, present the document again; no `approve`.
 
 Do the same for the architecture. Change these documents with Edit or Write only, never through Bash: a document modified after its approval then goes back to `REVUE` on its own (hook `doc-status-guard`); present it again before relying on it.
 

@@ -9,6 +9,8 @@ when_to_use: "After /plugin-plugin:frame."
 
 Address the user in French unless they write in another language.
 
+**Questions.** Put a choice among known options in AskUserQuestion, one question per call: two to four options, the recommended one first, its label ending « (Recommandé) », its reason in its description. Put an agreement there too: « Non » then « Oui », none recommended, `answers` never filled in; only « Oui », chosen or typed, with no note, agrees — a note, Escape or any other answer does not. Ask an open question in text. Without AskUserQuestion — a subagent, `claude -p` —, ask every question in text, then stop; a typed « oui » agrees the same.
+
 The creation writes only in the target folder, and only when that folder holds nothing but an approved framing. It never touches GitHub beyond reading it.
 
 **Checkpoint.** Once step 1 has passed, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" checkpoint <folder> start --skill create --steps "Vérifier le cadrage|Nom et description|Créer|Rapport et premier commit|Étape suivante"`, then record step 1. After each step: `… checkpoint <folder> done <n> --command "<command>" --exit <code>`, with `--test "bash tests/run-all.sh"` after step 3; on a blocker: `… checkpoint <folder> block "<reason>"`. A refused `start` means a creation was interrupted here: resume it from its next step.
@@ -38,7 +40,7 @@ Report the plugin created and its suite: `réussies`, `échouées`, `sautées`, 
 
 `git -C <folder> add -A` then `git -C <folder> commit -m "chore: charpente de <name>"`
 
-Run them only on a literal « oui ». Nothing goes to GitHub here: the repository is created by the release, later.
+Ask whether to run them, « Non » then « Oui », and run them only on « Oui ». Nothing goes to GitHub here: the repository is created by the release, later.
 
 ## Step 5 — Next step
 

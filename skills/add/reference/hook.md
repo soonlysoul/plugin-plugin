@@ -11,7 +11,7 @@ Ask, one question at a time: what the hook enforces — a deterministic check; o
 
 ## 2. Warn before writing
 
-Run `bash <pp> add-hook <folder> --name <name> --event <event> [--matcher <tools>] --mode <mode> --dry-run`. Show its first line, the scope warning — installed for the account, the hook runs in every session, in every project — and the files it would write. Ask whether to write it, and stop. Only a literal "oui" goes on.
+Run `bash <pp> add-hook <folder> --name <name> --event <event> [--matcher <tools>] --mode <mode> --dry-run`. Show its first line, the scope warning — installed for the account, the hook runs in every session, in every project — and the files it would write. Ask whether to write it — « Non » then « Oui » —, and stop. Only « Oui » goes on.
 
 ## 3. Skeleton
 

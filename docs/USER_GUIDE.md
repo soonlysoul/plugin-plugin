@@ -17,9 +17,11 @@ plugin-plugin construit des plugins Claude Code à son propre modèle, écrit r�
 | 2. Créer | `/plugin-plugin:create` | Rien : le nom est vérifié sur GitHub, la charpente posée, git initialisé, la suite du plugin lancée, verte |
 | 3. Ajouter | `/plugin-plugin:add` | Demander un composant : skill, agent, hook, déclaration d'un serveur MCP, script |
 | 4. Contrôler | `/plugin-plugin:check` | Lire les écarts au modèle, s'il y en a |
-| 5. Publier | `/plugin-plugin:release` | Lire la répétition, puis dire « oui » à chaque étape de la publication |
+| 5. Publier | `/plugin-plugin:release` | Lire la répétition, puis répondre « Oui » à chaque étape de la publication |
 
 `resume` et `reaudit` servent à tout moment.
+
+Les choix vous sont proposés dans une boîte de dialogue (`AskUserQuestion`) : l'option recommandée en tête, marquée « (Recommandé) », sa raison dans sa description ; « Other » laisse taper autre chose. Un accord — approbation, commit, dépense, geste GitHub — s'y demande aussi, « Non » en tête, rien de recommandé : seul « Oui », sans note, vaut accord. Une question ouverte se pose en texte, et toute question quand la boîte n'est pas offerte (`claude -p`) : tapez alors « oui ».
 
 ## Cadrer — `frame`
 
@@ -33,7 +35,7 @@ plugin-plugin construit des plugins Claude Code à son propre modèle, écrit r�
 
 « ajoute un agent à plugin-… ». Chaque composant arrive avec son test, vu en échec avant de passer :
 
-- **Skill** : la suite d'évaluation est écrite à partir de vos demandes concrètes — celles qui doivent le déclencher, celles qui ne le doivent pas. Avant tout lancement s'affichent le nombre de sessions, le coût estimé, le plafond et le compte qui paie ; rien ne part sans votre « oui ».
+- **Skill** : la suite d'évaluation est écrite à partir de vos demandes concrètes — celles qui doivent le déclencher, celles qui ne le doivent pas. Avant tout lancement s'affichent le nombre de sessions, le coût estimé, le plafond et le compte qui paie ; rien ne part sans votre « Oui ».
 - **Hook** : vous êtes averti qu'un hook d'un plugin installé pour le compte s'applique à toutes les sessions, puis il est testé sur des entrées simulées, sans session.
 - **Agent** : ses outils sont déclarés un par un, jamais `Agent` ; un garde de portée le tient à ses dossiers d'écriture et à sa liste de commandes.
 - **Serveur MCP** : un serveur existant est déclaré, sans rien installer ni écrire de secret ; vos valeurs s'écrivent `${VAR}`.
@@ -65,7 +67,7 @@ Ne se lance que sur votre demande explicite, `/plugin-plugin:release <dossier>`.
 
    La version s'écrit aussi dans le README du plugin.
 3. **Rien à publier, des descriptions en retard** : la répétition propose un alignement seul, sans version, ni CHANGELOG, ni étiquette.
-4. **La publication**, à votre demande, avance étape par étape. Chaque étape est annoncée avec ses commandes ; tapez **« oui »**, littéralement, pour la lancer. Toute autre réponse la retire, et une annonce sans réponse pendant trente minutes aussi. Une notification de Claude Code, comme la fin d'une tâche de fond, n'est pas une réponse : l'annonce attend toujours la vôtre.
+4. **La publication**, à votre demande, avance étape par étape. Chaque étape est annoncée avec ses commandes, puis sa question : choisissez **« Oui »** pour la lancer, ou tapez « oui », littéralement. Toute autre réponse la retire — « Non », une note jointe à « Oui », un autre texte —, et une annonce sans réponse pendant trente minutes aussi. Échap, ou une notification de Claude Code comme la fin d'une tâche de fond, n'est pas une réponse : l'annonce attend toujours la vôtre.
 5. La marketplace `soon` ne change que par une PR, pour un ajout comme pour un alignement. **La fusion est à vous.**
 6. À la fin : la commande d'installation ou de mise à jour ; après un alignement, `claude plugin marketplace update soon`, une fois la PR fusionnée.
 

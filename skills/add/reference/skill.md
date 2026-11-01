@@ -19,7 +19,7 @@ Run `bash <pp> check-evals <folder> <skill>`. Each refusal names the rule to fix
 
 ## 3. Red, before the skill exists
 
-Run `bash <pp> eval-plan <folder> <skill> --one-arm` and show the announcement verbatim: sessions, estimated cost, cap, paying account, exact command. Ask for agreement, and stop. Only a literal "oui" counts: then run `bash <pp> eval-run <folder> <skill> --one-arm --quote "<Soon's message, verbatim>"`. A different cap (`--max-cost <usd>`) is set before the announcement, never after.
+Run `bash <pp> eval-plan <folder> <skill> --one-arm` and show the announcement verbatim: sessions, estimated cost, cap, paying account, exact command. Ask for agreement — « Non » then « Oui », the cost in the question —, and stop. Only « Oui » counts: then run `bash <pp> eval-run <folder> <skill> --one-arm --quote "<the answer, verbatim>"`. A different cap (`--max-cost <usd>`) is set before the announcement, never after.
 
 A plugin folder never trusted is refused outside a terminal: `eval-run` then says « bloqué » and gives the free command Soon runs once in a terminal to trust it. Never pass `--trust-plugin`.
 
@@ -27,11 +27,11 @@ Expected: `verdict : rouge`, the cases that must trigger failing. A case already
 
 ## 4. Write the skill
 
-Write `skills/<skill>/SKILL.md`: header `name`, `description` (« <what it does>. Use when …; not for … » with one or two trigger phrases quoted in French), `argument-hint`, `when_to_use`; never `allowed-tools`. Body in the imperative, under 500 lines, details in `reference/`. Run `bash <pp> check-skill <folder>/skills/<skill>/SKILL.md` until it says `conforme`.
+Write `skills/<skill>/SKILL.md`: header `name`, `description` (« <what it does>. Use when …; not for … » with one or two trigger phrases quoted in French), `argument-hint`, `when_to_use`; never `allowed-tools`. Body in the imperative, under 500 lines, details in `reference/`. Its questions follow R10 of the model: a choice among known options in AskUserQuestion, the recommended one first, « (Recommandé) »; an agreement, « Non » then « Oui »; an open question in text; without the tool, in text, then stop. Run `bash <pp> check-skill <folder>/skills/<skill>/SKILL.md` until it says `conforme`.
 
 ## 5. Green, with the baseline
 
-Announce again, without `--one-arm`: the baseline arm, without the plugin, is what proves the skill brings something. On a literal "oui", run `eval-run` the same way. Expected: `verdict : vert`, every case at 1.00, and a positive Δ on each case that must trigger. A case refused with `le témoin réussit` is rewritten, never kept.
+Announce again, without `--one-arm`: the baseline arm, without the plugin, is what proves the skill brings something. On « Oui », run `eval-run` the same way. Expected: `verdict : vert`, every case at 1.00, and a positive Δ on each case that must trigger. A case refused with `le témoin réussit` is rewritten, never kept.
 
 ## 6. Record
 

@@ -13,10 +13,10 @@ Même annoncé, même accordé :
 
 ## Les gestes GitHub : annoncés, accordés, une fois
 
-Création de dépôt, push, push d'étiquette, description du dépôt, PR : chaque étape de publication ou d'alignement est annoncée par `pp.sh publish` avec ses commandes exactes, puis :
+Création de dépôt, push, push d'étiquette, description du dépôt, PR : chaque étape de publication ou d'alignement est annoncée par `pp.sh publish` avec ses commandes exactes et sa question, puis :
 
-1. `consent-capture` (UserPromptSubmit, fail-open) lit le message tapé juste après. Un « oui » littéral est consigné dans `.plugin-plugin/consents.log` ; toute autre réponse, ou trente minutes sans réponse, retire l'annonce.
-2. `gesture-guard` (PreToolUse, fail-closed) ne laisse passer un geste que s'il est la commande annoncée et que son accord est consigné ; l'annonce est alors consommée, le geste passe une fois. Le journal des accords ne s'écrit par aucun outil de Claude.
+1. `consent-capture` (fail-open) lit votre réponse : le message tapé juste après (UserPromptSubmit), ou la réponse choisie dans `AskUserQuestion` à la question annoncée, mot pour mot (PostToolUse — une telle réponse ne passe pas par UserPromptSubmit). Un « oui » tapé, ou « Oui » choisi sans note, est consigné dans `.plugin-plugin/consents.log` ; toute autre réponse, ou trente minutes sans réponse, retire l'annonce. Une question fermée par Échap n'atteint aucun hook : l'annonce attend.
+2. `gesture-guard` (PreToolUse, fail-closed) ne laisse passer un geste que s'il est la commande annoncée et que son accord est consigné ; l'annonce est alors consommée, le geste passe une fois. Le journal des accords ne s'écrit par aucun outil de Claude. Dans un dépôt géré, il refuse aussi une question `AskUserQuestion` dont Claude a rempli la réponse (`answers`) : en session interactive la boîte de dialogue s'affiche quand même, mais un autre hôte pourrait retenir cette réponse sans rien montrer.
 
 Les deux hooks ne dépendent pas l'un de l'autre : l'accord passe par le disque.
 

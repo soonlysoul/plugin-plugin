@@ -9,11 +9,13 @@ when_to_use: "On any Claude Code plugin folder, before adding to it or rebuildin
 
 Address the user in French unless they write in another language.
 
+**Questions.** Put a choice among known options in AskUserQuestion, one question per call: two to four options, the recommended one first, its label ending « (Recommandé) », its reason in its description. Put an agreement there too: « Non » then « Oui », none recommended, `answers` never filled in; only « Oui », chosen or typed, with no note, agrees — a note, Escape or any other answer does not. Ask an open question in text. Without AskUserQuestion — a subagent, `claude -p` —, ask every question in text, then stop; a typed « oui » agrees the same.
+
 This skill only reads: no edit, no commit, no checkpoint.
 
 ## Step 1 — Run the check
 
-Take the plugin folder from the arguments. When Soon names a plugin rather than a folder (« plugin-<domaine> »), look for it beside the current repository (`../<name>`), then in the current folder; when none or several match, ask. Use the current folder only when nothing is named. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check "<folder>"`.
+Take the plugin folder from the arguments. When Soon names a plugin rather than a folder (« plugin-<domaine> »), look for it beside the current repository (`../<name>`), then in the current folder; when several match, ask in AskUserQuestion, one option per folder found; when none, ask in text. Use the current folder only when nothing is named. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" check "<folder>"`.
 
 - Exit 0, « écarts : 0 »: the plugin follows the model.
 - Exit 1, « écarts : N »: the gaps follow, one per line.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gesture-guard — PreToolUse hook for Bash, Edit and Write.
+# gesture-guard — PreToolUse hook for Bash, Edit, Write and AskUserQuestion.
 # In a managed plugin repository (a .plugin-plugin/ at or above it) or a clone of the marketplace
 # soon, a GitHub gesture — git push, a gh command that writes (by gh api graphql, a mutation),
 # claude plugin tag --push, a step run by pp.sh --run — goes through only when it is the command
@@ -12,6 +12,9 @@
 # Its context: the session's folder, or one the command goes to (cd, git -C, the path of claude
 # plugin tag), when it is such a repository; and, wherever the session is, a write to the journal
 # of consents, a step of pp.sh run with --run, a gh command naming the marketplace on GitHub.
+# In a managed plugin repository, it also refuses an AskUserQuestion call whose answers Claude
+# filled in itself: only Soon answers — the interactive dialog still shows, but another host may
+# keep that answer without showing anything, and consent-capture would read it as Soon's.
 # Installed for the account, it sees every Bash call and every write of every session: outside its
 # context it is inert, even without jq or on an unreadable input. Not proof against a determined
 # bypass (a script that pushes), it stops the gesture typed by mistake.
@@ -20,8 +23,8 @@
 
 IFS= read -r -d '' input || true
 # 1. Context, with bash builtins only: outside it, even on an error, the call goes through.
-# Fast path: nothing that could be a gesture or touch the journal of consents.
-GESTURE_WORDS='push|gh[[:space:]]|pp\.sh|\.plugin-plugin/|filter-(branch|repo)|plugin[[:space:]]+tag'
+# Fast path: nothing that could be a gesture, touch the journal of consents or answer a question.
+GESTURE_WORDS='push|gh[[:space:]]|pp\.sh|\.plugin-plugin/|filter-(branch|repo)|plugin[[:space:]]+tag|"answers"'
 [[ $input =~ $GESTURE_WORDS ]] || exit 0
 # shellcheck source=../../scripts/lib/consent.sh
 source "${BASH_SOURCE[0]%/*}/../../scripts/lib/consent.sh" 2>/dev/null || exit 0
@@ -263,6 +266,13 @@ case $tool in
       ((context_cwd)) || ((context)) || exit 0
     fi
     ;;
+  AskUserQuestion)
+    # A non-empty "answers" object in the call, in a managed project. A quote inside a JSON string
+    # is always escaped: "answers" followed by a colon can only be a key.
+    [[ $input =~ \"answers\"[[:space:]]*:[[:space:]]*\{[[:space:]]*\" ]] || exit 0
+    json_string cwd cwd && [[ $cwd == /* ]] || exit 0
+    managed_project "$cwd" >/dev/null || exit 0
+    ;;
   *) exit 0 ;;
 esac
 
@@ -277,6 +287,13 @@ case $tool in
   Edit | Write | MultiEdit | NotebookEdit)
     file=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty | strings' <<<"$input")
     [[ $file =~ /$JOURNAL$ ]] && block "$file : $JOURNAL_REASON"
+    exit 0
+    ;;
+  AskUserQuestion)
+    filled=$(jq -r '.tool_input.answers | if type == "object" then length else 0 end' <<<"$input" 2>/dev/null) \
+      || block "entrée illisible ; bloquée par prudence."
+    ((filled == 0)) \
+      || block "AskUserQuestion : Claude a rempli la réponse (answers) ; seul Soon répond à une question, dans sa boîte de dialogue. La poser de nouveau, sans answers."
     exit 0
     ;;
   Bash) ;;

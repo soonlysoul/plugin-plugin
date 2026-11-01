@@ -11,6 +11,10 @@
 # shellcheck disable=SC2034
 CONSENT_MAX_AGE_NS=$((30 * 60 * 1000000000))
 
+# consent_question <step id>: the question pp.sh announces for Claude to put in AskUserQuestion,
+# whose answer consent-capture reads in PostToolUse, keyed by this exact text.
+consent_question() { printf "Lancer l'étape « %s » ?" "$1"; }
+
 # managed_project <dir>: the nearest directory at or above <dir> that holds .plugin-plugin/.
 managed_project() {
   local dir=$1

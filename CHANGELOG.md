@@ -2,6 +2,13 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
+## [à venir] — en cours
+
+### Modifié
+
+- Les skills posent leurs choix par `AskUserQuestion`, l'option recommandée en tête, marquée « (Recommandé) », sa raison dans sa description ; leurs accords aussi — approbation d'un document, commit, lancement payant, geste GitHub —, « Non » en tête, rien de recommandé, seul « Oui » sans note valant accord. Une question ouverte reste en texte, et toute question sans l'outil (`claude -p`, sous-agent). `docs/MODEL.md`, R10, le dit pour tout plugin du modèle, et `add` l'écrit dans chaque skill qu'il ajoute.
+- Publication et montage : l'annonce donne la question à poser (`question : Lancer l'étape « … » ?`). `consent-capture` lit aussi la réponse choisie, en PostToolUse — une réponse à `AskUserQuestion` ne passe pas par UserPromptSubmit —, et `gesture-guard` refuse une question dont Claude a rempli la réponse. Un « oui » tapé vaut toujours accord.
+
 ## [0.1.7] — 2026-10-29
 
 ### Corrigé

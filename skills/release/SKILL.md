@@ -1,6 +1,6 @@
 ---
 name: release
-description: "Rehearse, then publish step by step, a plugin of the model — checks, version, CHANGELOG, tag, context cost, each gesture with its exact command, run only after a typed « oui ». Use when Soon asks for a release; not for creating a plugin. « /plugin-plugin:release plugin-x »."
+description: "Rehearse, then publish step by step, a plugin of the model — checks, version, CHANGELOG, tag, context cost, each gesture with its exact command, run only after a « oui ». Use when Soon asks for a release; not for creating a plugin. « /plugin-plugin:release plugin-x »."
 argument-hint: "[dossier du plugin] [--bump patch|minor|major]"
 when_to_use: "Explicitly, as /plugin-plugin:release."
 disable-model-invocation: true
@@ -10,7 +10,9 @@ disable-model-invocation: true
 
 Address the user in French unless they write in another language.
 
-A rehearsal first, which reads GitHub and sends nothing. Then, only when Soon asks for it, the publication, one step at a time: each step is announced with its exact commands and runs only after Soon types « oui ». The hook consent-capture records that answer, and withdraws an announcement left thirty minutes without one; the hook gesture-guard lets the announced command through once. Never run a gesture any other way — no `git push`, `gh repo create` or `gh pr create` typed by hand.
+**Questions.** Put a choice among known options in AskUserQuestion, one question per call: two to four options, the recommended one first, its label ending « (Recommandé) », its reason in its description. Put an agreement there too: « Non » then « Oui », none recommended, `answers` never filled in; only « Oui », chosen or typed, with no note, agrees — a note, Escape or any other answer does not. Ask an open question in text. Without AskUserQuestion — a subagent, `claude -p` —, ask every question in text, then stop; a typed « oui » agrees the same.
+
+A rehearsal first, which reads GitHub and sends nothing. Then, only when Soon asks for it, the publication, one step at a time: each step is announced with its exact commands and its question, and runs only after Soon's « Oui », chosen in that question or typed. The hook consent-capture records that answer, and withdraws an announcement left thirty minutes without one; the hook gesture-guard lets the announced command through once, and refuses a question whose answer Claude filled in. Never run a gesture any other way — no `git push`, `gh repo create` or `gh pr create` typed by hand.
 
 ## Step 1 — The plugin
 
@@ -31,7 +33,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" release <folder>` and show its o
 
 On a first publication (`première publication`), skip this step: the version is plugin.json's, and `--bump` is refused.
 
-Otherwise the tool reads the nature of the change from the components: one removed is major, one added is minor, anything else a patch. Read the commits since the last tag (`git -C <folder> log --oneline <tag>..HEAD`). When a change inside a component breaks what used it — an argument renamed, a behaviour removed — say so, and propose `--bump major` (or `--bump minor`) with the reason. Re-run the rehearsal with it only after a literal « oui »; the re-run sends nothing. The tool refuses a bump lower than the nature of the change.
+Otherwise the tool reads the nature of the change from the components: one removed is major, one added is minor, anything else a patch. Read the commits since the last tag (`git -C <folder> log --oneline <tag>..HEAD`). When a change inside a component breaks what used it — an argument renamed, a behaviour removed — say so, and ask in AskUserQuestion: the `--bump` you propose first, its reason in its description, then the nature the tool read. Re-run the rehearsal with the bump chosen; the re-run sends nothing. The tool refuses a bump lower than the nature of the change.
 
 ## Step 4 — Report
 
@@ -48,11 +50,11 @@ End with « Répétition : rien n'a été envoyé. » and stop. Publish only if 
 
 ## Step 5 — Publish, step by step
 
-The session must be open in the plugin's folder: the « oui » is captured there only, and the tool says so otherwise.
+The session must be open in the plugin's folder: the « Oui » is captured there only, and the tool says so otherwise.
 
 1. Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/pp.sh" publish <folder>`, with the `--bump` agreed at step 3 if any. It rehearses again, freezes the plan in `.plugin-plugin/publication.json` and announces the first step. A publication in progress resumes from what is really done, without redoing anything.
-2. Show the announcement verbatim — the gestures, the line `commande : …` — and stop. Do not answer for Soon; run nothing.
-3. Soon's next message is « oui », and the hook confirms it: run exactly the `commande : …` line, once, and show its output with the exit code. It ends with the next announcement: back to 2. Any other answer withdraws the announcement: run nothing, and announce again only if Soon asks. A notification of Claude Code (`<task-notification>…`) is no answer: the hook says the announcement still waits; run nothing and keep waiting for Soon.
+2. Show the announcement verbatim — the gestures, the lines `commande : …` and `question : …`. Then put the `question : …` line, exactly as written, in AskUserQuestion — header « Accord », « Non » then « Oui », `answers` never filled in — and stop. Without AskUserQuestion, stop and wait for a typed « oui ». Do not answer for Soon; run nothing.
+3. Soon chooses « Oui » or types « oui », and the hook confirms it (« oui » capté …): run exactly the `commande : …` line, once, and show its output with the exit code. It ends with the next announcement: back to 2. « Non », a note, any other answer withdraws the announcement: run nothing, and announce again only if Soon asks. Escape reaches no hook, and a notification of Claude Code (`<task-notification>…`) is no answer: the announcement still waits; run nothing and keep waiting for Soon.
 4. `échoué` or `refusé` with a `reprise : …` line: show the report — the gesture, what is done, what remains, that line — and stop. Resume only when Soon asks, by running that line, which announces the step again. Without a `reprise : …` line: quote the reason and stop, as in step 2.
 5. `publication terminée` or `alignement terminé`: give the commands Soon runs on each device. The PR of the marketplace is merged by Soon, never by Claude.
 

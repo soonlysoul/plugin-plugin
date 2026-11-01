@@ -169,6 +169,28 @@ answer() {
   run_hook "$CAPTURE" "$(jq -nc --arg cwd "$1" --arg p "$2" \
     '{session_id: "test", transcript_path: "/dev/null", cwd: $cwd, permission_mode: "default", hook_event_name: "UserPromptSubmit", prompt: $p}')"
 }
+# asked: the question the last announcement asks Claude to put in AskUserQuestion.
+asked() { sed -n 's/^question : //p' <<<"$PP_OUTPUT" | tail -n 1; }
+# choose <dir> <question> <answer>: Soon's answer in AskUserQuestion, seen by consent-capture in
+# PostToolUse (Claude Code 2.1.316, probe of phase 25).
+choose() {
+  run_hook "$CAPTURE" "$(jq -nc --arg cwd "$1" --arg q "$2" --arg a "$3" '
+    {questions: [{question: $q, header: "Accord", multiSelect: false,
+                  options: [{label: "Non", description: "n"}, {label: "Oui", description: "o"}]}],
+     answers: {($q): $a}, annotations: {}} as $r
+    | {session_id: "test", transcript_path: "/dev/null", cwd: $cwd, permission_mode: "auto", hook_event_name: "PostToolUse",
+       tool_name: "AskUserQuestion", tool_input: $r, tool_response: $r, tool_use_id: "t"}')"
+}
+# ask_guard <dir> <question> [answers as JSON]: the AskUserQuestion call Claude makes, seen by
+# gesture-guard. Sets GUARD_STATUS.
+ask_guard() {
+  run_hook "$GUARD" "$(jq -nc --arg cwd "$1" --arg q "$2" --argjson a "${3:-null}" '
+    {session_id: "test", cwd: $cwd, hook_event_name: "PreToolUse", permission_mode: "auto", tool_name: "AskUserQuestion", tool_use_id: "t",
+     tool_input: ({questions: [{question: $q, header: "Accord", multiSelect: false,
+                                options: [{label: "Non", description: "n"}, {label: "Oui", description: "o"}]}]}
+                  + (if $a == null then {} else {answers: $a} end))}')"
+  GUARD_STATUS=$HOOK_STATUS
+}
 # guard <dir> <command>: the Bash call Claude makes, seen by gesture-guard. Sets GUARD_STATUS.
 guard() {
   run_hook "$GUARD" "$(jq -nc --arg cwd "$1" --arg c "$2" \
@@ -191,6 +213,19 @@ step() {
   answer "$dir" "oui"
   guard "$dir" "$command"
   [[ $GUARD_STATUS == 0 ]] || { fail "$label : le garde laisse passer après « oui »" "exit $GUARD_STATUS ; ${HOOK_STDERR:0:300}"; return 1; }
+  run_announced "$@"
+}
+# step_chosen <dir> <label> [env...]: as step, the « Oui » chosen in the announced question.
+step_chosen() {
+  local dir=$1 label=$2 command question
+  shift 2
+  command=$(announced) question=$(asked)
+  [[ -n $command && -n $question ]] || { fail "$label : commande et question annoncées" "sortie : $(tail -n 5 <<<"$PP_OUTPUT" | tr '\n' '|')"; return 1; }
+  ask_guard "$dir" "$question"
+  [[ $GUARD_STATUS == 0 ]] || { fail "$label : la question passe le garde" "exit $GUARD_STATUS ; ${HOOK_STDERR:0:300}"; return 1; }
+  choose "$dir" "$question" "Oui"
+  guard "$dir" "$command"
+  [[ $GUARD_STATUS == 0 ]] || { fail "$label : le garde laisse passer après « Oui » choisi" "exit $GUARD_STATUS ; ${HOOK_STDERR:0:300}"; return 1; }
   run_announced "$@"
 }
 expect_exit() {
@@ -267,7 +302,8 @@ expect_line "étape annoncée : gestes 1 à 4" '^prochaine étape — gestes 1 �
 expect_line "geste 1 avec sa commande exacte" "^  1\. \[local\] écrire la version et le CHANGELOG : bash .*pp\.sh release-write $p --version 0\.1\.0$"
 expect_line "geste 4 : création du dépôt" "^  4\. \[GitHub\] création du dépôt : gh repo create soonlysoul/$NAME --public --description "
 expect_line "commande à taper" "^commande : bash .*pp\.sh publish $p --run 1$"
-expect_line "seul un « oui »" '^accord : seul un « oui » tapé lance cette étape ; toute autre réponse la retire\.$'
+expect_line "question à poser" "^question : Lancer l'étape « publish $NAME--v0\\.1\\.0 1 » \\?$"
+expect_line "seul « Oui »" '^accord : seul « Oui », choisi dans cette question ou tapé, lance cette étape ; toute autre réponse la retire\.$'
 [[ $(git -C "$p" rev-parse HEAD) == "$before_head" && -z $(git -C "$p" tag -l) && -z $(git -C "$p" status --porcelain) ]] \
   && pass "l'annonce n'exécute rien : HEAD, étiquettes, arbre propre" || fail "l'annonce n'exécute rien : HEAD, étiquettes, arbre propre"
 [[ ! -e $work/gh-gestures.log && ! -e $work/push.log && ! -d $GITHUB/$NAME.git ]] && pass "rien vers GitHub" || fail "rien vers GitHub"
@@ -291,6 +327,25 @@ guard "$p" "$(announced)"
 [[ $GUARD_STATUS == 2 ]] && pass "« oui mais attends » : le garde bloque" || fail "« oui mais attends » : le garde bloque" "exit $GUARD_STATUS"
 [[ $(git -C "$p" rev-parse HEAD) == "$before_head" && ! -e $work/gh-gestures.log ]] && pass "après trois refus, rien n'a bougé" \
   || fail "après trois refus, rien n'a bougé"
+
+echo "# « Oui » choisi dans la question annoncée"
+pp publish "$p"
+question=$(asked)
+ask_guard "$p" "$question" "$(jq -nc --arg q "$question" '{($q): "Oui"}')"
+[[ $GUARD_STATUS == 2 ]] && pass "question dont Claude a rempli la réponse : bloquée" || fail "question dont Claude a rempli la réponse : bloquée" "exit $GUARD_STATUS"
+ask_guard "$p" "$question"
+[[ $GUARD_STATUS == 0 ]] && pass "question sans réponse remplie : passe" || fail "question sans réponse remplie : passe" "exit $GUARD_STATUS ; ${HOOK_STDERR:0:300}"
+choose "$p" "$question" "Non"
+guard "$p" "$(announced)"
+[[ $GUARD_STATUS == 2 ]] && pass "« Non » choisi : le garde bloque" || fail "« Non » choisi : le garde bloque" "exit $GUARD_STATUS"
+pp publish "$p"
+choose "$p" "$(asked)" "Oui"
+guard "$p" "$(announced)"
+[[ $GUARD_STATUS == 0 ]] && pass "« Oui » choisi : la commande annoncée passe" || fail "« Oui » choisi : la commande annoncée passe" "${HOOK_STDERR:0:300}"
+guard "$p" "$(announced)"
+[[ $GUARD_STATUS == 2 ]] && pass "« Oui » choisi : une seule fois" || fail "« Oui » choisi : une seule fois" "exit $GUARD_STATUS"
+[[ $(git -C "$p" rev-parse HEAD) == "$before_head" && ! -e $work/gh-gestures.log ]] && pass "le garde consommé, rien n'a bougé" \
+  || fail "le garde consommé, rien n'a bougé"
 
 echo "# « oui » : une fois, la commande annoncée"
 pp publish "$p"
@@ -355,8 +410,11 @@ grep -qFx "| \`$NAME\` | Plugin d'essai. | [soonlysoul/$NAME](https://github.com
   && pass "gestes gh : un dépôt, une PR, rien d'autre" || fail "gestes gh : un dépôt, une PR, rien d'autre" "$(cat "$work/gh-gestures.log")"
 grep -qE 'merge|delete' "$work/gh-gestures.log" && fail "aucune fusion, aucune suppression" || pass "aucune fusion, aucune suppression"
 grep -qE -- '--force|-f |--delete|\+' "$work/push.log" && fail "aucun push forcé" "$(cat "$work/push.log")" || pass "aucun push forcé"
-[[ $(count "$p/.plugin-plugin/consents.log" $'\taccord\t') == 5 && $(count "$p/.plugin-plugin/consents.log" $'\trefus\t') == 2 ]] \
-  && pass "journal des accords : 5 accords, 2 refus" || fail "journal des accords : 5 accords, 2 refus" "$(cat "$p/.plugin-plugin/consents.log" 2>&1)"
+[[ $(count "$p/.plugin-plugin/consents.log" $'\taccord\t') == 6 && $(count "$p/.plugin-plugin/consents.log" $'\trefus\t') == 3 ]] \
+  && pass "journal des accords : 6 accords, 3 refus" || fail "journal des accords : 6 accords, 3 refus" "$(cat "$p/.plugin-plugin/consents.log" 2>&1)"
+[[ $(count "$p/.plugin-plugin/consents.log" $'\taccord\t.*\t« Oui » (AskUserQuestion)$') == 1 ]] \
+  && pass "journal des accords : un accord choisi dans AskUserQuestion, sa source citée" \
+  || fail "journal des accords : un accord choisi dans AskUserQuestion, sa source citée" "$(cat "$p/.plugin-plugin/consents.log" 2>&1)"
 [[ $(gestures_log "$p" | grep -c $'\tfait\texit 0\t') == 13 ]] && pass "journal des gestes : 13 faits, chacun avec son code et sa commande" \
   || fail "journal des gestes : 13 faits, chacun avec son code et sa commande" "$(gestures_log "$p")"
 [[ -z $(git -C "$p" status --porcelain) ]] && pass "plugin : arbre propre après la publication" || fail "plugin : arbre propre après la publication" "$(git -C "$p" status --porcelain)"
@@ -524,7 +582,8 @@ expect_line "montage : commande à taper" "^commande : bash .*pp\.sh mount $p --
 guard "$p" "$(announced)"
 [[ $GUARD_STATUS == 2 ]] && pass "montage sans « oui » : bloqué" || fail "montage sans « oui » : bloqué" "exit $GUARD_STATUS"
 [[ ! -e $host/.gitmodules ]] && pass "montage annoncé : hôte intact" || fail "montage annoncé : hôte intact"
-step "$p" "montage"
+expect_line "montage : question à poser" "^question : Lancer l'étape « .* » \\?$"
+step_chosen "$p" "montage"
 expect_exit "montage : exit 0" 0
 [[ $(git -C "$host" config -f .gitmodules "submodule.$NAME.url") == "https://github.com/soonlysoul/$NAME.git" ]] \
   && pass "hôte : .gitmodules vers le dépôt GitHub" || fail "hôte : .gitmodules vers le dépôt GitHub" "$(cat "$host/.gitmodules" 2>&1)"

@@ -33,6 +33,7 @@ expect_hook() {
 expect_hook PostToolUse 'Edit|Write' doc-status-guard.sh continue 10
 expect_hook Stop '' checkpoint-reminder.sh '' 10
 expect_hook UserPromptSubmit '' consent-capture.sh continue 10
-expect_hook PreToolUse 'Bash|Edit|Write' gesture-guard.sh block 10
+expect_hook PostToolUse 'AskUserQuestion' consent-capture.sh continue 10
+expect_hook PreToolUse 'Bash|Edit|Write|AskUserQuestion' gesture-guard.sh block 10
 
 finish

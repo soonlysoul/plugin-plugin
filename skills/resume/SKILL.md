@@ -9,6 +9,8 @@ when_to_use: "In a folder holding .plugin-plugin/."
 
 Address the user in French unless they write in another language.
 
+**Questions.** Put a choice among known options in AskUserQuestion, one question per call: two to four options, the recommended one first, its label ending « (Recommandé) », its reason in its description. Put an agreement there too: « Non » then « Oui », none recommended, `answers` never filled in; only « Oui », chosen or typed, with no note, agrees — a note, Escape or any other answer does not. Ask an open question in text. Without AskUserQuestion — a subagent, `claude -p` —, ask every question in text, then stop; a typed « oui » agrees the same.
+
 The work resumes from disk, never from what an earlier session remembers. Until Soon agrees, this skill changes nothing: no edit, no commit, no checkout, no stash. Besides the tool, it runs one command: the targeted test of step 2.
 
 ## Step 1 — Read the state
@@ -23,12 +25,12 @@ When the output names a `test ciblé`, run it from the plugin folder — `cd <fo
 
 Present at most ten lines: the skill, what is done, the confirmed state (command, exit code), the inconsistencies or « aucune », the blockers or « aucun », the next step. Never propose to redo a step marked done.
 
-- `aucun point de reprise`: give the last commit, the branch and the uncommitted files, and ask which skill to run; never guess one.
+- `aucun point de reprise`: give the last commit, the branch and the uncommitted files, and ask which skill to run, in AskUserQuestion, with no option recommended: nothing on disk says which; never guess one.
 - `reste : rien`: the skill is finished; give its next step.
-- `publication en cours`: give the line. Its `reprise : …` command runs only on a literal « oui »; the publication's own announcements then take over, as `/plugin-plugin:release` describes.
+- `publication en cours`: give the line. Its `reprise : …` command runs only on « Oui »; the publication's own announcements then take over, as `/plugin-plugin:release` describes.
 - A blocker, another branch, newer commits, uncommitted files: name them, and let Soon decide before resuming. A checkout needs agreement; newer commits may already hold the next step; never stash.
 
-Ask whether to resume from the next step, then stop and wait.
+Ask whether to resume from the next step — « Non » then « Oui » —, then stop and wait.
 
 ## Step 4 — After the agreement
 

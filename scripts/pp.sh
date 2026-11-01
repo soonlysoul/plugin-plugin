@@ -44,6 +44,8 @@ source "$PP_ROOT/tests/headers.sh"
 source "$PP_ROOT/tests/mcp.sh"
 # shellcheck source=lib/check.sh
 source "$PP_ROOT/scripts/lib/check.sh"
+# shellcheck source=lib/consent.sh
+source "$PP_ROOT/scripts/lib/consent.sh"
 # Account, marketplace and its catalogue repository: written in hard, as the PRD says.
 OWNER=soonlysoul
 MARKETPLACE=soon
@@ -2311,7 +2313,8 @@ announce() {
   printf '%s\t%s\t%s\t%s\n' "$(date +%s%N)" "$3" "$(step_sha "$first" "$last")" "$4" >"$STATE/pending" \
     || die "échec : annonce non écrite ($STATE/pending)."
   printf 'commande : %s\n' "$4"
-  printf 'accord : seul un « oui » tapé lance cette étape ; toute autre réponse la retire.\n'
+  printf 'question : %s\n' "$(consent_question "$3")"
+  printf 'accord : seul « Oui », choisi dans cette question ou tapé, lance cette étape ; toute autre réponse la retire.\n'
   [[ $PWD == "$P_DIR" || $PWD == "$P_DIR"/* ]] \
     || printf "session : l'accord ne se capte que dans une session Claude Code ouverte dans %s.\n" "$P_DIR"
 }

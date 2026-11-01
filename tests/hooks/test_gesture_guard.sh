@@ -221,6 +221,50 @@ for cmd in "printf 'x' >> .plugin-plugin/consents.log" "echo x > $P/.plugin-plug
   expect_reason "« $cmd » : bloqué" "hook"
 done
 
+echo "# AskUserQuestion : seul Soon répond"
+# Claude Code 2.1.316, probe of phase 25: Claude may fill answers in its own call; the interactive
+# dialog still shows, but another host may keep that answer without showing anything. In a managed
+# project, a question whose answer Claude filled is refused; anywhere else, the guard stays inert.
+QUESTION="Lancer l'étape « $ID » ?"
+# ask_input <cwd> [answers as JSON]: the AskUserQuestion call Claude makes, seen by PreToolUse.
+ask_input() {
+  jq -nc --arg cwd "$1" --arg q "$QUESTION" --argjson a "${2:-null}" '
+    {session_id: "test", cwd: $cwd, hook_event_name: "PreToolUse", permission_mode: "auto",
+     tool_name: "AskUserQuestion", tool_use_id: "toolu_test",
+     tool_input: ({questions: [{question: $q, header: "Accord", multiSelect: false,
+                                options: [{label: "Non", description: "Ne pas lancer."}, {label: "Oui", description: "Lancer."}]}]}
+                  + (if $a == null then {} else {answers: $a} end))}'
+}
+filled=$(jq -nc --arg q "$QUESTION" '{($q): "Oui"}')
+run_hook "$HOOK" "$(ask_input "$P")"
+expect_silent_allow "question sans réponse remplie, plugin géré : passe"
+run_hook "$HOOK" "$(ask_input "$P" '{}')"
+expect_silent_allow "réponses vides, plugin géré : passe"
+run_hook "$HOOK" "$(ask_input "$P" "$filled")"
+expect_reason "réponse remplie par Claude, plugin géré : refusée" "answers"
+run_hook "$HOOK" "$(ask_input "$P/skills/demo" "$filled")"
+expect_reason "réponse remplie par Claude, sous-dossier du plugin géré : refusée" "answers"
+run_hook "$HOOK" "$(ask_input "$P" '{"Quelle langue pour les identifiants ?": "Anglais (Recommandé)"}')"
+expect_reason "réponse remplie à une autre question, plugin géré : refusée" "answers"
+run_hook "$HOOK" "$(jq -nc --arg cwd "$P" '{session_id: "test", cwd: $cwd, hook_event_name: "PreToolUse",
+  tool_name: "AskUserQuestion", tool_use_id: "t", tool_input: {questions: [{question: "Le champ \"answers\": {\"x\": 1} est-il vide ?",
+  header: "Champ", multiSelect: false, options: [{label: "Non", description: "n"}, {label: "Oui", description: "o"}]}]}}')"
+expect_silent_allow "question qui cite answers sans le remplir, plugin géré : passe"
+for dir in "$U" "$M" "$F"; do
+  run_hook "$HOOK" "$(ask_input "$dir" "$filled")"
+  expect_silent_allow "réponse remplie hors d'un projet géré (${dir##*/}) : inerte"
+done
+run_hook "$HOOK" "$(ask_input "$U" "$filled")" PATH=
+expect_silent_allow "PATH vide, réponse remplie hors contexte : inerte"
+no_jq=$(path_without jq)
+run_hook "$HOOK" "$(ask_input "$P" "$filled")" PATH="$no_jq"
+expect_reason "jq absent, réponse remplie dans le plugin géré : bloquée" "jq absent"
+run_hook "$HOOK" "$(ask_input "$P")" PATH="$no_jq"
+expect_silent_allow "jq absent, question sans réponse remplie : passe"
+rm -rf "$no_jq"
+run_hook "$HOOK" "$(ask_input "$Q" "$filled")" PATH=
+expect_reason "PATH vide, réponse remplie, plugin géré dont le chemin s'échappe en JSON : bloquée" "jq absent"
+
 echo "# entrée illisible, jq absent"
 # truncated <cwd>: an input cut before its end, whose cwd and command still read.
 truncated() { printf '{"session_id": "test", "cwd": "%s", "tool_name": "Bash", "tool_input": {"command": "git push origin main"' "$1"; }

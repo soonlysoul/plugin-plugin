@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# consent-capture (UserPromptSubmit, fail-open): the message Soon types after an announced gesture
-# is the only consent. A literal « oui » is written to .plugin-plugin/consents.log for the
-# announcement in .plugin-plugin/pending; any other message withdraws the announcement; an
-# announcement older than 30 minutes is withdrawn unanswered. Silent outside a managed project,
-# without an announcement, without jq or on unreadable input.
+# consent-capture (UserPromptSubmit, and PostToolUse on AskUserQuestion; fail-open): Soon's answer
+# to an announced gesture is the only consent — the message typed after it, or the answer to the
+# question pp.sh announced, chosen in AskUserQuestion. A literal « oui », or « Oui » without a note,
+# is written to .plugin-plugin/consents.log for the announcement in .plugin-plugin/pending; any
+# other answer withdraws the announcement; an announcement older than 30 minutes is withdrawn
+# unanswered. Silent outside a managed project, without an announcement, without jq or on
+# unreadable input.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_consent_capture
@@ -129,6 +131,88 @@ answer "$root/skills/demo" "oui"
 [[ $(accords "$root") == 1 ]] && pass "session ouverte dans un sous-dossier : accord au journal du projet" \
   || fail "session ouverte dans un sous-dossier : accord au journal du projet" "$(consents "$root")"
 
+echo "# « Oui » choisi dans AskUserQuestion (PostToolUse)"
+# Claude Code 2.1.316, probe of phase 25: an answer to AskUserQuestion fires no UserPromptSubmit;
+# PostToolUse carries it in tool_response.answers, keyed by the exact text of the question — the
+# label chosen, or the text typed in « Other », as typed — and its notes in annotations.
+QUESTION="Lancer l'étape « publish plugin-essai--v0.1.0 4 » ?"
+# ask_input <cwd> <question> <answer> [notes] [tool]: PostToolUse input, as 2.1.316 builds it.
+ask_input() {
+  jq -nc --arg cwd "$1" --arg q "$2" --arg a "$3" --arg n "${4:-}" --arg t "${5:-AskUserQuestion}" '
+    {questions: [{question: $q, header: "Accord", multiSelect: false,
+                  options: [{label: "Non", description: "Ne pas lancer."}, {label: "Oui", description: "Lancer."}]}],
+     answers: {($q): $a},
+     annotations: (if $n == "" then {} else {($q): {notes: $n}} end)} as $r
+    | {session_id: "test", transcript_path: "/dev/null", cwd: $cwd, permission_mode: "auto",
+       hook_event_name: "PostToolUse", tool_name: $t, tool_input: $r, tool_response: $r,
+       tool_use_id: "toolu_test", duration_ms: 1}'
+}
+choose() { run_hook "$HOOK" "$(ask_input "$@")"; }
+
+root=$(new_project choisi "$now")
+choose "$root" "$QUESTION" "Oui"
+expect_quiet_success "« Oui » choisi : exit 0, rien sur stderr"
+IFS=$'\t' read -r date kind id epoch sha quote <<<"$(consents "$root")"
+[[ $kind == accord && $id == "publish plugin-essai--v0.1.0 4" && $epoch == "$now" && $sha == "$SHA" ]] \
+  && pass "« Oui » choisi : un accord pour l'annonce" || fail "« Oui » choisi : un accord pour l'annonce" "$(consents "$root")"
+[[ $quote == "« Oui » (AskUserQuestion)" ]] && pass "l'accord choisi cite la réponse et sa source" \
+  || fail "l'accord choisi cite la réponse et sa source" "$quote"
+[[ -f $root/.plugin-plugin/pending ]] && pass "« Oui » choisi : l'annonce reste, le garde la consomme" \
+  || fail "« Oui » choisi : l'annonce reste, le garde la consomme"
+jq -e --arg c "$COMMAND" '.hookSpecificOutput.hookEventName == "PostToolUse"
+  and (.hookSpecificOutput.additionalContext | contains($c))' <<<"$HOOK_STDOUT" >/dev/null 2>&1 \
+  && pass "« Oui » choisi : Claude reçoit la commande accordée" || fail "« Oui » choisi : Claude reçoit la commande accordée" "stdout : ${HOOK_STDOUT:0:300}"
+choose "$root" "$QUESTION" "Oui"
+answer "$root" "oui"
+[[ $(accords "$root") == 1 ]] && pass "« Oui » choisi deux fois, puis tapé : un seul accord" \
+  || fail "« Oui » choisi deux fois, puis tapé : un seul accord" "$(consents "$root")"
+root=$(new_project "autre-oui" "$now")
+choose "$root" "$QUESTION" "oui"
+[[ $(accords "$root") == 1 ]] && pass "« oui » tapé dans « Other » : accord" || fail "« oui » tapé dans « Other » : accord" "$(consents "$root")"
+root=$(new_project "choisi-imbrique" "$now")
+choose "$root/skills/demo" "$QUESTION" "Oui"
+[[ $(accords "$root") == 1 ]] && pass "« Oui » choisi, session dans un sous-dossier : accord" \
+  || fail "« Oui » choisi, session dans un sous-dossier : accord" "$(consents "$root")"
+
+echo "# toute autre réponse à AskUserQuestion vaut refus"
+for reply in "Non" "ok" "Oui, mais pas le tag" "Non, Oui" ""; do
+  root=$(new_project "refus-choisi-$RANDOM" "$now")
+  choose "$root" "$QUESTION" "$reply"
+  [[ $(accords "$root") == 0 && ! -e $root/.plugin-plugin/pending ]] && pass "« $reply » choisi : aucun accord, annonce retirée" \
+    || fail "« $reply » choisi : aucun accord, annonce retirée" "$(consents "$root")"
+done
+root=$(new_project "refus-choisi-$RANDOM" "$now")
+choose "$root" "$QUESTION" "Non"
+grep -q $'\trefus\tpublish plugin-essai--v0.1.0 4\t' "$root/.plugin-plugin/consents.log" 2>/dev/null \
+  && pass "« Non » choisi : refus journalisé" || fail "« Non » choisi : refus journalisé" "$(consents "$root")"
+jq -e '.hookSpecificOutput.hookEventName == "PostToolUse" and (.hookSpecificOutput.additionalContext | test("retiré"))' \
+  <<<"$HOOK_STDOUT" >/dev/null 2>&1 && pass "« Non » choisi : Claude apprend que l'annonce est retirée" \
+  || fail "« Non » choisi : Claude apprend que l'annonce est retirée" "stdout : ${HOOK_STDOUT:0:300}"
+root=$(new_project "note-$RANDOM" "$now")
+choose "$root" "$QUESTION" "Oui" "attends la fin des tests"
+[[ $(accords "$root") == 0 && ! -e $root/.plugin-plugin/pending ]] && pass "« Oui » avec une note jointe : aucun accord, annonce retirée" \
+  || fail "« Oui » avec une note jointe : aucun accord, annonce retirée" "$(consents "$root")"
+for other in "Lancer « publish plugin-essai--v0.1.0 4 » ?" "Lancer l'étape « publish plugin-essai--v0.1.0 5 » ?" "Quelle version publier ?"; do
+  root=$(new_project "autre-question-$RANDOM" "$now")
+  choose "$root" "$other" "Oui"
+  [[ $(accords "$root") == 0 && ! -e $root/.plugin-plugin/pending ]] && pass "« Oui » à une autre question (« $other ») : aucun accord, annonce retirée" \
+    || fail "« Oui » à une autre question (« $other ») : aucun accord, annonce retirée" "$(consents "$root")"
+done
+root=$(new_project "sans-reponse-$RANDOM" "$now")
+run_hook "$HOOK" "$(ask_input "$root" "$QUESTION" "Oui" | jq -c 'del(.tool_response.answers)')"
+[[ $(accords "$root") == 0 ]] && pass "réponse absente de tool_response, même remplie dans tool_input : aucun accord" \
+  || fail "réponse absente de tool_response, même remplie dans tool_input : aucun accord" "$(consents "$root")"
+root=$(new_project "choisi-perime" "$((now - 3600 * 1000000000))")
+choose "$root" "$QUESTION" "Oui"
+[[ $(accords "$root") == 0 && ! -e $root/.plugin-plugin/pending ]] && grep -q $'\texpiré\t' "$root/.plugin-plugin/consents.log" 2>/dev/null \
+  && pass "« Oui » choisi après plus de 30 minutes : annonce retirée, périmée" \
+  || fail "« Oui » choisi après plus de 30 minutes : annonce retirée, périmée" "$(consents "$root")"
+root=$(new_project "autre-outil" "$now")
+choose "$root" "$QUESTION" "Oui" "" Bash
+expect_silent_allow "PostToolUse d'un autre outil : silencieux"
+[[ -f $root/.plugin-plugin/pending && ! -e $root/.plugin-plugin/consents.log ]] && pass "PostToolUse d'un autre outil : rien de changé" \
+  || fail "PostToolUse d'un autre outil : rien de changé" "$(consents "$root")"
+
 echo "# inerte hors contexte"
 mkdir -p "$work/ailleurs"
 answer "$work/ailleurs" "oui"
@@ -140,6 +224,12 @@ expect_silent_allow "projet sans annonce : silencieux"
 [[ ! -e $root/.plugin-plugin/consents.log ]] && pass "projet sans annonce : aucun journal" || fail "projet sans annonce : aucun journal"
 answer "$root" "ok"
 expect_silent_allow "projet sans annonce, autre message : silencieux"
+choose "$work/ailleurs" "$QUESTION" "Oui"
+expect_silent_allow "« Oui » choisi hors d'un projet géré : silencieux"
+[[ -z $(find "$work/ailleurs" -mindepth 1) ]] && pass "« Oui » choisi hors d'un projet géré : rien d'écrit" || fail "« Oui » choisi hors d'un projet géré : rien d'écrit"
+choose "$root" "$QUESTION" "Oui"
+expect_silent_allow "« Oui » choisi sans annonce : silencieux"
+[[ ! -e $root/.plugin-plugin/consents.log ]] && pass "« Oui » choisi sans annonce : aucun journal" || fail "« Oui » choisi sans annonce : aucun journal"
 
 echo "# entrée illisible, jq absent"
 root=$(new_project broken "$now")
@@ -151,5 +241,10 @@ run_hook "$HOOK" "$(prompt_input "$root" "oui")" PATH="$no_jq"
 rm -rf "$no_jq"
 expect_silent_allow "jq absent : silencieux, exit 0"
 [[ ! -e $root/.plugin-plugin/consents.log ]] && pass "jq absent : aucun accord" || fail "jq absent : aucun accord"
+no_jq=$(path_without jq)
+run_hook "$HOOK" "$(ask_input "$root" "$QUESTION" "Oui")" PATH="$no_jq"
+rm -rf "$no_jq"
+expect_silent_allow "jq absent, « Oui » choisi : silencieux, exit 0"
+[[ ! -e $root/.plugin-plugin/consents.log ]] && pass "jq absent, « Oui » choisi : aucun accord" || fail "jq absent, « Oui » choisi : aucun accord"
 
 finish

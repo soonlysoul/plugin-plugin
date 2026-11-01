@@ -10,6 +10,8 @@ disable-model-invocation: true
 
 Address the user in French unless they write in another language.
 
+**Questions.** Put a choice among known options in AskUserQuestion, one question per call: two to four options, the recommended one first, its label ending « (Recommandé) », its reason in its description. Put an agreement there too: « Non » then « Oui », none recommended, `answers` never filled in; only « Oui », chosen or typed, with no note, agrees — a note, Escape or any other answer does not. Ask an open question in text. Without AskUserQuestion — a subagent, `claude -p` —, ask every question in text, then stop; a typed « oui » agrees the same.
+
 The fact base and the format snapshots live in plugin-plugin itself. This skill reports; it edits nothing before Soon answers « oui ».
 
 ## Step 1 — Run the re-audit
@@ -30,7 +32,7 @@ For each listed fact, show its `revérifier` command. Run only the checks that c
 
 List as not run, with the reason:
 
-- a check that needs a Claude session (`claude -p`, `claude plugin eval`), with its estimated cost — 0.07 to 0.23 USD per session (facts `eval-session-cost-short-skill`, `eval-cost-per-session`). Launch one only after a literal « oui » to that question alone;
+- a check that needs a Claude session (`claude -p`, `claude plugin eval`), with its estimated cost — 0.07 to 0.23 USD per session (facts `eval-session-cost-short-skill`, `eval-cost-per-session`). Launch one only after « Oui » to that question alone;
 - a check that needs Soon at the keyboard, VSCode, or an install outside a throwaway directory.
 
 Classify each fact checked against its statement: `confirmé`, it holds on the installed version; `infirmé`, it does not — a fact already `infirmé` stays so, with its version and date updated; `non tranché`, the check cannot decide — its status is kept. Give the command, its exit code and the line of output that decides.
@@ -47,7 +49,7 @@ Strict validation wins over the fact base. For each fact listed under `faits à 
 
 Present the proposed changes to `scripts/facts/facts.json`, key by key: `status`, `claude_version`, `date`, `statement`, `note`, and each `probe.expect` set to the validator's current verdict. A disproved fact keeps its id, becomes `infirmé` and names its replacement in `note`; the corrected statement is a new fact, as `validate-root-marketplace-only` led to `validate-root-covers-plugin`. After a Claude Code update, add the command that stores the new snapshot: `bash scripts/pp.sh snapshot --out scripts/facts/snapshots/<version>.json`. These changes are made only in a clone of the plugin-plugin repository, never in the installed plugin, whose directory changes at every update.
 
-Ask whether to apply them — a question of its own, apart from any paid check — then stop and wait. Only a literal « oui » counts as agreement.
+Ask whether to apply them — a question of its own, apart from any paid check — then stop and wait. Only « Oui » counts as agreement.
 
 ## Step 7 — After the « oui »
 
