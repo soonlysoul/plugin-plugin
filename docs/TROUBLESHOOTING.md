@@ -16,7 +16,7 @@ bash tests/run-all.sh                 # depuis un clone : ses fichiers sont-ils 
 | « oui » tapé, le geste refusé quand même | L'annonce a expiré (trente minutes) ou un autre message l'a retirée | Relancer `pp.sh publish` : l'étape est annoncée de nouveau |
 | « hook error … blocking because onFailure is "block" » | Le script de `gesture-guard` n'a pas pu s'exécuter : fichier absent, `bash` introuvable, délai dépassé | `bash tests/run-all.sh` signale un script manquant (`test_paths`) ; vérifier que `bash` est sur le `PATH` |
 | Un document approuvé est repassé en REVUE | Il a été modifié après son approbation | Le relire, puis l'approuver de nouveau par `frame` |
-| `create` refuse le dossier | Il contient autre chose que le cadrage approuvé, ou le cadrage n'est pas approuvé | `pp.sh status docs/PRD.md` et `docs/ARCHITECTURE.md` ; vider le dossier de ce qui n'est pas le cadrage |
+| `create` refuse le dossier | Il contient autre chose que le cadrage approuvé, ou le cadrage n'est pas approuvé | `pp.sh status docs/PRD.md` et `docs/ARCHITECTURE.md` ; vider le dossier de ce qui n'est pas le cadrage ; `.claude/settings.local.json`, les plugins activés pour ce dossier, peut rester |
 | `add` refuse le plugin | Le plugin a des écarts au modèle | `/plugin-plugin:check` les liste ; les corriger d'abord |
 | La répétition refuse de publier | Arbre non enregistré, validation ou suite rouge, autre branche que `main`, `origin` étranger, rien depuis la dernière étiquette et des descriptions alignées | La raison est dans le message ; corriger, puis relancer |
 | « le README ne nomme pas : … » ou « pas de ligne Version » | Un composant ajouté sans le décrire, ou un README sans `Version **X.Y.Z**` | Le décrire dans le README, commiter, relancer la répétition |

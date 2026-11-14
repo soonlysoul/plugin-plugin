@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # pp.sh create: refuses a name out of the rule or already taken (marketplace soon, GitHub
-# repository, both read through a gh stub), a folder holding anything but an approved framing;
-# leaves a refused folder identical byte for byte; creates a plugin whose own suite and strict
-# validation pass with no hand edit.
+# repository, both read through a gh stub), a folder holding anything but an approved framing and
+# Claude Code's local settings; leaves a refused folder identical byte for byte; creates a plugin
+# whose own suite and strict validation pass with no hand edit, local settings left as they were.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_create
@@ -84,6 +84,19 @@ echo "# dossier cible"
 framed "$work/extra"
 printf 'travail existant\n' >"$work/extra/notes.txt"
 refused "fichier hors cadrage" "$work/extra" plugin-essai 1 'notes\.txt' PATH="$STUBPATH"
+# Claude Code's local settings (plugins enabled for this folder) sit beside the framing; any other
+# file of .claude/, its shared settings included, is outside it.
+framed "$work/local-extra"
+mkdir "$work/local-extra/.claude"
+printf '{"enabledPlugins":{"plugin-plugin@soon":true}}\n' >"$work/local-extra/.claude/settings.local.json"
+printf 'travail existant\n' >"$work/local-extra/notes.txt"
+refused "réglages locaux et fichier hors cadrage : seul le fichier est nommé" "$work/local-extra" plugin-essai 1 \
+  'hors cadrage : notes\.txt ; rien' PATH="$STUBPATH"
+framed "$work/shared"
+mkdir "$work/shared/.claude"
+printf '{}\n' >"$work/shared/.claude/settings.json"
+refused "réglages partagés de Claude Code" "$work/shared" plugin-essai 1 'hors cadrage : \.claude/settings\.json ; rien' \
+  PATH="$STUBPATH"
 framed "$work/draft" draft
 refused "cadrage en brouillon" "$work/draft" plugin-essai 1 'cadrage non approuvé : docs/PRD\.md \(BROUILLON\)' PATH="$STUBPATH"
 framed "$work/forged" draft
@@ -97,6 +110,10 @@ echo "# création"
 target="$work/plugin-essai"
 framed "$target"
 framing_before=$( (cd "$target" && sha256sum docs/PRD.md docs/ARCHITECTURE.md .plugin-plugin/approvals.log) )
+# As in every folder of ~/Documents/plugins: plugin-plugin enabled for this folder only.
+mkdir "$target/.claude"
+printf '{"enabledPlugins":{"plugin-plugin@soon":true}}\n' >"$target/.claude/settings.local.json"
+local_before=$(sha256sum <"$target/.claude/settings.local.json")
 log="$work/gh.log"
 # VERSION, KEYWORDS and the marketplace's descriptions from the environment never reach a created
 # plugin (rebuild sets them).
@@ -132,6 +149,11 @@ personal=$(grep -rnE --exclude-dir=.git '/home/|/Users/|/nix/store/' "$target" 2
   && pass "le cadrage approuvé est laissé intact" || fail "le cadrage approuvé est laissé intact"
 [[ $(git -C "$target" symbolic-ref --short HEAD 2>/dev/null) == main ]] && pass "git initialisé, branche main" \
   || fail "git initialisé, branche main"
+[[ $(sha256sum <"$target/.claude/settings.local.json" 2>/dev/null) == "$local_before" ]] \
+  && pass "les réglages locaux de Claude Code sont laissés intacts" || fail "les réglages locaux de Claude Code sont laissés intacts"
+git -C "$target" check-ignore -q .claude/settings.local.json 2>/dev/null \
+  && pass "les réglages locaux de Claude Code restent hors de git (.gitignore)" \
+  || fail "les réglages locaux de Claude Code restent hors de git (.gitignore)"
 
 echo "# le plugin créé, sans retouche"
 suite_output=$(cd "$work" && bash "$target/tests/run-all.sh" 2>&1)

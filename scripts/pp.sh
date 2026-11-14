@@ -340,7 +340,9 @@ name_taken() {
   fi
 }
 
-# framing_error <dir>: why <dir> is not an approved framing alone; empty if it is.
+# framing_error <dir>: why <dir> is not an approved framing alone; empty if it is. Claude Code's
+# local settings may sit beside it (.claude/settings.local.json, the plugins enabled for this
+# folder): the scaffolding never writes there, and its .gitignore keeps them out of git.
 framing_error() {
   local dir=$1 extra doc status
   if [[ ! -d $dir ]]; then
@@ -348,7 +350,8 @@ framing_error() {
     return
   fi
   extra=$(cd "$dir" && find . -mindepth 1 -path ./.plugin-plugin -prune -o -print |
-    grep -vxE '\./docs|\./docs/PRD\.md|\./docs/ARCHITECTURE\.md' | sed 's|^\./||' | sort | tr '\n' ' ')
+    grep -vxE '\./docs|\./docs/PRD\.md|\./docs/ARCHITECTURE\.md|\./\.claude|\./\.claude/settings\.local\.json' |
+    sed 's|^\./||' | sort | tr '\n' ' ')
   if [[ -n $extra ]]; then
     echo "refusé : $dir contient des fichiers hors cadrage : ${extra% } ; rien n'a été modifié."
     return

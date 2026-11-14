@@ -2,6 +2,12 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
+## [à venir] — en cours
+
+### Corrigé
+
+- `create` refusait tout dossier de plugin réglé comme les autres, avec plugin-plugin activé pour ce seul dossier : `.claude/settings.local.json` comptait comme un fichier hors cadrage. Ces réglages locaux peuvent désormais rester à côté du cadrage ; la charpente n'y écrit pas et son `.gitignore` les garde hors de git. Tout autre fichier de `.claude/`, réglages partagés compris, est refusé comme avant. Relevé en créant plugin-ts-backend.
+
 ## [0.1.8] — 2026-11-01
 
 ### Modifié
