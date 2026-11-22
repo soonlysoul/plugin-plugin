@@ -2,6 +2,9 @@
 # Eval suites, checked without running them (check-evals), announced before any launch
 # (eval-plan), launched only on a literal « oui » (eval-run), and judged (eval-verdict): a
 # positive case the baseline passes is refused; a case that needs Bash without bwrap is blocked.
+# The command grants each gated tool the cases declare and no other, and passes --scaffold only
+# when a case has a scaffold_script, named in the announcement; a pass the CLI warns about —
+# a case run unstaged, a tool not granted — or whose scaffold failed is blocked, never counted.
 # shellcheck source=../lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 SUITE=test_evals
@@ -23,6 +26,7 @@ case " $* " in
       echo "Error: $4 is not a trusted plugin directory, and this run cannot stop to ask you about it (no interactive terminal, or --json / CI)." >&2
       exit 1
     fi
+    [[ -z ${STUB_NOTICE:-} ]] || printf '%s\n' "$STUB_NOTICE" >&2
     out=""
     while [[ $# -gt 0 ]]; do [[ $1 == --output-dir ]] && out=$2; shift; done
     mkdir -p "$out" && cp "${STUB_RESULT:?}" "$out/aggregate-result.json" ;;
@@ -127,6 +131,9 @@ expect_output "compte qui paie" '^compte qui paie : compte@example\.invalid \(pr
 expect_output "commande exacte, rapport local, plafonnée" "^commande : claude plugin eval .+ --case 'demo-\\*' --no-publish --max-cost-usd 3 --output-dir .+$"
 refuse_output "jamais --trust-plugin" 'trust-plugin'
 refuse_output "aucun outil accordé sans besoin" 'allow-tools'
+refuse_output "aucun scaffold_script : pas de --scaffold" '--scaffold'
+refuse_output "aucun scaffold_script : rien n'en est annoncé" '^scaffold :'
+expect_output "accord : le passage seul" '^accord : seul un « oui » lance ce passage\.$'
 grep -qF 'plugin eval' "$log" 2>/dev/null && fail "eval-plan ne lance rien" "$(cat "$log")" || pass "eval-plan ne lance rien"
 run_pp eval-plan "$good" demo --max-cost 5 -- PATH="$STUBPATH"
 expect_output "plafond modifiable" '^plafond : 5 USD$'
@@ -165,6 +172,50 @@ many=$(suite many "$many_case" "$NEGATIVE")
 run_pp eval-plan "$many" demo -- PATH="$work/stub:$work/sandbox:$NOSANDBOX"
 expect_pp "Bash entier parmi 10 000 motifs : exit 0" 0
 expect_output "Bash entier parmi 10 000 motifs : Bash seul accordé" '--allow-tools Bash --output-dir '
+# PowerShell is the other shell claude plugin eval confines (fact eval-sandbox-shell-only).
+ps_case=$(with "$POSITIVE" '.name = "demo-ps" | .execution.allowed_tools += ["PowerShell"]')
+run_pp eval-plan "$(suite ps "$ps_case" "$NEGATIVE")" demo -- PATH="$STUBPATH"
+expect_pp "PowerShell sans bwrap ni socat : exit 2" 2
+expect_output "PowerShell sans bwrap : bloqué, cas nommé" '^bloqué : bwrap absent \(demo-ps exige PowerShell\)'
+
+echo "# eval-plan : chaque outil gardé que les cas déclarent, et aucun autre"
+# expect_grants <label> <expected>: the arguments of --allow-tools in the announced command,
+# as it prints them (printf %q), exactly.
+expect_grants() {
+  local shown
+  shown=$(sed -n 's/^commande : .* --allow-tools \(.*\) --output-dir .*/\1/p' <<<"$PP_OUTPUT")
+  if [[ $shown == "$2" ]]; then pass "$1"; else fail "$1" "accordé : « $shown », attendu : « $2 »"; fi
+}
+# Gated: every tool but those claude plugin eval always gives a case (fact eval-gated-tools).
+writer=$(with "$POSITIVE" '.name = "demo-writer" | .execution.allowed_tools += ["Glob", "Grep", "Write", "Edit", "AskUserQuestion", "TodoWrite"]')
+notebook=$(with "$NEGATIVE" '.name = "demo-notebook" | .execution.allowed_tools += ["NotebookRead", "NotebookEdit", "WebFetch(domain:example.org)", "mcp__srv__lookup", "Agent", "Write"]')
+gated=$(suite gated "$writer" "$notebook")
+run_pp eval-plan "$gated" demo -- PATH="$STUBPATH"
+expect_pp "Write et Edit sans Bash : exit 0, sans bwrap ni socat" 0
+expect_grants "chaque outil gardé déclaré, une fois ; aucun outil toujours permis" \
+  'Edit NotebookEdit WebFetch\(domain:example.org\) Write mcp__srv__lookup'
+wide=$(with "$POSITIVE" '.name = "demo-wide" | .execution.allowed_tools += ["Write(docs/**)", "Edit(docs/**)"]')
+wider=$(with "$NEGATIVE" '.name = "demo-wider" | .execution.allowed_tools += ["Write"]')
+run_pp eval-plan "$(suite wide "$wide" "$wider")" demo -- PATH="$STUBPATH"
+expect_grants "un cas veut Write entier : Write seul ; Edit garde son motif" 'Edit\(docs/\*\*\) Write'
+
+echo "# eval-plan : scaffold_script"
+staged=$(with "$POSITIVE" '.name = "demo-staged" | .context = {scaffold_script: "setup.sh"}')
+prepared=$(with "$NEGATIVE" '.name = "demo-prepared" | .context = {scaffold_script: "prepare.sh"}')
+run_pp eval-plan "$(suite staged "$staged" "$NEGATIVE")" demo -- PATH="$STUBPATH"
+expect_pp "un cas a un scaffold_script : exit 0" 0
+expect_output "un scaffold_script : --scaffold dans la commande" '^commande : .* --scaffold --output-dir '
+expect_output "l'annonce nomme le cas et son script, lancé sous le compte de Soon" \
+  '^scaffold : --scaffold ; le scaffold_script de 1 cas tourne sous le compte de Soon : demo-staged \(evals/demo/demo-staged/setup\.sh\)$'
+expect_output "accord : le « oui » couvre aussi le scaffold_script" '^accord : seul un « oui » lance ce passage, scaffold_script compris\.$'
+run_pp eval-plan "$(suite staged-two "$staged" "$prepared")" demo -- PATH="$STUBPATH"
+expect_output "deux scaffold_script : chaque cas nommé avec le sien" \
+  '^scaffold : --scaffold ; les scaffold_script de 2 cas tournent sous le compte de Soon : demo-prepared \(evals/demo/demo-prepared/prepare\.sh\), demo-staged \(evals/demo/demo-staged/setup\.sh\)$'
+# A staged case that writes and runs a script of the plugin.
+staged_writer=$(with "$staged" '.execution.allowed_tools += ["Write", "Edit", "Bash"]')
+writers=$(suite writers "$staged_writer" "$NEGATIVE")
+run_pp eval-plan "$writers" demo -- PATH="$work/stub:$work/sandbox:$NOSANDBOX"
+expect_output "scaffold, Bash, Write et Edit : la commande les porte tous" '^commande : .* --scaffold --allow-tools Bash Edit Write --output-dir '
 
 echo "# eval-run : rien ne part sans « oui »"
 cat >"$work/green.json" <<'EOF'
@@ -190,6 +241,34 @@ run_pp eval-run "$good" demo --quote "oui" -- PATH="$STUBPATH" STUB_UNTRUSTED=1 
 expect_pp "dossier non approuvé : exit 2" 2
 expect_output "dossier non approuvé : bloqué, et la commande gratuite qui l'approuve" "^bloqué : .+ n'est pas un dossier de confiance.+--case 'aucun-\\*'.+--max-cost-usd 0\\.01"
 
+: >"$log"
+run_pp eval-run "$writers" demo --quote "oui" -- PATH="$work/stub:$work/sandbox:$NOSANDBOX" STUB_LOG="$log" STUB_RESULT="$work/green.json"
+expect_pp "scaffold et outils gardés : lancé, exit 0" 0
+line=$(grep -F 'plugin eval' "$log")
+[[ $line == *" --scaffold --allow-tools Bash Edit Write "* ]] && pass "la commande lancée porte --scaffold et les outils gardés" \
+  || fail "la commande lancée porte --scaffold et les outils gardés" "$line"
+
+echo "# eval-run : un passage dont le CLI avertit n'est jamais compté"
+# The two warnings of claude plugin eval 2.1.330, word for word: a case run in an unstaged
+# workspace, a case denied a tool it declares.
+UNSTAGED='⚠ case "demo-positive": its scaffold_script is not run without --scaffold (author-supplied bash that runs as you - pass it only for suites you trust); the case runs against an unstaged workspace'
+UNGRANTED='  demo-positive: not granted (missing --allow-tools grant, or a malformed entry): Write, Edit'
+for warning in "$UNSTAGED" "$UNGRANTED"; do
+  label="« ${warning:0:40}… »"
+  run_pp eval-run "$good" demo --quote "oui" -- PATH="$STUBPATH" STUB_RESULT="$work/green.json" STUB_NOTICE="$warning"
+  expect_pp "$label : exit 2" 2
+  expect_output "$label : bloqué, le passage n'est pas compté" "^bloqué : claude plugin eval a averti"
+  # The CLI's own output is echoed before: only what follows the refusal counts as cited.
+  cited=${PP_OUTPUT#*bloqué : claude plugin eval a averti}
+  [[ $cited != "$PP_OUTPUT" && $cited == *"${warning#  }"* ]] && pass "$label : l'avertissement cité par le refus" \
+    || fail "$label : l'avertissement cité par le refus" "${PP_OUTPUT:0:400}"
+  refuse_output "$label : aucun verdict" '^(verdict|ok|rouge) '
+done
+run_pp eval-run "$good" demo --quote "oui" -- PATH="$STUBPATH" STUB_RESULT="$work/green.json" \
+  STUB_NOTICE="  demo-positive: removed from Claude's tools by the case's disallowed_tools: Agent"
+expect_pp "un autre avis du CLI : le verdict suit, exit 0" 0
+expect_output "un autre avis du CLI : verdict vert" '^verdict : vert'
+
 echo "# eval-verdict"
 # verdict <label> <exit> <pattern> <jq filter on green.json>
 verdict() {
@@ -204,6 +283,8 @@ verdict "positif sous le seuil : rouge" 1 '^rouge : demo-positive : WITH 0\.33' 
 verdict "négatif sans écart : accepté" 0 '^verdict : vert' '.cases[1].aggregates.delta = 0'
 verdict "sans bras témoin : jugé sur le score seul" 1 '^rouge : demo-positive : WITH 0\.00, Δ —' '.cases[0].aggregates = {score: 0}'
 verdict "bac à sable absent : bloqué" 2 '^bloqué : demo-positive : sandbox' '.cases[0].arms.with[0].error = "sandbox unavailable: bubblewrap not found"'
+verdict "scaffold_script en échec : bloqué, jamais rouge" 2 '^bloqué : demo-positive : scaffold failed \(exit 1\)' \
+  '.cases[0].aggregates = {score: 0, delta: 0} | .cases[0].arms.with[0].error = "scaffold failed (exit 1): mkdir: cannot create directory"'
 verdict "passage partiel : dit" 2 '^partiel : cost_ceiling' '.partial = true | .partialReason = "cost_ceiling"'
 
 rm -rf "$NOSANDBOX"

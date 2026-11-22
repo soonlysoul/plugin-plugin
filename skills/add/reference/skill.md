@@ -19,7 +19,7 @@ Run `bash <pp> check-evals <folder> <skill>`. Each refusal names the rule to fix
 
 ## 3. Red, before the skill exists
 
-Run `bash <pp> eval-plan <folder> <skill> --one-arm` and show the announcement verbatim: sessions, estimated cost, cap, paying account, exact command. Ask for agreement — « Non » then « Oui », the cost in the question —, and stop. Only « Oui » counts: then run `bash <pp> eval-run <folder> <skill> --one-arm --quote "<the answer, verbatim>"`. A different cap (`--max-cost <usd>`) is set before the announcement, never after.
+Run `bash <pp> eval-plan <folder> <skill> --one-arm` and show the announcement verbatim: sessions, estimated cost, cap, paying account, the cases whose `scaffold_script` runs as Soon, exact command. Ask for agreement — « Non » then « Oui », the cost in the question, and those scripts when there are any —, and stop. Only « Oui » counts: then run `bash <pp> eval-run <folder> <skill> --one-arm --quote "<the answer, verbatim>"`. A different cap (`--max-cost <usd>`) is set before the announcement, never after.
 
 A plugin folder never trusted is refused outside a terminal: `eval-run` then says « bloqué » and gives the free command Soon runs once in a terminal to trust it. Never pass `--trust-plugin`.
 

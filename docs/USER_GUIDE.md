@@ -35,7 +35,7 @@ Les choix vous sont proposés dans une boîte de dialogue (`AskUserQuestion`) : 
 
 « ajoute un agent à plugin-… ». Chaque composant arrive avec son test, vu en échec avant de passer :
 
-- **Skill** : la suite d'évaluation est écrite à partir de vos demandes concrètes — celles qui doivent le déclencher, celles qui ne le doivent pas. Avant tout lancement s'affichent le nombre de sessions, le coût estimé, le plafond et le compte qui paie ; rien ne part sans votre « Oui ».
+- **Skill** : la suite d'évaluation est écrite à partir de vos demandes concrètes — celles qui doivent le déclencher, celles qui ne le doivent pas. Avant tout lancement s'affichent le nombre de sessions, le coût estimé, le plafond et le compte qui paie, et chaque script qui prépare le dossier d'un cas, lancé sous votre compte ; rien ne part sans votre « Oui ».
 - **Hook** : vous êtes averti qu'un hook d'un plugin installé pour le compte s'applique à toutes les sessions, puis il est testé sur des entrées simulées, sans session.
 - **Agent** : ses outils sont déclarés un par un, jamais `Agent` ; un garde de portée le tient à ses dossiers d'écriture et à sa liste de commandes.
 - **Serveur MCP** : un serveur existant est déclaré, sans rien installer ni écrire de secret ; vos valeurs s'écrivent `${VAR}`.

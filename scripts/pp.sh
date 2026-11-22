@@ -775,6 +775,19 @@ EVAL_CASE_RULES='def skill_grader($skill): .type == "tool_used" and .tool == "Sk
       and (any(.graders[]?; skill_grader($skill) and .max == 0 and .min == 0 and .arm == "both") | not)
    then "cas négatif sans min: 0, max: 0 et arm: both" else empty end)'
 COST_LOW=0.13 COST_HIGH=0.23 COST_MEASURED=2026-10-19
+# What claude plugin eval gives a case that declares it, with no operator grant (fact
+# eval-gated-tools, 2.1.330): every other tool a case declares is gated, and reaches it only
+# through --allow-tools. Of those, the shells alone run in its sandbox, which needs bubblewrap and
+# socat (fact eval-sandbox-shell-only): Write, Edit and the others need neither.
+EVAL_FREE_TOOLS=" Read Glob Grep NotebookRead Skill AskUserQuestion TaskCreate TaskGet TaskList TaskUpdate TaskStop Agent TodoWrite "
+EVAL_SHELL_TOOLS=" Bash PowerShell "
+# Its warnings, word for word, that a case runs on something other than what it declares: an
+# unstaged workspace, a tool withheld (fact eval-scaffold-opt-in).
+EVAL_UNSTAGED_WARNING="scaffold_script is not run without --scaffold"
+EVAL_UNGRANTED_WARNING="not granted (missing --allow-tools grant"
+# The error of a run that never reached the skill: no sandbox, or a scaffold_script that failed
+# (« scaffold failed (exit N): … », 2.1.330).
+EVAL_BLOCKING_ERROR='sandbox|bubblewrap|bwrap|socat|^scaffold failed'
 
 # eval_cases <plugin> <skill>: the case files of the suite, one per line.
 eval_cases() {
@@ -834,7 +847,8 @@ usd() { LC_ALL=C awk -v n="$1" 'BEGIN { s = sprintf("%.2f", n); sub(/\./, ",", s
 # a case is blocked.
 eval_plan() {
   local plugin=$1 skill=$2 cap=$3 keep=${4:-} arms=${5:-2} errors files runs count sessions low high
-  local -a bash_cases=() bash_grants=() runs_list=()
+  local file name entry tool script rel case_shells
+  local -a shell_cases=() shells=() case_list=() declared=() grants=() staged=() runs_list=()
   need jq
   [[ $cap =~ ^[0-9]+([.,][0-9]+)?$ ]] && LC_ALL=C awk -v c="${cap/,/.}" 'BEGIN { exit !(c > 0) }' \
     || die "refusé : plafond « $cap » invalide ; un montant positif en USD est attendu."
@@ -845,22 +859,38 @@ eval_plan() {
   count=$(grep -c . <<<"$files")
   while IFS= read -r file; do
     runs_list+=("$(jq -r '.runs' "$file")")
-    if jq -e '(.execution.allowed_tools // []) | any(startswith("Bash"))' "$file" >/dev/null; then
-      bash_cases+=("$(jq -r '.name' "$file")")
-      mapfile -t -O "${#bash_grants[@]}" bash_grants < <(jq -r '.execution.allowed_tools[] | select(startswith("Bash"))' "$file")
+    name=$(jq -r '.name' "$file")
+    case_shells=" "
+    while IFS= read -r entry; do
+      tool=${entry%%(*}
+      [[ -n $tool && $EVAL_FREE_TOOLS != *" $tool "* ]] || continue
+      declared+=("$entry")
+      [[ $EVAL_SHELL_TOOLS == *" $tool "* && $case_shells != *" $tool "* ]] && case_shells+="$tool "
+    done < <(jq -r '(.execution.allowed_tools // [])[] | strings' "$file")
+    if [[ $case_shells != " " ]]; then
+      shell_cases+=("$name")
+      read -ra case_list <<<"$case_shells"
+      for tool in "${case_list[@]}"; do [[ " ${shells[*]-} " == *" $tool "* ]] || shells+=("$tool"); done
     fi
+    # The CLI runs a scaffold_script from its case's folder.
+    script=$(jq -r '.context.scaffold_script // empty | strings' "$file")
+    rel=${file#"$plugin"/}
+    [[ -z $script ]] || staged+=("$name (${rel%/*}/$script)")
   done <<<"$files"
-  # The operator grant is what the cases declare: Bash(pattern:*) stays narrow, unless a case wants all of Bash.
-  # A loop, not a pipe into grep -q, which leaves at the first match: past a pipe's worth of
-  # grants, printf died of SIGPIPE and pipefail read « no Bash ».
-  local grant whole=0
-  for grant in ${bash_grants[@]+"${bash_grants[@]}"}; do [[ $grant == Bash ]] && whole=1; done
-  if ((whole)); then bash_grants=(Bash)
-  else mapfile -t bash_grants < <(printf '%s\n' ${bash_grants[@]+"${bash_grants[@]}"} | grep . | sort -u); fi
-  if ((${#bash_cases[@]})); then
+  # The operator grant is each gated tool the cases declare, and no other: Tool(pattern) stays
+  # narrow, unless a case wants the whole tool. Loops, not a pipe into grep -q, which leaves at the
+  # first match: past a pipe's worth of grants, printf died of SIGPIPE and pipefail read « none ».
+  local -A whole=()
+  for entry in ${declared[@]+"${declared[@]}"}; do [[ $entry == *'('* ]] || whole[$entry]=1; done
+  for entry in ${declared[@]+"${declared[@]}"}; do
+    tool=${entry%%(*}
+    if [[ $entry == "$tool" || -z ${whole[$tool]-} ]]; then grants+=("$entry"); fi
+  done
+  ((${#grants[@]} == 0)) || mapfile -t grants < <(printf '%s\n' "${grants[@]}" | LC_ALL=C sort -u)
+  if ((${#shell_cases[@]})); then
     local missing
     for missing in bwrap socat; do
-      command -v "$missing" >/dev/null 2>&1 || die "bloqué : $missing absent ($(join ', ' "${bash_cases[@]}") exige$( ((${#bash_cases[@]} > 1)) && echo nt) Bash) ; le bac à sable de claude plugin eval en a besoin." 2
+      command -v "$missing" >/dev/null 2>&1 || die "bloqué : $missing absent ($(join ', ' "${shell_cases[@]}") exige$( ((${#shell_cases[@]} > 1)) && echo nt) $(join ' ou ' "${shells[@]}")) ; le bac à sable de claude plugin eval en a besoin." 2
     done
   fi
   need claude
@@ -883,16 +913,28 @@ eval_plan() {
   local account
   account=$(claude auth status --json 2>/dev/null | jq -r '"\(.email // "inconnu") (\(.subscriptionType // "?"))"' 2>/dev/null)
   printf 'compte qui paie : %s, annoncé par claude auth status ; seul /api/oauth/profile dit le titulaire réel\n' "${account:-inconnu}"
+  # Without --scaffold, a case with a scaffold_script runs in an empty folder; with it, the script
+  # is bash of the plugin run as Soon, which the « oui » covers: each one is named.
+  if ((${#staged[@]} == 1)); then
+    printf 'scaffold : --scaffold ; le scaffold_script de 1 cas tourne sous le compte de Soon : %s\n' "${staged[0]}"
+  elif ((${#staged[@]} > 1)); then
+    printf 'scaffold : --scaffold ; les scaffold_script de %d cas tournent sous le compte de Soon : %s\n' "${#staged[@]}" "$(join ', ' "${staged[@]}")"
+  fi
   EVAL_OUTPUT="$plugin/evals/results/$skill-$(date +%Y%m%dT%H%M%S)"
   EVAL_COMMAND=(claude plugin eval "$plugin" --case "$skill-*" --no-publish --max-cost-usd "$cap")
   ((arms == 1)) && EVAL_COMMAND+=(--ablation none)
-  ((${#bash_cases[@]})) && EVAL_COMMAND+=(--allow-tools "${bash_grants[@]}")
+  ((${#staged[@]})) && EVAL_COMMAND+=(--scaffold)
+  ((${#grants[@]})) && EVAL_COMMAND+=(--allow-tools "${grants[@]}")
   [[ $keep == --keep-temp ]] && EVAL_COMMAND+=(--keep-temp)
   EVAL_COMMAND+=(--output-dir "$EVAL_OUTPUT")
   local shown
   shown=$(printf '%q ' "${EVAL_COMMAND[@]}")
   printf 'commande : %s\n' "${shown% }" | sed "s/ --case $skill-\\\\\\* / --case '$skill-*' /"
-  printf 'accord : seul un « oui » lance ce passage.\n'
+  if ((${#staged[@]})); then
+    printf 'accord : seul un « oui » lance ce passage, scaffold_script compris.\n'
+  else
+    printf 'accord : seul un « oui » lance ce passage.\n'
+  fi
 }
 
 # eval_options <args...>: --max-cost, --keep-temp and --one-arm into CAP, KEEP and ARMS;
@@ -937,7 +979,15 @@ cmd_eval_run() {
     rm -f "$log"
     die "bloqué : $plugin n'est pas un dossier de confiance pour claude plugin eval. À lancer une fois dans un terminal, sans coût : cd $(printf '%q' "$plugin") && claude plugin eval . --case 'aucun-*' --no-publish --max-cost-usd 0.01 --ablation none --runs 1 — puis répondre y." 2
   fi
+  # A case run in an empty folder, or without a tool it declares, measures something other than
+  # the skill: whatever its score, the pass is not counted. Each warning is cited, colours removed.
+  local warnings
+  warnings=$(grep -F -e "$EVAL_UNSTAGED_WARNING" -e "$EVAL_UNGRANTED_WARNING" "$log" | sed $'s/\x1b\\[[0-9;]*m//g; s/^[[:space:]]*/  /')
   rm -f "$log"
+  if [[ -n $warnings ]]; then
+    die "bloqué : claude plugin eval a averti, le passage n'est pas compté — un dossier vide ou un outil refusé ne mesure ni un rouge ni un vert :
+$warnings$([[ -d $EVAL_OUTPUT ]] && printf '\nrésultats laissés dans %s, à ne pas comparer' "$EVAL_OUTPUT")" 2
+  fi
   [[ -f $EVAL_OUTPUT/aggregate-result.json ]] || die "échec : aucun résultat écrit dans $EVAL_OUTPUT."
   cmd_eval_verdict "$plugin" "$skill" "$EVAL_OUTPUT/aggregate-result.json"
 }
@@ -958,7 +1008,8 @@ cmd_eval_verdict() {
       jq -e --arg name "$name" '.name == $name' "$case_file" >/dev/null 2>&1 || continue
       kind=$(jq -r --arg skill "$skill" "$EVAL_CASE_KIND" "$case_file")
     done < <(eval_cases "$plugin" "$skill")
-    if [[ $error =~ sandbox|bubblewrap|bwrap|socat ]]; then
+    # No sandbox, or a scaffold_script that failed: the case did not run on what it declares.
+    if [[ $error =~ $EVAL_BLOCKING_ERROR ]]; then
       printf 'bloqué : %s : %s\n' "$name" "$error"
       blocked=1
       continue

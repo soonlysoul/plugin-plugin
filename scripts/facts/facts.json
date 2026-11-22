@@ -1259,5 +1259,41 @@
     "source": "phase 25 : sonde build/p25-probe, answers « Oui » rempli par Claude, « Non » choisi et rendu ; doc hooks, updatedInput.answers",
     "recheck": "même sonde que askuserquestion-interactive : demander à Claude de remplir answers",
     "status": "confirmé"
+  },
+  {
+    "id": "eval-scaffold-opt-in",
+    "statement": "Sans --scaffold, claude plugin eval ne lance pas le scaffold_script d'un cas : il avertit « ⚠ case \"<nom>\": its scaffold_script is not run without --scaffold (…); the case runs against an unstaged workspace », et le cas tourne dans un dossier vide. Avec --scaffold, le script, résolu depuis le dossier du cas, tourne sous le compte de l'utilisateur ; s'il échoue, l'exécution porte l'erreur « scaffold failed (exit N): … » et un score de 0.",
+    "claude_version": "2.1.330",
+    "date": "2026-11-22",
+    "source": "plugin-klart, passage du 2026-11-22 (son PROGRESS.md, « Le trou de pp.sh ») ; claude plugin eval --help (« off by default ») ; binaire 2.1.330",
+    "recheck": "claude plugin eval --help ; un cas à scaffold_script lancé sans --scaffold",
+    "status": "confirmé"
+  },
+  {
+    "id": "eval-gated-tools",
+    "statement": "Dans claude plugin eval, un cas reçoit d'office, s'il les déclare, Read, Glob, Grep, NotebookRead, Skill, AskUserQuestion, TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop, Agent et TodoWrite. Tout autre outil déclaré est gardé — Bash, Write, Edit, NotebookEdit, WebFetch, WebSearch, PowerShell, mcp__… : sans un droit de --allow-tools qui le couvre, il est retenu, et le CLI avertit « <cas>: not granted (missing --allow-tools grant, or a malformed entry): … ». L'aide n'en nomme que Bash, Write, Edit, WebFetch et mcp__*. Un droit Tool(motif) du cas exige le même motif, ou l'outil entier.",
+    "claude_version": "2.1.330",
+    "date": "2026-11-22",
+    "source": "binaire 2.1.330, l'ensemble des outils toujours permis et le calcul des droits d'un cas ; plugin-klart, avertissement observé pour Write et Edit le 2026-11-22",
+    "recheck": "claude plugin eval --help ; un cas qui déclare l'outil, lancé sans --allow-tools : l'avertissement « not granted » le nomme-t-il ?",
+    "status": "confirmé"
+  },
+  {
+    "id": "eval-sandbox-shell-only",
+    "statement": "claude plugin eval ne monte son bac à sable (bubblewrap, socat) que si un shell est accordé, Bash ou PowerShell : Write, Edit, NotebookEdit, WebFetch ou un outil MCP accordés sans shell n'en ont pas besoin. Lu dans le binaire ; jamais observé en passage.",
+    "claude_version": "2.1.330",
+    "date": "2026-11-22",
+    "source": "binaire 2.1.330 : la préparation du bac à sable d'une exécution s'arrête quand ni Bash ni PowerShell n'est accordé",
+    "recheck": "un cas qui déclare Write et Edit sans Bash, accordés, lancé sans bwrap dans le PATH : l'exécution part-elle ?",
+    "status": "à vérifier"
+  },
+  {
+    "id": "eval-allow-tools-suite-wide",
+    "statement": "Un droit de --allow-tools vaut pour tous les cas du passage : chacun reçoit les outils accordés, en plus de ceux qu'il reçoit d'office, qu'il les déclare ou non. Lu dans le binaire ; jamais observé en passage.",
+    "claude_version": "2.1.330",
+    "date": "2026-11-22",
+    "source": "binaire 2.1.330 : les droits d'un cas, passés à --allowed-tools de sa session, sont ceux de l'opérateur plus ses outils d'office",
+    "recheck": "--keep-temp : la trace d'un cas qui ne déclare pas Write, dans un passage qui l'accorde, liste-t-elle Write dans les outils de la session ?",
+    "status": "à vérifier"
   }
 ]

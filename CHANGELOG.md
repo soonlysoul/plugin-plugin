@@ -2,6 +2,13 @@
 
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) ; versionnage [SemVer](https://semver.org/lang/fr/) : correctif pour une consigne corrigée, mineure pour un composant ajouté, majeure pour un changement qui casse l'existant.
 
+## [à venir] — en cours
+
+### Corrigé
+
+- Évaluations : `eval-plan` et `eval-run` lançaient `claude plugin eval` sans `--scaffold`, et n'accordaient que Bash. Un cas qui prépare son dossier par un `scaffold_script` tournait dans un dossier vide, un cas qui déclare Write ou Edit ne les recevait pas : le passage mesurait autre chose que le skill, et un verdict en sortait quand même. La commande porte désormais `--scaffold` dès qu'un cas a un `scaffold_script`, et seulement alors ; l'annonce nomme chacun de ces cas et son script, qui tourne sous le compte de Soon, et le « oui » le couvre. `--allow-tools` accorde chaque outil que les cas déclarent et que `claude plugin eval` garde — tout outil hors de Read, Glob, Grep, Skill et des autres qu'il donne d'office —, et aucun autre ; un motif reste étroit, sauf si un cas veut l'outil entier. Write et Edit sans Bash n'exigent pas le bac à sable ; PowerShell, comme Bash, l'exige. Relevé dans plugin-klart, sur Claude Code 2.1.330.
+- Évaluations, `eval-run` : un passage dont `claude plugin eval` avertit qu'un cas a tourné dans un dossier vide, ou sans un outil qu'il déclare, n'est plus compté ; il est dit bloqué, exit 2, l'avertissement cité. Un `scaffold_script` en échec rend son cas bloqué, et non plus rouge.
+
 ## [0.1.9] — 2026-11-14
 
 ### Corrigé

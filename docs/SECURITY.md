@@ -36,6 +36,9 @@ Les deux hooks ne dépendent pas l'un de l'autre : l'accord passe par le disque.
 - Toujours un plafond `--max-cost-usd`, annoncé avec le nombre de sessions, le coût estimé et le compte qui paie, avant votre « oui ».
 - Jamais `--trust-plugin`, que l'outil présente comme l'équivalent de `--dangerously-skip-permissions`.
 - Un cas qui a besoin de Bash sans bac à sable appliqué est « bloqué », jamais « réussi ».
+- `--scaffold` seulement quand un cas a un `scaffold_script` : l'annonce nomme chacun de ces cas et son script, du bash du plugin qui tourne sous votre compte, et votre « oui » le couvre aussi.
+- `--allow-tools` accorde les outils que les cas déclarent et que l'évaluation garde, et eux seuls ; un motif reste étroit, sauf si un cas veut l'outil entier. L'outil accordé vaut pour tous les cas du passage.
+- Un passage dont `claude plugin eval` avertit qu'un cas a tourné dans un dossier vide, ou sans un outil qu'il déclare, est « bloqué » et n'est pas compté ; un `scaffold_script` en échec aussi.
 
 ## Secrets
 
